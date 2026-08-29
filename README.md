@@ -6,7 +6,7 @@ Aplicativo web de relacionamentos em que a conversa vem antes da aparência. Nã
 clone de Tinder com outra paleta: a foto de um desconhecido entra velada e só se revela
 conforme a conversa evolui de verdade.
 
-![etapa](https://img.shields.io/badge/status-MVP%20funcional-6E4C9B) ![stack](https://img.shields.io/badge/React%2019-TypeScript-1F1A2E) ![ia](https://img.shields.io/badge/Gemini-opcional-CA6A43)
+[![CI](https://github.com/ruidias06111966/saas/actions/workflows/ci.yml/badge.svg)](https://github.com/ruidias06111966/saas/actions/workflows/ci.yml) ![etapa](https://img.shields.io/badge/status-MVP%20funcional-6E4C9B) ![stack](https://img.shields.io/badge/React%2019-TypeScript-1F1A2E) ![ia](https://img.shields.io/badge/Gemini-opcional-CA6A43)
 
 ## Rodando
 
@@ -92,6 +92,9 @@ npm run typecheck  # tsc --noEmit
 npm run build      # typecheck + build de produção
 npm run preview    # serve o build
 ```
+
+O GitHub Actions roda `npm ci`, o typecheck e o build a cada pull request e a
+cada push na `main` (`.github/workflows/ci.yml`).
 
 ## Avisos
 
