@@ -1,0 +1,103 @@
+# CONEXÃO
+
+**Antes de escolher alguém, conheça alguém.**
+
+Aplicativo web de relacionamentos em que a conversa vem antes da aparência. Não é um
+clone de Tinder com outra paleta: a foto de um desconhecido entra velada e só se revela
+conforme a conversa evolui de verdade.
+
+![etapa](https://img.shields.io/badge/status-MVP%20funcional-6E4C9B) ![stack](https://img.shields.io/badge/React%2019-TypeScript-1F1A2E) ![ia](https://img.shields.io/badge/Gemini-opcional-CA6A43)
+
+## Rodando
+
+```bash
+npm install
+npm run dev          # http://localhost:5173
+```
+
+O app funciona **sem nenhuma chave de API**. Para ligar o Copiloto de IA:
+
+```bash
+cp .env.example .env
+# preencha GEMINI_API_KEY (pegue em https://aistudio.google.com/apikey)
+```
+
+Sem a chave, todas as sugestões vêm de um banco curado local e o app avisa que está em
+"modo local" — nenhuma tela quebra.
+
+### Contas de demonstração
+
+| Conta | E-mail | Senha |
+|---|---|---|
+| Usuário | `joao@conexao.app` | `conexao123` |
+| Administrador | `admin@conexao.app` | `conexao123` |
+
+A tela de login tem botões de entrada em um clique. Há 12 perfis fictícios, uma conversa
+já em andamento (véu em "Quase lá"), uma solicitação pendente, uma conversa parada para
+ver o fluxo anti-ghosting, duas denúncias e um item na fila de moderação.
+
+## Os três mecanismos
+
+### Revelação Progressiva
+A descoberta mostra **Cartões de Essência**: o retrato entra pequeno e muito desfocado, e
+o centro do cartão é o que a pessoa **escreveu**. Dentro da conversa, o desfoque diminui
+em cinco estágios — Silhueta, Contornos, Traços, Quase lá, Revelado — conforme o
+Termômetro sobe. Existe um atalho: propor revelar agora, que só vale com o aceite dos dois.
+
+### Curadoria Diária
+Um **Encontro do Dia** em destaque e mais 5 perfis (20 no Premium), escolhidos por uma
+semente determinística. O destaque expira em 24 horas. Seis "Tenho interesse" por dia no
+plano gratuito — e o app explica que o limite é proposital.
+
+### Termômetro de Conversa
+Mede reciprocidade, profundidade, constância e abertura, com fatores que impedem uma
+conversa curta de pontuar alto. É o que abre o véu. Conversa parada há mais de cinco dias
+aciona o **Encerrar com gentileza**: quem se despede ganha reputação, quem some perde.
+
+## O que mais tem aqui
+
+- **Compatibilidade explicável** — 7 dimensões com peso, score e a frase do porquê. Nunca
+  um número solto, sempre com grau de confiança e o ponto de atrito.
+- **Copiloto Gemini** — sugere aberturas, próximas perguntas e melhorias de perfil.
+  Nunca envia por você, nunca finge ser você, nunca pede dado pessoal.
+- **Moderação em duas camadas** — heurística local antes do envio, Gemini como reforço,
+  e nenhuma suspensão automática: tudo cai na fila de revisão humana.
+- **LGPD funcionando** — exportar dados em JSON, corrigir, excluir a conta com
+  anonimização, consentimentos versionados. Localização só por cidade e faixa de distância.
+- **Painel administrativo** — usuários, denúncias e fila de moderação. A métrica de topo é
+  a taxa de conexões que viraram conversa, não tempo de tela.
+- **15 telas**, mobile-first, modo claro e escuro, acessível.
+
+## Documentação
+
+| Arquivo | Para quê |
+|---|---|
+| [`docs/PROMPT-MESTRE.md`](docs/PROMPT-MESTRE.md) | O prompt completo, pronto para colar no AI Studio ou no Lovable |
+| [`docs/PROMPT-ETAPAS.md`](docs/PROMPT-ETAPAS.md) | O mesmo prompt em 9 blocos encadeados, se a ferramenta truncar |
+| [`docs/AI-STUDIO-vs-LOVABLE.md`](docs/AI-STUDIO-vs-LOVABLE.md) | Qual ferramenta usar, e por quê |
+| [`docs/ARQUITETURA.md`](docs/ARQUITETURA.md) | Decisões, fórmulas e limitações conhecidas |
+| [`docs/SUPABASE.sql`](docs/SUPABASE.sql) | Schema PostgreSQL completo, com RLS e função de exclusão LGPD |
+
+## Stack
+
+React 19 · TypeScript strict · Vite 6 · Tailwind 3 · `@google/genai` (opcional).
+Sem biblioteca de estado, sem biblioteca de ícones, sem biblioteca de rotas — o
+roteamento é uma união discriminada de 15 rotas em `types.ts`.
+
+## Comandos
+
+```bash
+npm run dev        # servidor de desenvolvimento
+npm run typecheck  # tsc --noEmit
+npm run build      # typecheck + build de produção
+npm run preview    # serve o build
+```
+
+## Avisos
+
+Este é um MVP de demonstração. A autenticação é uma comparação de hash no navegador e os
+dados vivem no `localStorage` — nada disso vai para produção sem um backend real. O
+caminho de migração está em [`docs/ARQUITETURA.md`](docs/ARQUITETURA.md).
+
+Todos os perfis são fictícios. Nenhuma foto de pessoa real é usada: perfis sem foto
+ganham um retrato abstrato gerado por código.
