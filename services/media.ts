@@ -15,6 +15,11 @@ import { clamp } from './utils';
 // reconstruir. O desfoque de CSS continua, mas agora é só suavização visual
 // por cima de uma imagem que já não contém o rosto.
 //
+// Os níveis velados (12, 24, 48 e 96 px) são gerados no SERVIDOR, pela Edge
+// Function `velar` — ver supabase/functions/velar/index.ts. O navegador entrega
+// só o original, e a política do Storage recusa qualquer escrita dele nos
+// níveis velados. Este arquivo, portanto, apenas envia e lê.
+//
 // Modo demo (sem backend) guarda um dataURL só e o véu volta a ser cosmético:
 // não há servidor para fazer valer o portão, e isso está documentado na UI.
 // ---------------------------------------------------------------------------
@@ -22,8 +27,7 @@ import { clamp } from './utils';
 const BUCKET = 'midia';
 const URL_TTL_SEGUNDOS = 60 * 60;
 
-/** Larguras dos níveis velados. O nível 4 é o original. */
-const LARGURAS_VELADAS = [12, 24, 48, 96];
+/** O nível 4 é o original; 0..3 são os velados que o servidor gera. */
 export const NIVEL_ORIGINAL = 4;
 
 /** Qual nível da pirâmide corresponde a um `reveal` de 0..1. */
@@ -71,37 +75,37 @@ function renderizar(img: HTMLImageElement, larguraAlvo: number, qualidade: numbe
 }
 
 /**
- * Sobe a foto de perfil como pirâmide e devolve o caminho-base, sem extensão.
- * O nível concreto é escolhido na leitura, conforme o que o banco autorizar.
+ * Sobe a foto de perfil e devolve o caminho-base, sem extensão. O nível concreto
+ * é escolhido na leitura, conforme o que o banco autorizar.
  *
- * Os níveis velados são gerados aqui, no navegador. Quem sobe pode, em tese,
- * mandar um "nível 0" mais nítido do que devia — mas é a foto dele mesmo, e o
- * único efeito é se revelar mais cedo. O que ninguém consegue é ver a foto de
- * OUTRA pessoa antes da hora: isso o Storage não deixa, e é o que importa.
+ * O navegador entrega SÓ o original. Os níveis velados são gerados pela Edge
+ * Function `velar`, com service_role — e a política do Storage recusa qualquer
+ * escrita do cliente em `-0..3.jpg`. Antes a pirâmide era feita aqui, o que
+ * deixava quem sobe escolher o conteúdo do próprio borrão e se revelar mais
+ * cedo do que a conversa merecia.
+ *
+ * Se a geração falhar, o original é apagado e o erro sobe. É de propósito:
+ * meio caminho aqui significaria um retrato sem véu para quem ainda não tem
+ * direito a ele, e é melhor não ter foto do que ter a foto errada.
  */
 export async function uploadProfilePhoto(file: File, userId: string): Promise<string> {
   if (!supabaseEnabled) return readImageAsDataUrl(file, 720);
 
   const img = await carregar(file);
   const base = `${userId}/perfil/${Date.now()}`;
+  const caminhoOriginal = `${base}-${sufixo(NIVEL_ORIGINAL)}.jpg`;
   const db = requireSupabase();
 
-  const partes: { nivel: number; blob: Blob }[] = [
-    ...await Promise.all(
-      LARGURAS_VELADAS.map(async (largura, nivel) => ({
-        nivel, blob: await renderizar(img, largura, 0.7),
-      })),
-    ),
-    { nivel: NIVEL_ORIGINAL, blob: await renderizar(img, 720, 0.85) },
-  ];
+  const original = await renderizar(img, 720, 0.85);
+  const { error } = await db.storage.from(BUCKET).upload(caminhoOriginal, original, {
+    contentType: 'image/jpeg', upsert: true,
+  });
+  if (error) throw new Error(`Falha ao enviar a imagem: ${error.message}`);
 
-  for (const { nivel, blob } of partes) {
-    const { error } = await db.storage
-      .from(BUCKET)
-      .upload(`${base}-${sufixo(nivel)}.jpg`, blob, {
-        contentType: 'image/jpeg', upsert: true,
-      });
-    if (error) throw new Error(`Falha ao enviar a imagem: ${error.message}`);
+  const { data, error: erroVeu } = await db.functions.invoke('velar', { body: { base } });
+  if (erroVeu || !(data as { ok?: boolean } | null)?.ok) {
+    await db.storage.from(BUCKET).remove([caminhoOriginal]);
+    throw new Error('Não foi possível preparar o véu da sua foto. Tente de novo.');
   }
   return base;
 }

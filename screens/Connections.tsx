@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useApp } from '../state/AppContext';
-import { connectionsOf, findUser, messagesOf, otherId } from '../state/appState';
-import { conversationHealth } from '../services/conversation';
+import { connectionsOf, findUser, healthOf, messagesOf, otherId } from '../state/appState';
 import { Page } from '../components/layout/AppShell';
 import { Button, Card, Chip, Empty, Icon, Tabs } from '../components/ui';
 import { CompatBadge } from '../components/EssenceCard';
@@ -22,7 +21,7 @@ export function Connections() {
       .map((c) => {
         const user = findUser(state, otherId(c, me.id));
         const msgs = messagesOf(state, c.id);
-        return { c, user, msgs, health: conversationHealth(c, msgs) };
+        return { c, user, msgs, health: healthOf(state, c, msgs) };
       })
       .filter((r) => !!r.user);
 

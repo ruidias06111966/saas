@@ -669,12 +669,24 @@ end $$;
 create or replace function private.limitar(v numeric) returns numeric
 language sql immutable as $$ select least(1, greatest(0, v)) $$;
 
--- Espelha services/conversation.ts. As duas implementações foram comparadas
--- com a mesma conversa sintética e devolveram score 58, estágio 2.
--- Ao mexer numa, mexa na outra: a UI mostra o número do cliente e o portão
--- usa o do servidor.
+-- Espelha services/conversation.ts, medida por medida.
+--
+-- As duas implementações foram comparadas com a mesma conversa sintética (14
+-- mensagens, 6 dias, 2 rituais) e devolveram exatamente os mesmos oito
+-- números: score 58, estágio 2, reciprocidade 100, profundidade 77,
+-- constância 94, abertura 40. Ao mexer numa, mexa na outra.
+--
+-- Por que existem as duas: o cliente calcula para a UI reagir na hora à
+-- mensagem que você acabou de mandar; o servidor calcula porque é ele quem
+-- abre o véu, e porque com a paginação o cliente deixou de ter o histórico
+-- inteiro das conversas longas.
 create or replace function private.termometro(conn uuid)
-returns table (score smallint, estagio smallint)
+returns table (
+  score smallint, estagio smallint,
+  reciprocidade smallint, profundidade smallint,
+  constancia smallint, abertura smallint,
+  mensagens int, dias int
+)
 language plpgsql stable security definer set search_path = public as $$
 declare
   ua uuid; ub uuid;
@@ -683,11 +695,14 @@ declare
   rituais numeric; max_nivel numeric;
   primeira timestamptz; mediana numeric;
   recip numeric; prof numeric; const numeric; abert numeric;
-  volume numeric; dias numeric; espalha numeric; bruto numeric;
+  volume numeric; d numeric; espalha numeric; bruto numeric;
   s smallint;
 begin
   select c.user_a, c.user_b into ua, ub from public.connections c where c.id = conn;
-  if ua is null then return query select 0::smallint, 0::smallint; return; end if;
+  if ua is null then
+    return query select 0::smallint, 0::smallint, 0::smallint, 0::smallint,
+                        0::smallint, 0::smallint, 0, 1; return;
+  end if;
 
   select
     count(*)::numeric,
@@ -702,16 +717,22 @@ begin
   from public.messages m
   where m.connection_id = conn and m.kind <> 'sistema';
 
-  if n = 0 then return query select 0::smallint, 0::smallint; return; end if;
+  if n = 0 then
+    return query select 0::smallint, 0::smallint, 0::smallint, 0::smallint,
+                        0::smallint, 0::smallint, 0, 1; return;
+  end if;
 
+  -- 1. Reciprocidade
   recip := case when n < 4 then private.limitar(n / 4) * 0.5
                 else 1 - abs(na - nb) / n end;
 
+  -- 2. Profundidade
   prof := private.limitar(
     private.limitar(media_palavras / 22) * 0.65 +
     private.limitar((perguntas / n) / 0.3) * 0.35
   );
 
+  -- 3. Constância: mediana do intervalo entre turnos alternados.
   select percentile_cont(0.5) within group (order by x.seg) into mediana
   from (
     select extract(epoch from (t.created_at - lag(t.created_at) over w)) as seg,
@@ -729,18 +750,24 @@ begin
     else private.limitar(1 - (mediana - 21600) / 259200)
   end;
 
+  -- 4. Abertura: rituais respondidos.
   abert := private.limitar(rituais / 6) * 0.6 + private.limitar(max_nivel / 4) * 0.4;
 
+  -- Amortecedores: conversa curta ou concentrada num dia não chega longe.
   volume := private.limitar(log(2, 1 + n) / log(2, 41));
-  dias := greatest(1, round(extract(epoch from (now() - primeira)) / 86400));
-  espalha := private.limitar(dias / 5) * 0.35 + 0.65;
+  d := greatest(1, round(extract(epoch from (now() - primeira)) / 86400));
+  espalha := private.limitar(d / 5) * 0.35 + 0.65;
 
   bruto := (recip * 0.28 + prof * 0.28 + const * 0.22 + abert * 0.22) * volume * espalha;
   s := round(private.limitar(bruto) * 100)::smallint;
 
-  return query select s, (case
-    when s >= 82 then 4 when s >= 62 then 3
-    when s >= 40 then 2 when s >= 20 then 1 else 0 end)::smallint;
+  return query select
+    s,
+    (case when s >= 82 then 4 when s >= 62 then 3
+          when s >= 40 then 2 when s >= 20 then 1 else 0 end)::smallint,
+    round(recip * 100)::smallint, round(prof * 100)::smallint,
+    round(const * 100)::smallint, round(abert * 100)::smallint,
+    n::int, d::int;
 end;
 $$;
 
@@ -777,8 +804,34 @@ revoke execute on function private.nivel_do_arquivo(text) from public, anon;
 revoke execute on function private.nivel_permitido(uuid)  from public, anon;
 grant  execute on function private.termometro(uuid)       to authenticated;
 grant  execute on function private.nivel_permitido(uuid)  to authenticated;
+-- ATENÇÃO: este grant é obrigatório. A política de leitura abaixo avalia
+-- nivel_do_arquivo(name) ANTES de nivel_permitido(...), e sem ele toda
+-- leitura de foto morre em "permission denied for function
+-- nivel_do_arquivo" — inclusive a da própria pessoa. O erro não aparece na
+-- tela: resolveImage() desce de nível quando a assinatura falha e acaba no
+-- retrato generativo, então o véu PARECE funcionar e nenhuma foto real
+-- jamais é exibida.
+grant  execute on function private.nivel_do_arquivo(text) to authenticated;
+
+-- --------------------------------------------------------------------------
+-- Políticas do bucket `midia`
+--
+-- LEITURA: o nível pedido tem de caber no que a conversa autoriza.
+-- ESCRITA: o cliente só entrega o ORIGINAL. Os níveis velados são gravados
+--          exclusivamente pela Edge Function `velar`, que usa service_role e
+--          por isso não passa por estas políticas. Sem essa restrição, quem
+--          sobe a foto escolheria o conteúdo do próprio borrão e poderia se
+--          revelar antes da hora para todo mundo.
+-- --------------------------------------------------------------------------
 
 drop policy if exists "autenticado lê mídia" on storage.objects;
+drop policy if exists "dono envia na própria pasta" on storage.objects;
+drop policy if exists "dono atualiza a própria pasta" on storage.objects;
+drop policy if exists "dono envia só o original ou imagem de conversa" on storage.objects;
+drop policy if exists "dono atualiza só o que ele mesmo pode enviar" on storage.objects;
+drop policy if exists "dono apaga a própria pasta" on storage.objects;
+drop policy if exists "foto de perfil respeita o véu" on storage.objects;
+drop policy if exists "imagem de conversa entre conectados" on storage.objects;
 
 create policy "foto de perfil respeita o véu"
   on storage.objects for select to authenticated
@@ -804,5 +857,211 @@ create policy "imagem de conversa entre conectados"
           and ((c.user_a = auth.uid() and c.user_b::text = (storage.foldername(name))[1])
             or (c.user_b = auth.uid() and c.user_a::text = (storage.foldername(name))[1]))
       )
+    )
+  );
+
+create policy "dono envia só o original ou imagem de conversa"
+  on storage.objects for insert to authenticated
+  with check (
+    bucket_id = 'midia'
+    and (storage.foldername(name))[1] = auth.uid()::text
+    and (
+      ((storage.foldername(name))[2] = 'perfil' and name ~ '-orig\.jpg$')
+      or ((storage.foldername(name))[2] = 'conversa' and name ~ '\.jpg$')
+    )
+  );
+
+create policy "dono atualiza só o que ele mesmo pode enviar"
+  on storage.objects for update to authenticated
+  using (
+    bucket_id = 'midia'
+    and (storage.foldername(name))[1] = auth.uid()::text
+    and (
+      ((storage.foldername(name))[2] = 'perfil' and name ~ '-orig\.jpg$')
+      or ((storage.foldername(name))[2] = 'conversa' and name ~ '\.jpg$')
+    )
+  );
+
+-- Apagar continua liberado na própria pasta: remover um nível velado só
+-- esconde mais, nunca revela — e trocar de foto precisa limpar a pirâmide.
+create policy "dono apaga a própria pasta"
+  on storage.objects for delete to authenticated
+  using (
+    bucket_id = 'midia'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+-- ===========================================================================
+-- PAGINAÇÃO DE MENSAGENS
+--
+-- O cliente baixava o histórico inteiro de todas as conversas de uma vez.
+-- Funciona com doze perfis fictícios; não funciona com alguém que conversa há
+-- um ano. Agora vêm as últimas 40 de cada conversa, e o resto sob demanda.
+--
+-- A consequência não é óbvia: sem o histórico completo, o cliente NÃO pode
+-- mais calcular o termômetro sozinho — contaria menos mensagens e menos dias,
+-- e o véu FECHARIA. Numa conversa real de 14 mensagens, calcular só sobre as
+-- 5 últimas dá score 23 em vez de 58: o retrato voltaria de 71% para 28%
+-- revelado. Por isso `termometros()` vem junto no primeiro carregamento.
+-- ===========================================================================
+
+create or replace function public.mensagens_recentes(por_conversa int default 40)
+returns setof public.messages
+language sql stable security definer set search_path = public as $$
+  select m.id, m.connection_id, m.sender_id, m.kind, m.body, m.image_url,
+         m.ritual_level, m.created_at, m.read_at, m.mod_level, m.mod_categories
+  from (
+    select mm.*,
+           row_number() over (partition by mm.connection_id order by mm.created_at desc) as rn
+    from public.messages mm
+    join public.connections c on c.id = mm.connection_id
+    where c.user_a = auth.uid() or c.user_b = auth.uid()
+  ) m
+  where m.rn <= least(greatest(coalesce(por_conversa, 40), 1), 200)
+  order by m.created_at;
+$$;
+
+create or replace function public.mensagens_anteriores(
+  conn uuid, antes timestamptz, limite int default 40
+) returns setof public.messages
+language sql stable security definer set search_path = public as $$
+  select m.id, m.connection_id, m.sender_id, m.kind, m.body, m.image_url,
+         m.ritual_level, m.created_at, m.read_at, m.mod_level, m.mod_categories
+  from public.messages m
+  join public.connections c on c.id = m.connection_id
+  where m.connection_id = conn
+    and m.created_at < antes
+    and (c.user_a = auth.uid() or c.user_b = auth.uid())
+  order by m.created_at desc
+  limit least(greatest(coalesce(limite, 40), 1), 200);
+$$;
+
+-- Estas funções são SECURITY DEFINER (o RLS de messages não se aplica dentro
+-- delas), então a checagem de participação está escrita à mão em cada uma.
+create or replace function public.termometros()
+returns table (
+  connection_id uuid, score smallint, estagio smallint,
+  reciprocidade smallint, profundidade smallint,
+  constancia smallint, abertura smallint, mensagens int, dias int
+)
+language sql stable security definer set search_path = public as $$
+  select c.id, t.score, t.estagio, t.reciprocidade, t.profundidade,
+         t.constancia, t.abertura, t.mensagens, t.dias
+  from public.connections c
+  cross join lateral private.termometro(c.id) t
+  where c.user_a = auth.uid() or c.user_b = auth.uid();
+$$;
+
+create or replace function public.termometro_da_conversa(conn uuid)
+returns table (
+  score smallint, estagio smallint,
+  reciprocidade smallint, profundidade smallint,
+  constancia smallint, abertura smallint, mensagens int, dias int
+)
+language plpgsql stable security definer set search_path = public as $$
+begin
+  if not exists (
+    select 1 from public.connections c
+    where c.id = conn
+      and (c.user_a = auth.uid() or c.user_b = auth.uid() or private.is_admin())
+  ) then
+    raise exception 'Conversa indisponível.' using errcode = '42501';
+  end if;
+  return query select * from private.termometro(conn);
+end;
+$$;
+
+revoke execute on function public.mensagens_recentes(int)                    from public, anon;
+revoke execute on function public.mensagens_anteriores(uuid, timestamptz, int) from public, anon;
+revoke execute on function public.termometros()                              from public, anon;
+revoke execute on function public.termometro_da_conversa(uuid)               from public, anon;
+grant  execute on function public.mensagens_recentes(int)                    to authenticated;
+grant  execute on function public.mensagens_anteriores(uuid, timestamptz, int) to authenticated;
+grant  execute on function public.termometros()                              to authenticated;
+grant  execute on function public.termometro_da_conversa(uuid)               to authenticated;
+
+-- ===========================================================================
+-- COTA DE IA IMPOSTA NO SERVIDOR
+--
+-- Antes só o cliente contava as chamadas, e quem tivesse conta podia ignorar
+-- o limite. Agora quem conta é o banco, dentro da Edge Function `copiloto`.
+-- A moderação é isenta: é proteção, não conveniência, e não pode parar de
+-- funcionar porque as sugestões do dia acabaram.
+-- ===========================================================================
+
+create or replace function public.consumir_cota_ia()
+returns table (permitido boolean, usadas int, limite int)
+language plpgsql security definer set search_path = public as $$
+declare
+  me uuid := auth.uid();
+  plano plan_type;
+  teto int;
+  atual int;
+begin
+  if me is null then
+    raise exception 'É preciso estar autenticado.' using errcode = '42501';
+  end if;
+
+  select u.plan into plano from public.users u where u.id = me;
+  teto := case when plano = 'premium' then 100 else 8 end;
+
+  insert into public.daily_usage (user_id, day, interests, ai_calls)
+  values (me, current_date, 0, 0)
+  on conflict (user_id, day) do nothing;
+
+  -- `for update` serializa duas chamadas simultâneas da mesma pessoa; sem
+  -- isso dois pedidos no mesmo instante gastariam uma cota só.
+  select d.ai_calls into atual
+  from public.daily_usage d
+  where d.user_id = me and d.day = current_date
+  for update;
+
+  if atual >= teto then
+    return query select false, atual, teto; return;
+  end if;
+
+  update public.daily_usage d set ai_calls = d.ai_calls + 1
+  where d.user_id = me and d.day = current_date;
+
+  return query select true, atual + 1, teto;
+end;
+$$;
+
+revoke execute on function public.consumir_cota_ia() from public, anon;
+grant  execute on function public.consumir_cota_ia() to authenticated;
+
+-- ===========================================================================
+-- CANAL PRIVADO DE "DIGITANDO…"
+--
+-- O aviso de digitação é Broadcast, não tabela: é efêmero e não merece uma
+-- linha no banco. Mas o canal precisa ser privado, senão qualquer pessoa
+-- autenticada poderia escutar `conversa:<id>` alheia e saber quando os dois
+-- estão conversando — metadado sobre gente real.
+-- ===========================================================================
+
+alter table realtime.messages enable row level security;
+
+drop policy if exists "participantes escutam o canal da conversa" on realtime.messages;
+drop policy if exists "participantes falam no canal da conversa" on realtime.messages;
+
+create policy "participantes escutam o canal da conversa"
+  on realtime.messages for select to authenticated
+  using (
+    realtime.topic() like 'conversa:%'
+    and exists (
+      select 1 from public.connections c
+      where c.id = (split_part(realtime.topic(), ':', 2))::uuid
+        and (c.user_a = auth.uid() or c.user_b = auth.uid())
+    )
+  );
+
+create policy "participantes falam no canal da conversa"
+  on realtime.messages for insert to authenticated
+  with check (
+    realtime.topic() like 'conversa:%'
+    and exists (
+      select 1 from public.connections c
+      where c.id = (split_part(realtime.topic(), ':', 2))::uuid
+        and (c.user_a = auth.uid() or c.user_b = auth.uid())
     )
   );

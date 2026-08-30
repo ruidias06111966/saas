@@ -1,8 +1,9 @@
 import type {
-  AppNotification, Block, Connection, DailyUsage, Message, ModerationItem,
-  Report, Subscription, User,
+  AppNotification, Block, Connection, ConversationHealth, DailyUsage, Message,
+  ModerationItem, Report, Subscription, User,
 } from '../types';
 import type { RemoteSnapshot } from '../services/backend';
+import { type HealthMetrics, buildHealth, conversationHealth } from '../services/conversation';
 import { SEED_USERS } from '../data/seed';
 import { buildSeedActivity } from '../data/seedActivity';
 import { anonymizeUser } from '../services/lgpd';
@@ -22,6 +23,16 @@ export interface AppState {
   theme: 'light' | 'dark';
   /** 'demo' = localStorage com perfis fictícios. 'online' = Postgres com RLS. */
   mode: 'demo' | 'online';
+  /**
+   * Termômetro calculado no Postgres, por conexão. Só é consultado quando o
+   * cliente NÃO tem o histórico inteiro daquela conversa — ver `healthOf`.
+   */
+  healths: Record<string, HealthMetrics>;
+  /**
+   * Conexões cujo histórico completo está em memória. No modo demo são todas;
+   * no online, as que couberam numa página ou já foram lidas até o começo.
+   */
+  fullyLoaded: string[];
 }
 
 export function initialState(): AppState {
@@ -39,6 +50,8 @@ export function initialState(): AppState {
     sessionUserId: null,
     theme: 'light',
     mode: 'demo',
+    healths: {},
+    fullyLoaded: [],
   };
 }
 
@@ -55,6 +68,8 @@ export type Action =
   | { type: 'SET_CONNECTION'; id: string; patch: Partial<Connection> }
   | { type: 'SEND_MESSAGE'; message: Message }
   | { type: 'UPSERT_MESSAGE'; message: Message }
+  | { type: 'PREPEND_MESSAGES'; connectionId: string; messages: Message[]; fim: boolean }
+  | { type: 'SET_HEALTH'; connectionId: string; health: HealthMetrics }
   | { type: 'MARK_READ'; connectionId: string; readerId: string }
   | { type: 'ADD_REPORT'; report: Report }
   | { type: 'UPDATE_REPORT'; id: string; patch: Partial<Report> }
@@ -138,6 +153,26 @@ export function reducer(state: AppState, action: Action): AppState {
           : [...state.messages, action.message],
       };
     }
+
+    // Página anterior do histórico. Idempotente pelo id, porque a mesma
+    // mensagem pode já ter chegado pelo Realtime enquanto a busca voltava.
+    case 'PREPEND_MESSAGES': {
+      const conhecidos = new Set(state.messages.map((m) => m.id));
+      const novas = action.messages.filter((m) => !conhecidos.has(m.id));
+      return {
+        ...state,
+        messages: novas.length ? [...novas, ...state.messages] : state.messages,
+        fullyLoaded: action.fim && !state.fullyLoaded.includes(action.connectionId)
+          ? [...state.fullyLoaded, action.connectionId]
+          : state.fullyLoaded,
+      };
+    }
+
+    case 'SET_HEALTH':
+      return {
+        ...state,
+        healths: { ...state.healths, [action.connectionId]: action.health },
+      };
 
     case 'MARK_READ': {
       const now = new Date().toISOString();
@@ -266,6 +301,31 @@ export const messagesOf = (s: AppState, connectionId: string): Message[] =>
   s.messages
     .filter((m) => m.connectionId === connectionId)
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+
+/** true quando o cliente tem todas as mensagens desta conversa em memória. */
+export const hasFullHistory = (s: AppState, connectionId: string): boolean =>
+  s.mode === 'demo' || s.fullyLoaded.includes(connectionId);
+
+/**
+ * O termômetro da conversa, venha ele de onde vier.
+ *
+ * Com a paginação, uma conversa longa chega truncada, e contar reciprocidade
+ * ou dias sobre as últimas 40 mensagens daria um número simplesmente errado —
+ * mais baixo do que a verdade, e ainda por cima abriria o véu na medida errada.
+ * Nesse caso vale o valor do Postgres, que viu a conversa inteira.
+ *
+ * Quando o cliente tem tudo, a conta local ganha: ela é a mesma fórmula e
+ * reage na hora à mensagem que você acabou de enviar, sem ida ao servidor.
+ */
+export function healthOf(
+  s: AppState, connection: Connection, messages: Message[], now = Date.now(),
+): ConversationHealth {
+  const remoto = s.healths[connection.id];
+  if (!hasFullHistory(s, connection.id) && remoto) {
+    return buildHealth(connection, remoto, messages, now);
+  }
+  return conversationHealth(connection, messages, now);
+}
 
 export const blockedIdsFor = (s: AppState, me: string): Set<string> =>
   new Set([

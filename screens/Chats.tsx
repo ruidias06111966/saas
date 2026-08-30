@@ -1,7 +1,6 @@
 import { useMemo } from 'react';
 import { useApp } from '../state/AppContext';
-import { connectionsOf, findUser, messagesOf, otherId, unreadMessagesFor } from '../state/appState';
-import { conversationHealth } from '../services/conversation';
+import { connectionsOf, findUser, healthOf, messagesOf, otherId, unreadMessagesFor } from '../state/appState';
 import { Page } from '../components/layout/AppShell';
 import { Button, Card, Empty, Icon } from '../components/ui';
 import { Avatar } from '../components/Portrait';
@@ -20,7 +19,7 @@ export function Chats() {
         return {
           c, user, last: msgs[msgs.length - 1],
           unread: unreadMessagesFor(state, me.id, c.id),
-          health: conversationHealth(c, msgs),
+          health: healthOf(state, c, msgs),
         };
       })
       .filter((r) => !!r.user)

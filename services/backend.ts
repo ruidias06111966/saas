@@ -2,6 +2,7 @@ import type {
   AppNotification, Block, Connection, Consent, DailyUsage, Lifestyle, Message,
   ModerationItem, Personality, Preferences, Report, User,
 } from '../types';
+import type { HealthMetrics } from './conversation';
 import { requireSupabase, supabaseEnabled } from './supabaseClient';
 import { dateKey } from './utils';
 
@@ -162,6 +163,35 @@ export const toMessage = (r: RawMessage): Message => ({
 
 // ------------------------------- leitura -----------------------------------
 
+/**
+ * Quantas mensagens por conversa vêm no primeiro carregamento. Antes o cliente
+ * baixava o histórico inteiro de todas as conversas de uma vez — funciona com
+ * doze perfis fictícios e não funciona com uma pessoa que conversa há um ano.
+ */
+export const PAGINA_MENSAGENS = 40;
+
+/** Termômetro calculado no Postgres, para as conversas que chegam truncadas. */
+export interface RemoteHealth extends HealthMetrics {
+  connectionId: string;
+}
+
+interface RawTermometro {
+  connection_id: string; score: number; estagio: number;
+  reciprocidade: number; profundidade: number; constancia: number;
+  abertura: number; mensagens: number; dias: number;
+}
+
+const toHealth = (r: RawTermometro): RemoteHealth => ({
+  connectionId: r.connection_id,
+  score: r.score,
+  reciprocity: r.reciprocidade,
+  depth: r.profundidade,
+  consistency: r.constancia,
+  openness: r.abertura,
+  messages: r.mensagens,
+  days: r.dias,
+});
+
 export interface RemoteSnapshot {
   users: User[];
   connections: Connection[];
@@ -171,17 +201,25 @@ export interface RemoteSnapshot {
   reports: Report[];
   moderationQueue: ModerationItem[];
   usage: DailyUsage[];
+  /** Termômetro do servidor, por conexão. */
+  healths: Record<string, HealthMetrics>;
+  /** Conexões cujo histórico completo já está no cliente. */
+  fullyLoaded: string[];
 }
 
 /**
  * Carrega tudo o que a pessoa logada pode ver. O RLS decide o recorte: perfis
  * ativos e não bloqueados, apenas as conexões e mensagens em que ela participa,
  * e a fila de moderação só para quem é admin.
+ *
+ * As mensagens vêm paginadas (as últimas PAGINA_MENSAGENS de cada conversa), e
+ * por isso o termômetro vem junto, calculado no servidor: sem o histórico
+ * inteiro o cliente não teria como contar reciprocidade nem dias de conversa.
  */
 export async function loadSnapshot(meId: string): Promise<RemoteSnapshot> {
   const db = requireSupabase();
 
-  const [users, connections, notifications, blocks, reports, moderation, usage] =
+  const [users, connections, notifications, blocks, reports, moderation, usage, mensagens, termometros] =
     await Promise.all([
       db.from('users').select(SELECT_USER),
       db.from('connections').select('*'),
@@ -190,28 +228,39 @@ export async function loadSnapshot(meId: string): Promise<RemoteSnapshot> {
       db.from('reports').select('*').order('created_at', { ascending: false }),
       db.from('moderation_queue').select('*').order('created_at', { ascending: false }),
       db.from('daily_usage').select('*').eq('user_id', meId).eq('day', dateKey()),
+      db.rpc('mensagens_recentes', { por_conversa: PAGINA_MENSAGENS }),
+      db.rpc('termometros'),
     ]);
 
-  const firstError = [users, connections, notifications, blocks, reports, moderation, usage]
+  const firstError = [users, connections, notifications, blocks, reports, moderation, usage, mensagens, termometros]
     .find((r) => r.error)?.error;
   if (firstError) throw new Error(`Falha ao carregar dados: ${firstError.message}`);
 
   const conns = (connections.data ?? []).map((c) => toConnection(c as RawConnection));
-  const connIds = conns.map((c) => c.id);
+  const messages = ((mensagens.data ?? []) as RawMessage[]).map(toMessage);
 
-  let messages: Message[] = [];
-  if (connIds.length) {
-    const { data, error } = await db
-      .from('messages').select('*').in('connection_id', connIds)
-      .order('created_at', { ascending: true });
-    if (error) throw new Error(`Falha ao carregar mensagens: ${error.message}`);
-    messages = (data ?? []).map((m) => toMessage(m as RawMessage));
+  const healths: Record<string, HealthMetrics> = {};
+  for (const t of (termometros.data ?? []) as RawTermometro[]) {
+    const { connectionId, ...metricas } = toHealth(t);
+    healths[connectionId] = metricas;
   }
+
+  // Uma conversa que devolveu menos que uma página inteira não tem passado
+  // escondido: o cliente tem tudo e pode calcular o termômetro sozinho.
+  const porConversa = new Map<string, number>();
+  for (const m of messages) {
+    porConversa.set(m.connectionId, (porConversa.get(m.connectionId) ?? 0) + 1);
+  }
+  const fullyLoaded = conns
+    .filter((c) => (porConversa.get(c.id) ?? 0) < PAGINA_MENSAGENS)
+    .map((c) => c.id);
 
   return {
     users: (users.data ?? []).map((u) => toUser(u as unknown as RawUser)),
     connections: conns,
     messages,
+    healths,
+    fullyLoaded,
     notifications: (notifications.data ?? []).map((n) => ({
       id: n.id, userId: n.user_id, kind: n.kind, title: n.title,
       body: n.body, link: n.link ?? undefined, read: n.read, createdAt: n.created_at,
@@ -235,6 +284,37 @@ export async function loadSnapshot(meId: string): Promise<RemoteSnapshot> {
       userId: u.user_id, date: u.day, interests: u.interests, aiCalls: u.ai_calls,
     })),
   };
+}
+
+/**
+ * Busca o pedaço anterior de uma conversa. `antes` é o createdAt da mensagem
+ * mais antiga que o cliente já tem.
+ *
+ * `fim: true` significa que o servidor não tem mais nada para trás — daí em
+ * diante o cliente detém o histórico completo e volta a calcular o termômetro
+ * localmente, que é o comportamento que reage à mensagem recém-enviada.
+ */
+export async function loadOlderMessages(
+  connectionId: string, antes: string, limite = PAGINA_MENSAGENS,
+): Promise<{ messages: Message[]; fim: boolean }> {
+  const db = requireSupabase();
+  const { data, error } = await db.rpc('mensagens_anteriores', {
+    conn: connectionId, antes, limite,
+  });
+  if (error) throw new Error(`Falha ao carregar o histórico: ${error.message}`);
+  const rows = (data ?? []) as RawMessage[];
+  return { messages: rows.map(toMessage), fim: rows.length < limite };
+}
+
+/** Recalcula no servidor o termômetro de uma conversa só. */
+export async function loadHealth(connectionId: string): Promise<HealthMetrics | null> {
+  const db = requireSupabase();
+  const { data, error } = await db.rpc('termometro_da_conversa', { conn: connectionId });
+  if (error) throw new Error(`Falha ao ler o termômetro: ${error.message}`);
+  const row = (Array.isArray(data) ? data[0] : data) as RawTermometro | undefined;
+  if (!row) return null;
+  const { connectionId: _ignorado, ...metricas } = toHealth({ ...row, connection_id: connectionId });
+  return metricas;
 }
 
 // ------------------------------- escrita -----------------------------------

@@ -4,7 +4,8 @@ import type {
 } from '../types';
 import { type PlanQuota, QUOTAS } from '../constants';
 import {
-  type Action, type AppState, blockedIdsFor, connectionWith, initialState, reducer, usageToday,
+  type Action, type AppState, blockedIdsFor, connectionWith, hasFullHistory, healthOf,
+  initialState, reducer, usageToday,
 } from './appState';
 import { loadState, saveState } from '../services/storage';
 import * as backend from '../services/backend';
@@ -12,7 +13,7 @@ import { onAuthChange, currentSession, signOut } from '../services/auth';
 import { subscribeToConversations } from '../services/realtime';
 import { supabaseEnabled } from '../services/supabaseClient';
 import { computeCompatibility } from '../services/compatibility';
-import { conversationHealth, reputationDelta } from '../services/conversation';
+import { reputationDelta } from '../services/conversation';
 import { moderateText } from '../services/moderation';
 import { dateKey, firstName, uid } from '../services/utils';
 
@@ -56,6 +57,10 @@ interface Ctx {
   booting: boolean;
   /** Recarrega o recorte que o RLS devolve. Usado ao concluir o cadastro. */
   refresh: () => Promise<void>;
+  /** Busca a página anterior do histórico desta conversa. */
+  loadOlder: (connectionId: string) => Promise<void>;
+  /** true se ainda há mensagens mais antigas no servidor. */
+  hasOlder: (connectionId: string) => boolean;
 }
 
 const AppCtx = createContext<Ctx | null>(null);
@@ -98,6 +103,32 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const session = await currentSession();
     if (session?.user?.id) await hydrate(session.user.id);
   }, [hydrate]);
+
+  /**
+   * Termômetro de uma conversa, recalculado no Postgres. Só faz sentido para as
+   * conversas longas: nas curtas o cliente tem tudo e a conta local já reage
+   * sozinha, sem ida ao servidor.
+   */
+  const refreshHealth = useCallback((connectionId: string) => {
+    if (!supabaseEnabled) return;
+    backend.loadHealth(connectionId)
+      .then((health) => { if (health) dispatch({ type: 'SET_HEALTH', connectionId, health }); })
+      .catch((err) => console.error('[CONEXÃO] Falha ao ler o termômetro.', err));
+  }, []);
+
+  const loadOlder = useCallback(async (connectionId: string) => {
+    if (!supabaseEnabled) return;
+    const atuais = state.messages.filter((m) => m.connectionId === connectionId);
+    if (!atuais.length) return;
+    const maisAntiga = atuais.reduce((min, m) => (m.createdAt < min ? m.createdAt : min), atuais[0].createdAt);
+    const { messages, fim } = await backend.loadOlderMessages(connectionId, maisAntiga);
+    dispatch({ type: 'PREPEND_MESSAGES', connectionId, messages, fim });
+  }, [state.messages]);
+
+  const hasOlder = useCallback(
+    (connectionId: string) => !hasFullHistory(state, connectionId),
+    [state],
+  );
 
   useEffect(() => {
     if (!supabaseEnabled) return;
@@ -338,6 +369,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
     dispatch({ type: 'SEND_MESSAGE', message });
     persist(() => backend.saveMessage(message), 'Sua mensagem não chegou ao servidor.');
+    // Conversa longa: como o cliente não tem o histórico inteiro, quem sabe o
+    // novo termômetro é o servidor.
+    if (kind !== 'sistema' && !hasFullHistory(state, connectionId)) refreshHealth(connectionId);
 
     if (result && result.level !== 'ok') {
       dispatch({
@@ -356,7 +390,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       persist(() => backend.saveConnection({ ...conn, status: 'conectada' }), 'Não foi possível reabrir a conversa.');
     }
     return result;
-  }, [me, state.connections, persist]);
+  }, [me, state, persist, refreshHealth]);
 
   /** Marca como lidas as mensagens que a outra pessoa mandou nesta conexão. */
   const markRead = useCallback((connectionId: string) => {
@@ -380,7 +414,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         },
       });
     }
-    const health = conversationHealth(conn, state.messages.filter((m) => m.connectionId === connectionId));
+    const health = healthOf(state, conn, state.messages.filter((m) => m.connectionId === connectionId));
     const delta = reputationDelta(gently, health);
     const patch = {
       status: 'encerrada' as const, closedBy: me.id, closedGently: gently,
@@ -398,7 +432,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         : 'Conversa encerrada.',
       gently ? 'ok' : 'info',
     );
-  }, [me, state.connections, state.messages, toast, persist]);
+  }, [me, state, toast, persist]);
 
   const blockUser = useCallback((targetId: string) => {
     if (!me) return;
@@ -456,7 +490,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     blockUser, reportUser, setRevealConsent, markRead,
     saveProfile, logout, deleteAccount,
     quota, canUseAi, spendAi,
-    mode: state.mode, booting, refresh,
+    mode: state.mode, booting, refresh, loadOlder, hasOlder,
   };
 
   return <AppCtx.Provider value={value}>{children}</AppCtx.Provider>;

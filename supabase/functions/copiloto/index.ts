@@ -6,15 +6,20 @@
 // qualquer visitante consegue extraí-la e gastar a cota alheia. Aqui a chave
 // vive como segredo do projeto e nunca sai do servidor.
 //
-// DUAS PROTEÇÕES DE DESENHO
+// TRÊS PROTEÇÕES DE DESENHO
 // 1. Exige JWT (verify_jwt padrão do Supabase): só gente autenticada chama.
 // 2. O SERVIDOR É DONO DOS PROMPTS. O cliente envia apenas dados de perfil
 //    já públicos, em campos tipados e com tamanho limitado, e escolhe uma
 //    ação de uma lista fechada. Não há como injetar systemInstruction nem
 //    transformar isto num proxy genérico de LLM.
+// 3. A COTA DIÁRIA É IMPOSTA AQUI. Antes só o cliente contava, e quem tivesse
+//    conta podia simplesmente ignorar o limite. A moderação é isenta: ela é
+//    proteção, não conveniência, e não pode parar de funcionar porque as
+//    sugestões do dia acabaram.
 // ---------------------------------------------------------------------------
 
 import { GoogleGenAI, Type } from 'npm:@google/genai@1.12.0';
+import { createClient } from 'npm:@supabase/supabase-js@2';
 
 const MODEL = 'gemini-2.5-flash';
 
@@ -203,6 +208,31 @@ Deno.serve(async (req: Request) => {
 
   const receita = montar(acao, body.payload ?? {});
   if (!receita) return responder({ erro: 'Dados insuficientes para esta ação.' }, 400);
+
+  // A cota roda com o JWT de quem chamou, então o RLS e o auth.uid() dentro de
+  // consumir_cota_ia() valem normalmente. `moderar` não consome cota.
+  if (acao !== 'moderar') {
+    const url = Deno.env.get('SUPABASE_URL');
+    const anon = Deno.env.get('SUPABASE_ANON_KEY') ?? Deno.env.get('SUPABASE_PUBLISHABLE_KEY');
+    if (url && anon) {
+      try {
+        const db = createClient(url, anon, {
+          global: { headers: { Authorization: req.headers.get('Authorization')! } },
+        });
+        const { data, error } = await db.rpc('consumir_cota_ia');
+        if (error) throw error;
+        const cota = Array.isArray(data) ? data[0] : data;
+        if (cota && cota.permitido === false) {
+          return responder({
+            erro: 'cota_esgotada', usadas: cota.usadas, limite: cota.limite,
+          }, 429);
+        }
+      } catch (err) {
+        // Falha ao contabilizar não pode derrubar a funcionalidade; fica no log.
+        console.error('[copiloto] não foi possível checar a cota', err);
+      }
+    }
+  }
 
   try {
     const ai = new GoogleGenAI({ apiKey });
