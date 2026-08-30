@@ -37,8 +37,8 @@ export function CopilotPanel({
 
       {!aiEnabled && (
         <p className="mt-3 rounded-xl2 bg-bg px-3 py-2 text-[11px] leading-relaxed text-muted">
-          Modo local: sem chave do Gemini configurada, as sugestões vêm de um banco curado de perguntas.
-          Defina <code className="font-mono">GEMINI_API_KEY</code> para ativar as sugestões geradas.
+          Modo local: as sugestões vêm de um banco curado de perguntas. As geradas por IA
+          exigem o backend conectado — a chave do modelo fica no servidor, nunca aqui.
         </p>
       )}
 
@@ -84,9 +84,9 @@ export function AiOffNotice() {
   if (aiEnabled) return null;
   return (
     <Banner tone="info" icon="info" title="Copiloto em modo local">
-      Nenhuma chave do Gemini foi configurada. O app funciona normalmente e as sugestões vêm de
-      heurísticas locais. Para ligar a IA, crie um arquivo <code className="font-mono">.env</code> com
-      <code className="font-mono"> GEMINI_API_KEY=sua_chave</code>.
+      O app funciona normalmente e as sugestões vêm de heurísticas locais. As geradas por IA
+      passam por uma função no servidor, que exige login e guarda a chave do modelo fora do
+      navegador.
     </Banner>
   );
 }

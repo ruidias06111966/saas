@@ -39,9 +39,19 @@ VITE_SUPABASE_URL=https://SEU-PROJETO.supabase.co
 VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
 ```
 
-O Copiloto de IA é independente disso: com `GEMINI_API_KEY` as sugestões são geradas;
-sem ela vêm de um banco curado local e o app avisa que está em "modo local". Nenhuma
-tela quebra em nenhuma combinação.
+### O Copiloto de IA
+
+A chave do Gemini **não** vai no `.env` do app — tudo que está lá acaba no JavaScript
+entregue ao navegador. Ela é segredo do projeto Supabase, e a geração passa por uma Edge
+Function que exige login:
+
+```bash
+supabase secrets set GEMINI_API_KEY=sua_chave
+# ou no painel: Edge Functions → Secrets → Add new secret
+```
+
+Sem a chave — ou sem backend — as sugestões vêm de um banco curado local e o app avisa
+que está em "modo local". Nenhuma tela quebra em nenhuma combinação.
 
 ### Contas de demonstração
 
@@ -77,7 +87,8 @@ aciona o **Encerrar com gentileza**: quem se despede ganha reputação, quem som
 - **Compatibilidade explicável** — 7 dimensões com peso, score e a frase do porquê. Nunca
   um número solto, sempre com grau de confiança e o ponto de atrito.
 - **Copiloto Gemini** — sugere aberturas, próximas perguntas e melhorias de perfil.
-  Nunca envia por você, nunca finge ser você, nunca pede dado pessoal.
+  Nunca envia por você, nunca finge ser você, nunca pede dado pessoal. Roda numa Edge
+  Function que exige JWT e é dona dos prompts: a chave do modelo nunca chega ao navegador.
 - **Moderação em duas camadas** — heurística local antes do envio, Gemini como reforço,
   e nenhuma suspensão automática: tudo cai na fila de revisão humana.
 - **LGPD funcionando** — exportar dados em JSON, corrigir, excluir a conta com

@@ -89,15 +89,30 @@ Interesses usam Jaccard **ponderado por raridade**, suavizado por raiz quadrada.
 "astronomia" (peso 1,5) vale mais que bater em "séries" (peso 0,8), e quem marca 20
 interesses não é punido pelo denominador.
 
-## IA: sugere, nunca escreve
+## IA: sugere, nunca escreve — e a chave nunca chega ao navegador
 
-`geminiService.ts` tem uma regra estrutural: **toda função tem fallback determinístico
-local**. Sem `API_KEY`, `askJson` devolve o fallback e o app segue funcionando. Isso não é
-só robustez — é o que permite rodar o produto sem custo variável enquanto ele é pequeno.
+**A chave do Gemini não existe no cliente.** Não há caminho no código que a leve ao
+navegador: o pacote `@google/genai` foi removido das dependências do app. Toda geração
+passa pela Edge Function `copiloto` (`supabase/functions/copiloto`), onde a chave é
+segredo do projeto.
 
-O `systemInstruction` proíbe explicitamente ghostwriting, invenção de fatos, pedido de
-dados pessoais e conteúdo sexual. E o `profileDigest` que vai para o modelo só carrega o
-que já é público no perfil: nunca e-mail, senha ou coordenada.
+Duas proteções de desenho na função:
+
+1. **Exige JWT.** `verify_jwt` ligado — só gente autenticada chama. Foi por isso que
+   esta etapa dependia da autenticação existir primeiro.
+2. **O servidor é dono dos prompts.** O cliente envia apenas dados de perfil já
+   públicos, em campos tipados e truncados em 4000 caracteres, e escolhe uma ação de
+   uma lista fechada de oito. Não há como injetar `systemInstruction` nem transformar
+   a função num proxy genérico de LLM. O `systemInstruction` inclui a instrução de
+   ignorar ordens que apareçam dentro dos dados de perfil.
+
+A regra estrutural continua: **toda função tem fallback determinístico local**. Sem
+backend, ou sem `GEMINI_API_KEY` no servidor, a função devolve `{ fallback: true }` e o
+app segue funcionando com o banco curado de perguntas. Nenhuma tela quebra em nenhuma
+combinação.
+
+O `profileDigest` que vai para o modelo só carrega o que já é público no perfil: nunca
+e-mail, senha ou coordenada.
 
 ## Moderação em duas camadas
 
@@ -159,13 +174,14 @@ no navegador, sobrevivendo ao logout.
 
 1. **Realtime.** Hoje a conversa só atualiza ao recarregar; falta assinar `messages`
    via Supabase Realtime.
-2. **Gemini no servidor.** `geminiService.ts` ainda chama o modelo do cliente, o que
-   expõe a chave. A correção é uma Edge Function — e ela depende do login existir,
-   que é o que esta etapa entregou: agora dá para exigir JWT na função.
-3. **O Véu é mecânica de produto, não criptografia.** O desfoque é aplicado no
+2. **O Véu é mecânica de produto, não criptografia.** O desfoque é aplicado no
    cliente; quem abrir o inspetor vê a original. O bucket é privado justamente para
    permitir a correção certa depois: servir uma derivada já desfocada pelo servidor
    até a conversa atingir o estágio. Está documentado em `services/media.ts`.
+3. **Cota de IA no servidor.** O limite diário de chamadas é conferido no cliente, em
+   `daily_usage`. A Edge Function tem o JWT em mãos e poderia checar e incrementar a
+   cota ela mesma — hoje não faz. Quem quiser abusar consegue, dentro do limite de
+   quem tem conta.
 4. **Paginação.** `loadSnapshot` traz tudo de uma vez. Funciona na escala de um MVP e
    quebra na de milhares de perfis.
 
