@@ -1193,3 +1193,190 @@ $$;
 
 revoke execute on function public.encerrar_conversa(uuid, boolean) from public, anon;
 grant  execute on function public.encerrar_conversa(uuid, boolean) to authenticated;
+
+
+-- ===========================================================================
+-- VERIFICAÇÃO DE PERFIL POR SELFIE, COM REVISÃO HUMANA
+--
+-- Por que revisão humana e não reconhecimento facial: biometria é dado pessoal
+-- SENSÍVEL na LGPD (art. 11), com base legal e exigências próprias, e
+-- comparação facial confiável é serviço pago de terceiro. Uma selfie
+-- reproduzindo uma pose sorteada, olhada por uma pessoa da equipe, resolve o
+-- problema real — provar que existe alguém por trás do perfil — sem construir
+-- uma base biométrica.
+--
+-- Três decisões que seguem daí:
+--
+-- 1. A POSE É SORTEADA PELO SERVIDOR. Se o cliente escolhesse, dava para
+--    garimpar entre fotos antigas uma que já servisse.
+-- 2. A SELFIE É APAGADA ASSIM QUE HÁ DECISÃO, aprovada ou recusada (art. 6º,
+--    III e art. 16). Quem apaga é a Edge Function `decidir-verificacao`: se
+--    dependesse do navegador do revisor, fechar a aba deixaria a selfie lá.
+-- 3. O SELO NUNCA É ESCRITO PELO CLIENTE. `users.verified` está congelada pelo
+--    gatilho campos_privilegiados; quem concede é a Edge Function, com
+--    service_role, depois de ler no BANCO que quem pediu é administrador.
+-- ===========================================================================
+
+do $$ begin
+  create type verification_status as enum ('pendente', 'aprovada', 'recusada');
+exception when duplicate_object then null; end $$;
+
+create table if not exists public.verification_requests (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid not null references public.users(id) on delete cascade,
+  pose        text not null,
+  status      verification_status not null default 'pendente',
+  created_at  timestamptz not null default now(),
+  decided_at  timestamptz,
+  decided_by  uuid references public.users(id),
+  reason      text,
+  selfie_removida boolean not null default false
+);
+
+-- Um pedido em aberto por pessoa. Sem isto dá para encher a fila do revisor.
+create unique index if not exists verificacao_um_pendente_por_pessoa
+  on public.verification_requests (user_id) where status = 'pendente';
+create index if not exists verificacao_fila
+  on public.verification_requests (created_at) where status = 'pendente';
+
+alter table public.verification_requests enable row level security;
+
+drop policy if exists "vê os próprios pedidos" on public.verification_requests;
+create policy "vê os próprios pedidos"
+  on public.verification_requests for select to authenticated
+  using (user_id = auth.uid() or private.is_admin());
+
+-- Sem política de INSERT/UPDATE/DELETE para `authenticated`, de propósito: o
+-- pedido nasce dentro de pedir_verificacao() e a decisão vem da Edge Function.
+-- Assim a pose não pode ser escolhida por quem vai ser verificado.
+
+create or replace function public.pedir_verificacao()
+returns table (id uuid, pose text)
+language plpgsql security definer set search_path = public as $$
+declare
+  me uuid := auth.uid();
+  poses text[] := array[
+    'Levante a mão direita ao lado do rosto, palma para a câmera',
+    'Incline a cabeça para o seu ombro esquerdo',
+    'Faça um sinal de joia com a mão esquerda, na altura do queixo',
+    'Olhe para cima e sorria',
+    'Toque a orelha direita com a mão esquerda',
+    'Mostre três dedos da mão direita ao lado do rosto',
+    'Coloque a mão aberta sobre o peito',
+    'Vire o rosto de perfil para a sua direita'
+  ];
+  escolhida text; novo uuid;
+begin
+  if me is null then
+    raise exception 'É preciso estar autenticado.' using errcode = '42501';
+  end if;
+  if not exists (select 1 from public.users u where u.id = me and u.photo_url is not null) then
+    raise exception 'Envie uma foto de perfil antes de pedir a verificação.' using errcode = '22023';
+  end if;
+  -- LGPD art. 11: dado sensível exige consentimento específico e destacado.
+  if not exists (select 1 from public.consents c where c.user_id = me and c.kind = 'dados_sensiveis') then
+    raise exception 'É preciso aceitar o uso da selfie para verificação.' using errcode = '22023';
+  end if;
+  if exists (select 1 from public.users u where u.id = me and u.verified) then
+    raise exception 'Seu perfil já está verificado.' using errcode = '22023';
+  end if;
+  if exists (select 1 from public.verification_requests r where r.user_id = me and r.status = 'pendente') then
+    raise exception 'Você já tem um pedido em análise.' using errcode = '22023';
+  end if;
+
+  escolhida := poses[1 + floor(random() * array_length(poses, 1))::int];
+  insert into public.verification_requests (user_id, pose) values (me, escolhida)
+  returning verification_requests.id into novo;
+  return query select novo, escolhida;
+end;
+$$;
+
+revoke execute on function public.pedir_verificacao() from public, anon;
+grant  execute on function public.pedir_verificacao() to authenticated;
+
+create or replace function public.fila_de_verificacao()
+returns table (
+  id uuid, user_id uuid, nome text, pose text,
+  criado_em timestamptz, foto_base text, cidade text, nascimento date
+)
+language sql stable security definer set search_path = public as $$
+  select r.id, r.user_id, u.name, r.pose, r.created_at, u.photo_url, u.city, u.birth_date
+  from public.verification_requests r
+  join public.users u on u.id = r.user_id
+  where r.status = 'pendente' and private.is_admin()
+  order by r.created_at;
+$$;
+
+revoke execute on function public.fila_de_verificacao() from public, anon;
+grant  execute on function public.fila_de_verificacao() to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Bucket `verificacao` — mais restrito que o `midia`, de propósito.
+--
+--   ESCRITA  — só na própria pasta, só com um pedido em aberto, e o arquivo
+--              tem de se chamar como o pedido: {user_id}/{request_id}.jpg.
+--   LEITURA  — SÓ administrador. Nem a própria pessoa relê: ela viu no momento
+--              da captura, e cada caminho de leitura a mais é risco a mais.
+--   REMOÇÃO  — dono (desistir) e administrador. A remoção normal é feita pela
+--              Edge Function, com service_role, assim que decide.
+-- ---------------------------------------------------------------------------
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('verificacao', 'verificacao', false, 3145728, array['image/jpeg','image/png'])
+on conflict (id) do update set public = false;
+
+drop policy if exists "selfie: envia na propria pasta com pedido aberto" on storage.objects;
+drop policy if exists "selfie: so admin le" on storage.objects;
+drop policy if exists "selfie: dono ou admin remove" on storage.objects;
+
+create policy "selfie: envia na propria pasta com pedido aberto"
+  on storage.objects for insert to authenticated
+  with check (
+    bucket_id = 'verificacao'
+    and (storage.foldername(name))[1] = auth.uid()::text
+    and exists (
+      select 1 from public.verification_requests r
+      where r.user_id = auth.uid() and r.status = 'pendente'
+        and name = auth.uid()::text || '/' || r.id::text || '.jpg'
+    )
+  );
+
+create policy "selfie: so admin le"
+  on storage.objects for select to authenticated
+  using (bucket_id = 'verificacao' and private.is_admin());
+
+create policy "selfie: dono ou admin remove"
+  on storage.objects for delete to authenticated
+  using (
+    bucket_id = 'verificacao'
+    and ((storage.foldername(name))[1] = auth.uid()::text or private.is_admin())
+  );
+
+-- ---------------------------------------------------------------------------
+-- O revisor precisa ver a foto de perfil sem véu para comparar com a selfie.
+-- É poder real e fica aqui declarado: administrador enxerga o original de
+-- qualquer retrato — o mesmo acesso que a moderação de denúncias já exige.
+-- ---------------------------------------------------------------------------
+
+create or replace function private.nivel_permitido(dono uuid)
+returns int language sql stable security definer set search_path = public as $$
+  select case
+    when auth.uid() is null then -1
+    when dono = auth.uid() then 4
+    when private.is_admin() then 4
+    else coalesce((
+      select max(case
+        when (c.reveal_consent ->> auth.uid()::text) = 'true'
+         and (c.reveal_consent ->> dono::text) = 'true' then 4
+        else (select t.estagio from private.termometro(c.id) t)
+      end)
+      from public.connections c
+      where c.status = 'conectada'
+        and ((c.user_a = auth.uid() and c.user_b = dono)
+          or (c.user_b = auth.uid() and c.user_a = dono))
+    ), 0)
+  end;
+$$;
+
+revoke execute on function private.nivel_permitido(uuid) from public, anon;
+grant  execute on function private.nivel_permitido(uuid) to authenticated;
