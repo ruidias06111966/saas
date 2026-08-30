@@ -29,6 +29,36 @@ jobs:
 
       - run: npm ci
 
+      # Diz, no log, se o site vai subir em modo online ou demo — e, quando
+      # estiver errado, onde está o engano. Nenhum valor é impresso: a chave
+      # publicável é pública, mas segredo nenhum deve virar hábito de log.
+      - name: Conferir a configuração
+        env:
+          VAR_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VAR_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
+          # Lidos só para detectar o engano mais comum: guardar em Secrets, que
+          # é a aba vizinha. O site não lê daqui — o Build usa `vars.`.
+          SEC_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SEC_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          diz() { if [ -n "$2" ]; then echo "  $1: definida"; else echo "  $1: VAZIA"; fi; }
+          echo "Em Variables (é daqui que o site lê):"
+          diz VITE_SUPABASE_URL             "$VAR_URL"
+          diz VITE_SUPABASE_PUBLISHABLE_KEY "$VAR_KEY"
+          echo "Em Secrets (o site NAO le daqui):"
+          diz VITE_SUPABASE_URL             "$SEC_URL"
+          diz VITE_SUPABASE_PUBLISHABLE_KEY "$SEC_KEY"
+          if [ -n "$VAR_URL" ] && [ -n "$VAR_KEY" ]; then
+            echo "=> Vai subir em MODO ONLINE."
+          else
+            echo "=> Vai subir em MODO DEMO."
+            echo "   Se acima aparecer 'definida' em Secrets e 'VAZIA' em Variables,"
+            echo "   as duas foram guardadas na aba errada."
+            echo "   Se as duas estiverem VAZIAS nos dois lugares, confira se o nome"
+            echo "   esta exato (maiusculas incluidas) e se foram criadas como"
+            echo "   variaveis DO REPOSITORIO, nao de um Environment."
+          fi
+
       - name: Build
         env:
           GITHUB_PAGES: 'true'
@@ -40,6 +70,18 @@ jobs:
           VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
         run: npm run build
+
+      # Confere o resultado, não a intenção: a URL tem de estar mesmo dentro
+      # do JavaScript que vai para o ar.
+      - name: Conferir o pacote publicado
+        env:
+          VAR_URL: ${{ vars.VITE_SUPABASE_URL }}
+        run: |
+          if [ -n "$VAR_URL" ] && grep -rqsF "$VAR_URL" dist/assets; then
+            echo "MODO ONLINE confirmado: a URL do Supabase esta no pacote."
+          else
+            echo "MODO DEMO: o pacote nao contem a URL do Supabase."
+          fi
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

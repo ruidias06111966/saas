@@ -1,5 +1,6 @@
 import { useApp } from '../state/AppContext';
 import { Button, Card, Icon, type IconName } from '../components/ui';
+import { supabaseEnabled } from '../services/supabaseClient';
 import { APP_TAGLINE } from '../constants';
 
 const STEPS = [
@@ -164,9 +165,14 @@ export function Landing() {
 
       <footer className="mx-auto max-w-6xl px-5 py-10 text-center">
         <p className="font-display text-lg font-bold">CONEXÃO</p>
+        {/* Este aviso precisa dizer a verdade sobre o modo em que o site subiu.
+            Em modo online há gente real e banco real; chamar isso de "perfis
+            fictícios" seria falso justamente na frase que fala de dados. */}
         <p className="mt-1 text-xs text-muted">
-          Projeto de demonstração. Perfis fictícios, sem pessoas reais. Termos de Uso · Política de
-          Privacidade · Diretrizes da Comunidade
+          {supabaseEnabled
+            ? 'Conectado a um banco real, com Row Level Security. '
+            : 'Projeto de demonstração. Perfis fictícios, sem pessoas reais. '}
+          Termos de Uso · Política de Privacidade · Diretrizes da Comunidade
         </p>
       </footer>
     </div>
