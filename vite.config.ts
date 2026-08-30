@@ -5,7 +5,12 @@ import react from '@vitejs/plugin-react';
 // O app funciona 100% sem chave: os servicos de IA caem em heuristicas locais.
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
+  // No GitHub Pages o site fica em /saas/, não na raiz do domínio.
+  // Localmente continua em / — por isso a base é condicional.
+  const base = env.GITHUB_PAGES === 'true' ? '/saas/' : '/';
+
   return {
+    base,
     plugins: [react()],
     define: {
       'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY || env.API_KEY || ''),
