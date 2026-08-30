@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# O job só precisa ler o repositório.
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Typecheck e build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      # npm ci falha se o package-lock.json estiver fora de sincronia com o
+      # package.json — é justamente o que queremos detectar aqui.
+      - name: Instalar dependências
+        run: npm ci
+
+      # Passos separados de propósito: assim a falha diz se foi o TypeScript
+      # ou o bundler. O script `npm run build` roda os dois de uma vez.
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Build
+        run: npx vite build
+
+      - name: Verificar artefatos do build
+        run: test -f dist/index.html && ls -la dist/assets

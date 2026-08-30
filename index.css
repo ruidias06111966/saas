@@ -1,0 +1,82 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ------------------------------------------------------------------
+   Identidade visual do CONEXÃO
+   Paleta ameixa + brasa sobre areia: quente e adulta, deliberadamente
+   longe do vermelho/rosa saturado dos aplicativos de relacionamento.
+   Todas as cores são variáveis, então o modo escuro só troca os valores.
+------------------------------------------------------------------- */
+:root {
+  --c-bg: 250 246 241;
+  --c-surface: 255 255 255;
+  --c-raised: 255 255 255;
+  --c-ink: 31 26 46;
+  --c-muted: 120 111 138;
+  --c-line: 232 224 216;
+  --c-brand: 110 76 155;
+  --c-brand-soft: 240 234 249;
+  --c-ember: 202 106 67;
+  --c-sage: 90 134 103;
+  --c-warn: 168 118 26;
+  --c-danger: 178 54 54;
+  color-scheme: light;
+}
+
+.dark {
+  --c-bg: 20 17 30;
+  --c-surface: 30 26 44;
+  --c-raised: 38 33 55;
+  --c-ink: 244 240 250;
+  --c-muted: 160 152 180;
+  --c-line: 54 47 74;
+  --c-brand: 173 145 224;
+  --c-brand-soft: 45 38 66;
+  --c-ember: 232 149 111;
+  --c-sage: 132 180 146;
+  --c-warn: 219 172 82;
+  --c-danger: 226 108 108;
+  color-scheme: dark;
+}
+
+html, body, #root { height: 100%; }
+
+body {
+  margin: 0;
+  background: rgb(var(--c-bg));
+  color: rgb(var(--c-ink));
+  font-family: Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+* { -webkit-tap-highlight-color: transparent; }
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb {
+  background: rgb(var(--c-line));
+  border-radius: 999px;
+  border: 3px solid rgb(var(--c-bg));
+}
+
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* Textura sutil sobre os retratos velados. */
+.grain::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.3;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.5'/%3E%3C/svg%3E");
+}
+
+input[type='range'] { accent-color: rgb(var(--c-brand)); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
