@@ -277,10 +277,87 @@ nenhuma foto real jamais era exibida. Vale como lembrete: num sistema que degrad
 graciosamente, a degradação esconde a falha. O teste que pegou isso foi o de ponta a
 ponta, não o unitário.
 
+### RLS protege linhas, não colunas
+
+A política de `public.users` é `id = auth.uid()`. Ela impede mexer no cadastro alheio —
+e deixava mudar **qualquer coluna do próprio**. Medido antes da correção: `plan`, `role`,
+`verified` e `reputation` cediam todos. Uma requisição do console do navegador bastava
+para virar administradora e, daí, editar e banir qualquer pessoa.
+
+Política não resolve; resolve gatilho. `campos_privilegiados` congela essas colunas para
+quem é usuário comum, e **reverte em silêncio em vez de recusar** — `saveUser` manda a
+linha inteira a cada salvamento de perfil, e recusar quebraria toda edição legítima.
+
+Duas sutilezas que custaram uma iteração cada:
+
+- **`current_user` não diz quem chamou.** Dentro de uma função `security definer` ele é o
+  *dono* da função. A primeira versão do gatilho verificava `current_user` e por isso não
+  congelava nada. Quem identifica o chamador é `auth.role()`, do JWT já verificado pelo
+  PostgREST.
+- **O gatilho bloqueou o caminho legítimo.** A reputação era gravada pelo cliente ao
+  encerrar uma conversa; congelada a coluna, o delta era calculado e descartado. Agora ela
+  muda dentro de `encerrar_conversa()`, que conta as mensagens reais em vez de aceitar o
+  número que o navegador afirma, atrás de uma porta de sessão que o cliente não tem como
+  ligar.
+
+Esse gatilho é o que torna possíveis as três coisas seguintes: verificação escreve
+`verified`, pagamento escreve `plan`, e nenhuma das duas pode ser afirmada pelo cliente.
+
+### Verificação de perfil: revisão humana, não reconhecimento facial
+
+Biometria é dado pessoal **sensível** na LGPD (art. 11), com base legal e exigências
+próprias, e comparação facial confiável é serviço pago de terceiro. A pose sorteada
+resolve o problema real — provar que existe alguém por trás do perfil — sem construir uma
+base biométrica. A tela diz isso, em vez de prometer uma visão computacional que não
+existe.
+
+- **A pose é sorteada pelo servidor.** Se o cliente escolhesse, dava para garimpar entre
+  fotos antigas uma que já servisse.
+- **A selfie é apagada assim que há decisão**, aprovada ou recusada, pela Edge Function —
+  se dependesse do navegador do revisor, fechar a aba deixaria a foto guardada. Ela sai
+  *antes* do veredito: no pior caso o pedido é refeito, nunca uma selfie esquecida.
+- **O bucket é mais fechado que o de fotos**: a escrita exige um pedido em aberto E que o
+  arquivo se chame como o pedido; a leitura é só de administrador — nem quem enviou relê.
+- **A recusa exige motivo**, que vai inteiro para a pessoa. Recusar sem dizer por quê
+  deixa alguém tentando de novo do mesmo jeito.
+
+Administrador passa a ver o original de qualquer retrato, porque a comparação exige. É
+poder real, declarado em `nivel_permitido()`.
+
+### Cadastro com confirmação de e-mail
+
+Com a confirmação ligada, `signUp()` cria a conta e **não devolve sessão** — e sem sessão
+o RLS recusa toda escrita, porque tanto a política de `users` quanto a do Storage comparam
+com `auth.uid()`. O código gravava assim mesmo, então todo cadastro terminava com uma
+conta de autenticação sem perfil nenhum. O banco tinha exatamente esse órfão.
+
+Agora o perfil espera no aparelho (`services/signupDraft.ts`) e sobe na primeira entrada.
+`pendingAccount` distingue "sessão sem perfil" de "sem sessão": não é erro, é o estado
+normal entre confirmar o e-mail e completar o cadastro. Se a pessoa confirmar em outro
+aparelho, o formulário reaparece com a sessão valendo — perde-se digitação, nunca a conta.
+
+### Pagamento: o app nunca diz "paguei"
+
+Quem afirma o pagamento é o Stripe, falando com a Edge Function `stripe-webhook`. O
+webhook roda com `verify_jwt` desligado, porque o Stripe não tem sessão no app — e por
+isso a primeira coisa que ele faz é conferir a **assinatura criptográfica** do evento. O
+corpo é lido como texto cru: a assinatura cobre os bytes exatos, e reserializar o JSON
+invalidaria a conferência. De quem é o pagamento sai do `client_reference_id`, que nós
+gravamos ao criar o checkout.
+
+Idempotência por id do evento, porque o Stripe reentrega quando não recebe 2xx rápido — e
+se aplicar falha, a linha de idempotência sai junto, senão a reentrega seria descartada
+como repetida sem nunca ter sido aplicada. `invoice.payment_failed` não rebaixa na hora:
+derrubar o plano na primeira falha puniria quem só trocou de cartão.
+
+Dados de cartão não passam pelo aplicativo em momento nenhum, nem no cancelamento, que
+acontece no portal do próprio Stripe.
+
 ### O que ainda falta para produção
 
-Nada dos quatro itens anteriores. O que resta é de outra natureza: verificação por
-selfie de verdade, pagamento real, e um trabalho de carga que este projeto nunca fez.
+Um trabalho de carga que este projeto nunca fez, e um provedor de e-mail com domínio
+próprio — o serviço interno do Supabase é limitado a poucos envios por hora e, em projeto
+novo, só entrega para o e-mail dono do projeto.
 
 ### Decisões de segurança do schema
 
@@ -308,8 +385,7 @@ Supabase as sinaliza como `SECURITY DEFINER` acessíveis — é esperado e corre
 
 ## O que ficou preparado e não implementado
 
-Pagamento real (a estrutura de `subscriptions` e as cotas por plano já existem),
-notificações push, geolocalização por GPS, chamadas de áudio e vídeo, eventos e
+Notificações push, geolocalização por GPS, chamadas de áudio e vídeo, eventos e
 comunidades. Cada ponto de extensão está comentado no código onde ele encaixa.
 
 ## Limitações conhecidas do MVP
@@ -320,5 +396,6 @@ comunidades. Cada ponto de extensão está comentado no código onde ele encaixa
   evoluindo sem uma segunda pessoa. Está rotulado como demonstração na interface.
 - Fotos viram base64 no `localStorage`, o que estoura a cota se você enviar muitas.
   Em produção isso é Supabase Storage.
-- A verificação por selfie é simulada por um botão. O estado `verified` e o selo são
-  reais e já circulam pelo produto inteiro.
+- A verificação por selfie continua simulada por um botão **no modo demo**, onde não há
+  servidor para fazer valer nada. No modo online ela é real: pose sorteada, revisão
+  humana, e o selo concedido pelo servidor.
