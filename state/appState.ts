@@ -7,7 +7,7 @@ import { type HealthMetrics, buildHealth, conversationHealth } from '../services
 import { SEED_USERS } from '../data/seed';
 import { buildSeedActivity } from '../data/seedActivity';
 import { anonymizeUser } from '../services/lgpd';
-import { dateKey, uid } from '../services/utils';
+import { dateKey, newId } from '../services/utils';
 
 export interface AppState {
   users: User[];
@@ -343,4 +343,4 @@ export const unreadCount = (s: AppState, me: string): number =>
 export const unreadMessagesFor = (s: AppState, me: string, connectionId: string): number =>
   s.messages.filter((m) => m.connectionId === connectionId && m.senderId !== me && !m.readAt).length;
 
-export const makeConnectionId = () => uid('conn');
+export const makeConnectionId = () => newId();

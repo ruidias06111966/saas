@@ -15,7 +15,7 @@ import { supabaseEnabled } from '../services/supabaseClient';
 import { computeCompatibility } from '../services/compatibility';
 import { reputationDelta } from '../services/conversation';
 import { moderateText } from '../services/moderation';
-import { dateKey, firstName, uid } from '../services/utils';
+import { dateKey, firstName, newId, uid } from '../services/utils';
 
 export interface Toast {
   id: string;
@@ -199,7 +199,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       console.error(`[CONEXÃO] ${oQue}`, err);
       setToasts((prev) => [...prev, {
         id: uid('toast'), tone: 'danger',
-        text: `${oQue} Recarregue a página para ver o estado real.`,
+        // O motivo do servidor vai junto. Sem ele, "não chegou ao servidor" é
+        // indistinguível entre queda de rede e recusa do banco — e foi isso que
+        // deixou o id em formato errado passar despercebido.
+        text: `${oQue} ${err.message}`,
       }]);
     });
   }, []);
@@ -247,7 +250,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const notify = useCallback((n: Omit<AppNotification, 'id' | 'createdAt' | 'read'>) => {
     dispatch({
       type: 'NOTIFY',
-      notification: { ...n, id: uid('ntf'), read: false, createdAt: new Date().toISOString() },
+      notification: { ...n, id: newId(), read: false, createdAt: new Date().toISOString() },
     });
   }, []);
 
@@ -301,7 +304,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
 
     const conn: Connection = {
-      id: uid('conn'), userA: me.id, userB: targetId, status: 'pendente',
+      id: newId(), userA: me.id, userB: targetId, status: 'pendente',
       likes: { [me.id]: true }, favorite: {}, revealConsent: {},
       compatibility, createdAt: new Date().toISOString(), curatedOn: dateKey(),
     };
@@ -320,7 +323,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       return;
     }
     const conn: Connection = {
-      id: uid('conn'), userA: me.id, userB: targetId, status: 'recusada',
+      id: newId(), userA: me.id, userB: targetId, status: 'recusada',
       likes: {}, favorite: {}, revealConsent: {}, compatibility: 0,
       createdAt: new Date().toISOString(), curatedOn: dateKey(),
     };
@@ -362,7 +365,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     const result = kind === 'sistema' ? null : moderateText(trimmed);
     const message: Message = {
-      id: uid('msg'), connectionId, senderId: me.id, kind, text: trimmed,
+      id: newId(), connectionId, senderId: me.id, kind, text: trimmed,
       createdAt: new Date().toISOString(),
       ...(result && result.level !== 'ok' ? { moderation: result } : {}),
       ...extra,
@@ -377,7 +380,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       dispatch({
         type: 'ADD_MODERATION',
         item: {
-          id: uid('mod'), messageId: message.id, connectionId, authorId: me.id,
+          id: newId(), messageId: message.id, connectionId, authorId: me.id,
           excerpt: trimmed.slice(0, 240), result, status: 'pendente',
           createdAt: new Date().toISOString(),
         },
@@ -409,7 +412,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       dispatch({
         type: 'SEND_MESSAGE',
         message: {
-          id: uid('msg'), connectionId, senderId: me.id, kind: 'texto',
+          id: newId(), connectionId, senderId: me.id, kind: 'texto',
           text: farewell.trim(), createdAt: new Date().toISOString(),
         },
       });
@@ -450,7 +453,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (!me) return;
     const conn = connectionWith(state, me.id, targetId);
     const report: Report = {
-      id: uid('rep'), reporterId: me.id, reportedId: targetId, reason, description,
+      id: newId(), reporterId: me.id, reportedId: targetId, reason, description,
       status: 'aberta',
       evidenceMessageIds: conn
         ? state.messages.filter((m) => m.connectionId === conn.id && m.senderId === targetId).slice(-10).map((m) => m.id)

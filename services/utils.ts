@@ -1,7 +1,35 @@
 export const clamp = (v: number, min = 0, max = 1) => Math.min(max, Math.max(min, v));
 
+/**
+ * Identificador legível, para coisas que vivem só no navegador (avisos na tela).
+ *
+ * NÃO use para nada que vá ao Postgres: as tabelas declaram `id uuid` e um
+ * `msg_m4x2abc` é recusado no insert. Para entidades do domínio use `newId()`.
+ */
 export const uid = (prefix = 'id'): string =>
   `${prefix}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+
+/**
+ * Identificador de entidade do domínio: mensagem, conexão, denúncia.
+ *
+ * Precisa ser UUID de verdade. O cliente gera o id antes de escrever, porque a
+ * escrita é otimista — a tela mostra a mensagem na hora e o servidor recebe
+ * depois. Se o formato não bate com a coluna, o Postgres recusa e a pessoa vê a
+ * mensagem na tela sem que ela exista para ninguém.
+ */
+export const newId = (): string =>
+  globalThis.crypto?.randomUUID?.() ?? uuidV4Manual();
+
+/** Reserva para contexto sem `randomUUID` (http, WebView antiga). */
+function uuidV4Manual(): string {
+  const b = new Uint8Array(16);
+  if (globalThis.crypto?.getRandomValues) globalThis.crypto.getRandomValues(b);
+  else for (let i = 0; i < 16; i++) b[i] = Math.floor(Math.random() * 256);
+  b[6] = (b[6] & 0x0f) | 0x40; // versão 4
+  b[8] = (b[8] & 0x3f) | 0x80; // variante RFC 4122
+  const h = Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('');
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+}
 
 /** Hash determinístico (FNV-1a 32 bits) — usado na curadoria e nos retratos. */
 export function hash32(input: string): number {
