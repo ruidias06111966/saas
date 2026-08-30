@@ -131,12 +131,36 @@ exibida como número: só faixas (`distanceBand`).
 
 O MVP usa `localStorage` com escrita debounced. Para plugar Supabase:
 
-1. Rode `docs/SUPABASE.sql` (schema + RLS + `delete_my_account()`).
+1. Rode `docs/SUPABASE.sql` (schema + RLS + catálogos + `delete_my_account()`).
 2. Troque `services/storage.ts` por chamadas ao `@supabase/supabase-js`.
 3. Mova `geminiService.ts` para uma Edge Function — assim a chave sai do cliente.
 4. Assine `messages` via Supabase Realtime no lugar do estado local.
 
 Telas, componentes e regras de negócio não mudam.
+
+### Decisões de segurança do schema
+
+Quatro pontos que não são óbvios e que já custaram uma revisão:
+
+- **Nada é legível pelo papel `anon`.** Toda policy de leitura declara
+  `to authenticated`. Um `using (true)` em `profiles` ou `prompt_answers`
+  entregaria a base inteira de respostas a quem tivesse só a chave pública —
+  raspagem sem nem precisar de conta. As únicas exceções são `interests` e
+  `prompts`, que são catálogos e não contêm dado de ninguém.
+- **Leitura de dado alheio passa por `private.perfil_visivel()`**, que exige
+  perfil ativo, não excluído e sem bloqueio entre as duas partes.
+- **Os auxiliares vivem no schema `private`.** O PostgREST só expõe `public`,
+  então `is_admin`, `is_blocked_with` e `perfil_visivel` não ganham endpoint
+  `/rest/v1/rpc/`. Em `public`, qualquer pessoa logada poderia sondar se um
+  UUID existe ou se há bloqueio entre duas pessoas.
+- **`public.users` precisa de policy de `insert`.** Sem ela o cadastro não
+  conclui: o usuário autentica no Supabase Auth mas não consegue criar a
+  própria linha de perfil.
+
+As duas funções que ficam em `public` (`compatibility_score` e
+`delete_my_account`) são chamadas pelo cliente de propósito, têm `execute`
+revogado do `anon` e checam `auth.uid()` internamente. O linter de segurança do
+Supabase as sinaliza como `SECURITY DEFINER` acessíveis — é esperado e correto.
 
 ## O que ficou preparado e não implementado
 
