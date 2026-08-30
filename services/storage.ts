@@ -12,6 +12,7 @@ export function loadState(): AppState | null {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as AppState;
+    // Um estado salvo em modo online guarda só o tema; não serve de estado inicial.
     if (!parsed || !Array.isArray(parsed.users)) return null;
     return parsed;
   } catch {
@@ -25,6 +26,13 @@ export function saveState(state: AppState): void {
   if (queued !== null) window.clearTimeout(queued);
   queued = window.setTimeout(() => {
     try {
+      // Em modo online NÃO espelhamos o banco no localStorage: isso deixaria
+      // mensagens de conversas reais em claro no navegador, sobrevivendo ao
+      // logout. Persistimos só a preferência de tema.
+      if (state.mode === 'online') {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ theme: state.theme }));
+        return;
+      }
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     } catch (err) {
       // Cota estourada costuma ser foto em base64. Avisa e segue sem quebrar.

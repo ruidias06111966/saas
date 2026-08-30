@@ -2,6 +2,7 @@ import type {
   AppNotification, Block, Connection, DailyUsage, Message, ModerationItem,
   Report, Subscription, User,
 } from '../types';
+import type { RemoteSnapshot } from '../services/backend';
 import { SEED_USERS } from '../data/seed';
 import { buildSeedActivity } from '../data/seedActivity';
 import { anonymizeUser } from '../services/lgpd';
@@ -19,6 +20,8 @@ export interface AppState {
   usage: DailyUsage[];
   sessionUserId: string | null;
   theme: 'light' | 'dark';
+  /** 'demo' = localStorage com perfis fictícios. 'online' = Postgres com RLS. */
+  mode: 'demo' | 'online';
 }
 
 export function initialState(): AppState {
@@ -35,11 +38,13 @@ export function initialState(): AppState {
     usage: [],
     sessionUserId: null,
     theme: 'light',
+    mode: 'demo',
   };
 }
 
 export type Action =
   | { type: 'HYDRATE'; state: AppState }
+  | { type: 'HYDRATE_REMOTE'; snapshot: RemoteSnapshot; sessionUserId: string }
   | { type: 'RESET_DEMO' }
   | { type: 'LOGIN'; userId: string }
   | { type: 'LOGOUT' }
@@ -69,6 +74,18 @@ export function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
     case 'HYDRATE':
       return action.state;
+
+    // Substitui o estado inteiro pelo recorte que o RLS devolveu para esta
+    // pessoa. Nada do modo demo sobrevive: os perfis fictícios sairiam
+    // misturados com gente real, e isso seria mentira na tela.
+    case 'HYDRATE_REMOTE':
+      return {
+        ...state,
+        ...action.snapshot,
+        subscriptions: [],
+        sessionUserId: action.sessionUserId,
+        mode: 'online',
+      };
 
     case 'RESET_DEMO':
       return { ...initialState(), theme: state.theme };

@@ -9,10 +9,10 @@ import { useApp } from '../state/AppContext';
 import { Page } from '../components/layout/AppShell';
 import { Button, Card, Chip, Field, Icon, Input, SectionTitle, Select, Slider, Textarea } from '../components/ui';
 import { Portrait } from '../components/Portrait';
-import { readImageAsDataUrl } from '../services/storage';
+import { uploadImage } from '../services/media';
 
 export function ProfileEdit() {
-  const { me, dispatch, back, toast } = useApp();
+  const { me, saveProfile, back, toast } = useApp();
   const [d, setD] = useState<User | null>(me);
 
   if (!me || !d) return null;
@@ -23,14 +23,23 @@ export function ProfileEdit() {
     set('answers', value.trim() ? [...others, { promptId: id, answer: value }] : others);
   };
 
-  const save = () => {
-    dispatch({ type: 'UPDATE_USER', id: me.id, patch: d });
-    toast('Perfil atualizado.', 'ok');
-    back();
+  const [salvando, setSalvando] = useState(false);
+
+  const save = async () => {
+    setSalvando(true);
+    try {
+      await saveProfile(d);
+      toast('Perfil atualizado.', 'ok');
+      back();
+    } catch (err) {
+      toast((err as Error).message, 'danger');
+    } finally {
+      setSalvando(false);
+    }
   };
 
   return (
-    <Page title="Editar perfil" back={back} action={<Button size="sm" icon="check" onClick={save}>Salvar</Button>}>
+    <Page title="Editar perfil" back={back} action={<Button size="sm" icon="check" loading={salvando} onClick={() => void save()}>Salvar</Button>}>
       <section className="space-y-6">
         <Card className="p-5">
           <SectionTitle hint="Ela entra velada na descoberta e se revela conforme suas conversas evoluem.">Foto</SectionTitle>
@@ -44,7 +53,7 @@ export function ProfileEdit() {
                   onChange={async (e) => {
                     const file = e.target.files?.[0];
                     if (!file) return;
-                    try { set('photo', await readImageAsDataUrl(file)); }
+                    try { set('photo', await uploadImage(file, d.id, 'perfil')); }
                     catch (err) { toast((err as Error).message, 'danger'); }
                   }}
                 />
@@ -190,7 +199,7 @@ export function ProfileEdit() {
 
         <div className="flex gap-2 pb-4">
           <Button variant="ghost" onClick={back}>Cancelar</Button>
-          <Button className="ml-auto" icon="check" onClick={save}>Salvar alterações</Button>
+          <Button className="ml-auto" icon="check" loading={salvando} onClick={() => void save()}>Salvar alterações</Button>
         </div>
       </section>
     </Page>

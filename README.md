@@ -15,15 +15,33 @@ npm install
 npm run dev          # http://localhost:5173
 ```
 
-O app funciona **sem nenhuma chave de API**. Para ligar o Copiloto de IA:
+O app funciona **sem nenhuma chave de API**.
 
 ```bash
 cp .env.example .env
-# preencha GEMINI_API_KEY (pegue em https://aistudio.google.com/apikey)
 ```
 
-Sem a chave, todas as sugestões vêm de um banco curado local e o app avisa que está em
-"modo local" — nenhuma tela quebra.
+### Os dois modos
+
+| | Modo demo | Modo online |
+|---|---|---|
+| Quando | nenhuma variável `VITE_SUPABASE_*` definida | as duas definidas |
+| Dados | `localStorage`, 12 perfis fictícios | PostgreSQL no Supabase, com RLS |
+| Login | comparação local de SHA-256 | Supabase Auth (bcrypt no servidor + JWT) |
+| Fotos | dataURL no navegador | bucket privado, URL assinada de 1 h |
+| Exclusão de conta | limpa o estado local | `delete_my_account()` no servidor |
+
+Modo demo é o padrão e serve para navegar o produto inteiro. Para o modo online, rode
+[`docs/SUPABASE.sql`](docs/SUPABASE.sql) no seu projeto e preencha:
+
+```bash
+VITE_SUPABASE_URL=https://SEU-PROJETO.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
+```
+
+O Copiloto de IA é independente disso: com `GEMINI_API_KEY` as sugestões são geradas;
+sem ela vêm de um banco curado local e o app avisa que está em "modo local". Nenhuma
+tela quebra em nenhuma combinação.
 
 ### Contas de demonstração
 

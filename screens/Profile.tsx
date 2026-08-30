@@ -11,7 +11,7 @@ import { EssenceCard } from '../components/EssenceCard';
 import { age, firstName } from '../services/utils';
 
 export function Profile() {
-  const { me, state, navigate, dispatch } = useApp();
+  const { me, state, navigate, logout } = useApp();
   if (!me) return null;
 
   const completion = profileCompletion(me);
@@ -150,7 +150,7 @@ export function Profile() {
       <div className="mt-8 flex flex-wrap gap-2">
         <Button variant="outline" icon="settings" onClick={() => navigate({ name: 'settings' })}>Configurações e privacidade</Button>
         {me.plan === 'free' && <Button variant="secondary" icon="crown" onClick={() => navigate({ name: 'premium' })}>Ver Premium</Button>}
-        <Button variant="ghost" icon="logout" onClick={() => dispatch({ type: 'LOGOUT' })}>Sair da conta</Button>
+        <Button variant="ghost" icon="logout" onClick={() => void logout()}>Sair da conta</Button>
       </div>
       <p className="mt-4 text-xs text-muted">Olá, {firstName(me.name)} — conta criada em {new Date(me.createdAt).toLocaleDateString('pt-BR')}.</p>
     </Page>

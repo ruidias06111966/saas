@@ -129,14 +129,45 @@ exibida como número: só faixas (`distanceBand`).
 
 ## Persistência e o caminho para o backend
 
-O MVP usa `localStorage` com escrita debounced. Para plugar Supabase:
+O app tem **dois modos**, decididos por variável de ambiente, e nenhuma das 15 telas
+sabe em qual está rodando.
 
-1. Rode `docs/SUPABASE.sql` (schema + RLS + catálogos + `delete_my_account()`).
-2. Troque `services/storage.ts` por chamadas ao `@supabase/supabase-js`.
-3. Mova `geminiService.ts` para uma Edge Function — assim a chave sai do cliente.
-4. Assine `messages` via Supabase Realtime no lugar do estado local.
+| | Modo demo | Modo online |
+|---|---|---|
+| Gatilho | sem `VITE_SUPABASE_*` | com as duas variáveis |
+| Persistência | `localStorage` | PostgreSQL, via `services/backend.ts` |
+| Auth | SHA-256 local (`services/utils`) | Supabase Auth (`services/auth.ts`) |
+| Imagens | dataURL | bucket privado `midia` (`services/media.ts`) |
 
-Telas, componentes e regras de negócio não mudam.
+O que tornou isso possível sem reescrever as telas foi o schema espelhar `types.ts`
+quase 1:1. O estado continua sendo um `AppState` em memória; só muda de onde ele vem.
+
+**Fluxo online.** Na montagem, `AppContext` restaura a sessão e chama
+`backend.loadSnapshot()`, que traz exatamente o recorte que o RLS permite — perfis
+visíveis, apenas as conexões e mensagens em que a pessoa participa, e a fila de
+moderação só para admin. O resultado entra no reducer por `HYDRATE_REMOTE`.
+
+**Escrita local-first.** Cada ação de domínio despacha para o reducer primeiro (UI
+instantânea) e chama `persist()` em seguida. Se o servidor recusar, aparece um toast
+pedindo recarregar — o estado local nunca mente em silêncio sobre ter salvado.
+
+**Privacidade do cache.** Em modo online, `saveState` grava no `localStorage`
+**apenas o tema**. Espelhar o banco ali deixaria mensagens de conversas reais em claro
+no navegador, sobrevivendo ao logout.
+
+### O que ainda falta para produção
+
+1. **Realtime.** Hoje a conversa só atualiza ao recarregar; falta assinar `messages`
+   via Supabase Realtime.
+2. **Gemini no servidor.** `geminiService.ts` ainda chama o modelo do cliente, o que
+   expõe a chave. A correção é uma Edge Function — e ela depende do login existir,
+   que é o que esta etapa entregou: agora dá para exigir JWT na função.
+3. **O Véu é mecânica de produto, não criptografia.** O desfoque é aplicado no
+   cliente; quem abrir o inspetor vê a original. O bucket é privado justamente para
+   permitir a correção certa depois: servir uma derivada já desfocada pelo servidor
+   até a conversa atingir o estágio. Está documentado em `services/media.ts`.
+4. **Paginação.** `loadSnapshot` traz tudo de uma vez. Funciona na escala de um MVP e
+   quebra na de milhares de perfis.
 
 ### Decisões de segurança do schema
 

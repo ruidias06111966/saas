@@ -11,6 +11,10 @@ import {
 } from '../components/ui';
 import { Portrait } from '../components/Portrait';
 import { readImageAsDataUrl } from '../services/storage';
+import { uploadImage } from '../services/media';
+import { signUp } from '../services/auth';
+import { supabaseEnabled } from '../services/supabaseClient';
+import * as backend from '../services/backend';
 import { age, blurCoord, cx, isEmail, sha256, uid } from '../services/utils';
 
 // Em produção isto seria geocodificação no servidor; a coordenada é sempre
@@ -34,7 +38,7 @@ interface Draft {
   goal: RelationshipGoal | ''; chatPace: User['chatPace'];
   interests: string[]; personality: Record<AxisKey, number>; lifestyle: Lifestyle;
   profession: string; bio: string; answers: Record<string, string>;
-  photo?: string; verified: boolean;
+  photo?: string; photoFile?: File; verified: boolean;
   acceptTerms: boolean; acceptPrivacy: boolean; acceptGuidelines: boolean;
 }
 
@@ -50,7 +54,7 @@ const EMPTY: Draft = {
 };
 
 export function Signup() {
-  const { state, dispatch, navigate, toast } = useApp();
+  const { state, dispatch, navigate, toast, refresh } = useApp();
   const [step, setStep] = useState(0);
   const [d, setD] = useState<Draft>(EMPTY);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -65,7 +69,9 @@ export function Signup() {
     if (step === 0) {
       if (d.name.trim().split(/\s+/).length < 2) e.name = 'Informe nome e sobrenome.';
       if (!isEmail(d.email)) e.email = 'E-mail inválido.';
-      if (state.users.some((u) => u.email.toLowerCase() === d.email.trim().toLowerCase())) e.email = 'Já existe uma conta com este e-mail.';
+      if (!supabaseEnabled && state.users.some((u) => u.email.toLowerCase() === d.email.trim().toLowerCase())) {
+        e.email = 'Já existe uma conta com este e-mail.';
+      }
       if (d.password.length < 8) e.password = 'Use pelo menos 8 caracteres.';
       if (d.password !== d.password2) e.password2 = 'As senhas não conferem.';
       if (!d.birthDate) e.birthDate = 'Informe sua data de nascimento.';
@@ -103,12 +109,43 @@ export function Signup() {
     const key = d.city.trim().toLowerCase();
     const [lat, lng] = CITY_COORDS[key] ?? CITY_COORDS['são paulo'];
     const now = new Date().toISOString();
+
+    // Modo online: a conta nasce no Supabase Auth e o id dela é o id do perfil.
+    let novoId = uid('u');
+    let precisaConfirmarEmail = false;
+    if (supabaseEnabled) {
+      try {
+        const r = await signUp(d.email, d.password);
+        if (!r.userId) throw new Error('Não foi possível criar a conta.');
+        novoId = r.userId;
+        precisaConfirmarEmail = r.needsEmailConfirmation;
+      } catch (err) {
+        setBusy(false);
+        setStep(0);
+        setErrors({ email: (err as Error).message });
+        return;
+      }
+    }
+
+    // A foto só sobe depois que existe um id: o bucket é organizado por pasta
+    // de usuário, e a policy do Storage exige que a pasta seja a de auth.uid().
+    let photo = d.photo;
+    if (supabaseEnabled && d.photoFile) {
+      try {
+        photo = await uploadImage(d.photoFile, novoId, 'perfil');
+      } catch (err) {
+        toast((err as Error).message, 'warn');
+        photo = undefined;
+      }
+    }
+
     const user: User = {
-      id: uid('u'), name: d.name.trim(), email: d.email.trim().toLowerCase(),
-      passwordHash: await sha256(d.password), birthDate: d.birthDate, gender: d.gender as Gender,
+      id: novoId, name: d.name.trim(), email: d.email.trim().toLowerCase(),
+      passwordHash: supabaseEnabled ? '' : await sha256(d.password),
+      birthDate: d.birthDate, gender: d.gender as Gender,
       city: d.city.trim(), state: d.state,
       approxLat: blurCoord(lat), approxLng: blurCoord(lng),
-      photo: d.photo, extraPhotos: [], profession: d.profession.trim(), bio: d.bio.trim(),
+      photo, extraPhotos: [], profession: d.profession.trim(), bio: d.bio.trim(),
       interests: d.interests, personality: d.personality, lifestyle: d.lifestyle,
       chatPace: d.chatPace, goal: d.goal as RelationshipGoal,
       answers: Object.entries(d.answers).filter(([, v]) => v.trim()).map(([promptId, answer]) => ({ promptId, answer: answer.trim() })),
@@ -125,6 +162,27 @@ export function Signup() {
       ],
       createdAt: now, lastActiveAt: now,
     };
+    if (supabaseEnabled) {
+      try {
+        await backend.saveUser(user);
+        await backend.saveConsents(user.id, user.consents);
+        await refresh();
+      } catch (err) {
+        setBusy(false);
+        toast(`Conta criada, mas o perfil não foi salvo: ${(err as Error).message}`, 'danger');
+        return;
+      }
+      setBusy(false);
+      toast(
+        precisaConfirmarEmail
+          ? 'Conta criada. Confirme o e-mail que enviamos para entrar.'
+          : 'Conta criada. Sua primeira curadoria já está esperando.',
+        'ok',
+      );
+      if (precisaConfirmarEmail) navigate({ name: 'login' });
+      return;
+    }
+
     dispatch({ type: 'REGISTER', user });
     setBusy(false);
     toast('Conta criada. Sua primeira curadoria já está esperando.', 'ok');
@@ -384,8 +442,10 @@ export function Signup() {
                     onChange={async (e) => {
                       const file = e.target.files?.[0];
                       if (!file) return;
-                      try { set('photo', await readImageAsDataUrl(file)); }
-                      catch (err) { toast((err as Error).message, 'danger'); }
+                      try {
+                        setD((prev) => ({ ...prev, photoFile: file }));
+                        set('photo', await readImageAsDataUrl(file));
+                      } catch (err) { toast((err as Error).message, 'danger'); }
                     }}
                   />
                 </label>

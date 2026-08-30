@@ -11,8 +11,8 @@ import { Banner, Button, Card, Chip, Icon, IconButton, Modal, Textarea } from '.
 import { ConversationThermometer, VeilProgress } from '../components/ConversationThermometer';
 import { CopilotPanel } from '../components/Copilot';
 import { ReportDialog } from '../components/ReportDialog';
-import { Avatar, Portrait } from '../components/Portrait';
-import { readImageAsDataUrl } from '../services/storage';
+import { Avatar, ImagemDaMensagem, Portrait } from '../components/Portrait';
+import { uploadImage } from '../services/media';
 import { clockTime, cx, dayLabel, firstName, seededRandom, shuffle } from '../services/utils';
 
 // Respostas simuladas: este é um MVP sem backend, e a simulação existe para
@@ -29,7 +29,7 @@ const SIMULATED = [
 export function Chat({ id }: { id: string }) {
   const {
     me, state, back, navigate, sendMessage, dispatch, toggleFavorite, closeConnection,
-    blockUser, setRevealConsent, toast, canUseAi, spendAi,
+    blockUser, setRevealConsent, markRead, toast, canUseAi, spendAi,
   } = useApp();
 
   const [draft, setDraft] = useState('');
@@ -52,7 +52,7 @@ export function Chat({ id }: { id: string }) {
   const health = useMemo(() => (conn ? conversationHealth(conn, messages) : null), [conn, messages]);
 
   useEffect(() => {
-    if (conn && me) dispatch({ type: 'MARK_READ', connectionId: conn.id, readerId: me.id });
+    if (conn && me) markRead(conn.id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conn?.id, messages.length]);
 
@@ -208,7 +208,7 @@ export function Chat({ id }: { id: string }) {
                           )}
                         >
                           {m.kind === 'imagem' && m.imageData && (
-                            <img src={m.imageData} alt="Imagem enviada" className="mb-2 max-h-64 rounded-xl2 object-cover" />
+                            <ImagemDaMensagem caminho={m.imageData} />
                           )}
                           {m.text}
                         </div>
@@ -285,8 +285,10 @@ export function Chat({ id }: { id: string }) {
                     onChange={async (e) => {
                       const file = e.target.files?.[0];
                       if (!file) return;
-                      try { doSend('📷 Imagem', 'imagem', { imageData: await readImageAsDataUrl(file, 900) }); }
-                      catch (err) { toast((err as Error).message, 'danger'); }
+                      try {
+                        const caminho = await uploadImage(file, me.id, 'conversa', 900);
+                        doSend('📷 Imagem', 'imagem', { imageData: caminho });
+                      } catch (err) { toast((err as Error).message, 'danger'); }
                     }}
                   />
                 </label>

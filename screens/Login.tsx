@@ -3,11 +3,13 @@ import { useApp } from '../state/AppContext';
 import { Banner, Button, Card, Field, Icon, Input } from '../components/ui';
 import { DEMO_ADMIN_ID, DEMO_PASSWORD, DEMO_USER_ID } from '../data/seed';
 import { isEmail, sha256 } from '../services/utils';
+import { signIn } from '../services/auth';
+import { supabaseEnabled } from '../services/supabaseClient';
 
 export function Login() {
   const { state, dispatch, navigate, toast } = useApp();
-  const [email, setEmail] = useState('joao@conexao.app');
-  const [password, setPassword] = useState(DEMO_PASSWORD);
+  const [email, setEmail] = useState(supabaseEnabled ? '' : 'joao@conexao.app');
+  const [password, setPassword] = useState(supabaseEnabled ? '' : DEMO_PASSWORD);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -16,6 +18,22 @@ export function Login() {
     setError('');
     if (!isEmail(email)) return setError('E-mail inválido.');
     setBusy(true);
+
+    // Modo online: a senha nunca é comparada aqui. Vai para o Supabase Auth,
+    // que faz bcrypt no servidor e devolve um JWT de curta duração.
+    if (supabaseEnabled) {
+      try {
+        await signIn(email, password);
+        // A sessão dispara onAuthChange, que hidrata o estado a partir do banco.
+        toast('Bem-vindo de volta.', 'ok');
+      } catch (err) {
+        setError((err as Error).message);
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+
     const user = state.users.find((u) => u.email.toLowerCase() === email.trim().toLowerCase());
     const hash = await sha256(password);
     setBusy(false);
@@ -57,15 +75,24 @@ export function Login() {
         </p>
       </Card>
 
-      <div className="mt-6">
-        <Banner tone="info" icon="info" title="Contas de demonstração">
-          Todas as contas fictícias usam a senha <code className="font-mono">{DEMO_PASSWORD}</code>.
-        </Banner>
-        <div className="mt-3 grid gap-2 sm:grid-cols-2">
-          <Button variant="outline" size="sm" onClick={() => quick(DEMO_USER_ID)}>Entrar como João (usuário)</Button>
-          <Button variant="outline" size="sm" onClick={() => quick(DEMO_ADMIN_ID)}>Entrar como administrador</Button>
+      {supabaseEnabled ? (
+        <div className="mt-6">
+          <Banner tone="ok" icon="shield" title="Modo online">
+            Este aplicativo está conectado a um banco real. Sua senha é verificada pelo
+            Supabase Auth e suas conversas ficam protegidas por Row Level Security.
+          </Banner>
         </div>
-      </div>
+      ) : (
+        <div className="mt-6">
+          <Banner tone="info" icon="info" title="Contas de demonstração">
+            Todas as contas fictícias usam a senha <code className="font-mono">{DEMO_PASSWORD}</code>.
+          </Banner>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            <Button variant="outline" size="sm" onClick={() => quick(DEMO_USER_ID)}>Entrar como João (usuário)</Button>
+            <Button variant="outline" size="sm" onClick={() => quick(DEMO_ADMIN_ID)}>Entrar como administrador</Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

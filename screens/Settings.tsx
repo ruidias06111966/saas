@@ -10,7 +10,7 @@ import { Banner, Button, Card, Chip, Icon, Input, Modal, SectionTitle, Toggle } 
 import { firstName } from '../services/utils';
 
 export function Settings() {
-  const { me, state, dispatch, back, toast, navigate } = useApp();
+  const { me, state, dispatch, back, toast, navigate, logout, deleteAccount, mode } = useApp();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmText, setConfirmText] = useState('');
   const [dark, setDark] = useState(state.theme === 'dark');
@@ -116,19 +116,24 @@ export function Settings() {
         </Card>
 
         <Card className="p-5">
-          <SectionTitle hint="Ferramentas desta demonstração.">Demonstração</SectionTitle>
+          <SectionTitle hint={mode === 'online' ? 'Conectado a um banco real.' : 'Ferramentas desta demonstração.'}>
+            {mode === 'online' ? 'Onde seus dados vivem' : 'Demonstração'}
+          </SectionTitle>
           <div className="flex flex-wrap gap-2">
-            <Button
-              variant="outline" size="sm" icon="refresh"
-              onClick={() => { clearState(); dispatch({ type: 'RESET_DEMO' }); toast('Dados de demonstração restaurados.', 'ok'); }}
-            >
-              Restaurar dados fictícios
-            </Button>
-            <Button variant="ghost" size="sm" icon="logout" onClick={() => dispatch({ type: 'LOGOUT' })}>Sair da conta</Button>
+            {mode === 'demo' && (
+              <Button
+                variant="outline" size="sm" icon="refresh"
+                onClick={() => { clearState(); dispatch({ type: 'RESET_DEMO' }); toast('Dados de demonstração restaurados.', 'ok'); }}
+              >
+                Restaurar dados fictícios
+              </Button>
+            )}
+            <Button variant="ghost" size="sm" icon="logout" onClick={() => void logout()}>Sair da conta</Button>
           </div>
           <p className="mt-3 text-xs leading-relaxed text-muted">
-            Este MVP guarda tudo no localStorage do seu navegador. Nada é enviado para servidor algum,
-            exceto as chamadas ao Gemini quando você pede uma sugestão e há chave configurada.
+            {mode === 'online'
+              ? 'Seu perfil, conexões e mensagens ficam num banco PostgreSQL protegido por Row Level Security: ninguém consegue ler a conversa de outra pessoa, nem mesmo com a chave pública do aplicativo. Seu navegador guarda apenas a preferência de tema.'
+              : 'Este MVP guarda tudo no localStorage do seu navegador. Nada é enviado para servidor algum, exceto as chamadas ao Gemini quando você pede uma sugestão e há chave configurada.'}
           </p>
         </Card>
       </div>
@@ -140,7 +145,11 @@ export function Settings() {
             <Button variant="ghost" onClick={() => setConfirmDelete(false)}>Cancelar</Button>
             <Button
               variant="danger" disabled={confirmText.trim().toUpperCase() !== 'EXCLUIR'}
-              onClick={() => { dispatch({ type: 'DELETE_ACCOUNT', userId: me.id }); toast('Conta excluída. Seus dados foram removidos.', 'ok'); }}
+              onClick={() => {
+                void deleteAccount()
+                  .then(() => toast('Conta excluída. Seus dados foram removidos.', 'ok'))
+                  .catch((err: Error) => toast(err.message, 'danger'));
+              }}
             >
               Excluir definitivamente
             </Button>

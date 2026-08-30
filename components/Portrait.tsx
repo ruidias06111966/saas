@@ -1,6 +1,7 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { cx, initials, seededRandom } from '../services/utils';
 import { veilBlur } from '../services/conversation';
+import { resolveImage } from '../services/media';
 import { Icon } from './ui/Icon';
 
 // ---------------------------------------------------------------------------
@@ -51,12 +52,30 @@ function GenerativePortrait({ seed }: { seed: string }) {
   );
 }
 
+/**
+ * No modo demo `photo` é um dataURL. No modo online é um caminho dentro do
+ * bucket privado, que precisa virar URL assinada de curta duração.
+ */
+export function useFotoResolvida(photo?: string): string | undefined {
+  const direta = photo && (photo.startsWith('data:') || photo.startsWith('http')) ? photo : undefined;
+  const [url, setUrl] = useState<string | undefined>(direta);
+  useEffect(() => {
+    let vivo = true;
+    if (direta) { setUrl(direta); return; }
+    if (!photo) { setUrl(undefined); return; }
+    resolveImage(photo).then((u) => { if (vivo) setUrl(u); }).catch(() => {});
+    return () => { vivo = false; };
+  }, [photo, direta]);
+  return url;
+}
+
 export function Portrait({
   seed, photo, name, reveal = 1, className, rounded = 'rounded-xl3', showLock = false, stageLabel,
 }: {
   seed: string; photo?: string; name: string; reveal?: number;
   className?: string; rounded?: string; showLock?: boolean; stageLabel?: string;
 }) {
+  const src = useFotoResolvida(photo);
   const blur = veilBlur(reveal);
   const veiled = reveal < 0.995;
   return (
@@ -68,12 +87,12 @@ export function Portrait({
           transform: veiled ? `scale(${1 + (1 - reveal) * 0.14})` : undefined,
         }}
       >
-        {photo
-          ? <img src={photo} alt={veiled ? `Retrato velado de ${name}` : name} className="h-full w-full object-cover" />
+        {src
+          ? <img src={src} alt={veiled ? `Retrato velado de ${name}` : name} className="h-full w-full object-cover" />
           : <GenerativePortrait seed={seed} />}
       </div>
 
-      {!photo && !veiled && (
+      {!src && !veiled && (
         <span className="absolute inset-0 grid place-items-center font-display text-3xl font-semibold text-white/90 drop-shadow">
           {initials(name)}
         </span>
@@ -102,4 +121,13 @@ export function Avatar({ seed, photo, name, reveal = 1, size = 44, ring }: {
       <Portrait seed={seed} photo={photo} name={name} reveal={reveal} rounded="rounded-full" className="h-full w-full" />
     </div>
   );
+}
+
+/** Imagem enviada numa conversa. Resolve o caminho do Storage antes de exibir. */
+export function ImagemDaMensagem({ caminho }: { caminho: string }) {
+  const src = useFotoResolvida(caminho);
+  if (!src) {
+    return <div className="mb-2 h-40 w-56 animate-pulseSoft rounded-xl2 bg-line" aria-label="Carregando imagem" />;
+  }
+  return <img src={src} alt="Imagem enviada" className="mb-2 max-h-64 rounded-xl2 object-cover" />;
 }
