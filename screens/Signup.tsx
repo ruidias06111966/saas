@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { AxisKey, Gender, Lifestyle, RelationshipGoal, SeekingGender, User } from '../types';
 import {
   AXES, GENDER_LABEL, GOAL_EMOJI, GOAL_LABEL, LIFESTYLE_FIELDS, MIN_AGE, PACE_LABEL, POLICY_VERSION,
@@ -12,8 +12,9 @@ import {
 import { Portrait } from '../components/Portrait';
 import { readImageAsDataUrl } from '../services/storage';
 import { uploadProfilePhoto } from '../services/media';
-import { signUp } from '../services/auth';
+import { resendConfirmation, signUp } from '../services/auth';
 import { supabaseEnabled } from '../services/supabaseClient';
+import { clearDraft, loadDraft, saveDraft } from '../services/signupDraft';
 import * as backend from '../services/backend';
 import { age, blurCoord, cx, isEmail, sha256, uid } from '../services/utils';
 
@@ -54,11 +55,19 @@ const EMPTY: Draft = {
 };
 
 export function Signup() {
-  const { state, dispatch, navigate, toast, refresh } = useApp();
-  const [step, setStep] = useState(0);
-  const [d, setD] = useState<Draft>(EMPTY);
+  const { state, dispatch, navigate, toast, refresh, pendingAccount } = useApp();
+  // `pendingAccount` = a conta já existe no Auth e o e-mail já foi confirmado,
+  // mas o perfil nunca chegou a ser gravado. Nesse caso a etapa "Conta" não faz
+  // sentido: e-mail e senha já estão definidos.
+  const [step, setStep] = useState(pendingAccount ? 1 : 0);
+  const [d, setD] = useState<Draft>(
+    pendingAccount ? { ...EMPTY, email: pendingAccount.email } : EMPTY,
+  );
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
+  /** Preenchido quando o cadastro terminou e falta a pessoa confirmar o e-mail. */
+  const [aguardandoEmail, setAguardandoEmail] = useState('');
+  const [retomando, setRetomando] = useState(!!pendingAccount);
 
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) => setD((prev) => ({ ...prev, [key]: value }));
 
@@ -104,56 +113,27 @@ export function Signup() {
     await finish();
   };
 
-  const finish = async () => {
-    setBusy(true);
-    const key = d.city.trim().toLowerCase();
+  /** Monta o objeto de domínio a partir do formulário. */
+  const montarUsuario = async (dados: Draft, id: string, foto?: string): Promise<User> => {
+    const key = dados.city.trim().toLowerCase();
     const [lat, lng] = CITY_COORDS[key] ?? CITY_COORDS['são paulo'];
     const now = new Date().toISOString();
-
-    // Modo online: a conta nasce no Supabase Auth e o id dela é o id do perfil.
-    let novoId = uid('u');
-    let precisaConfirmarEmail = false;
-    if (supabaseEnabled) {
-      try {
-        const r = await signUp(d.email, d.password);
-        if (!r.userId) throw new Error('Não foi possível criar a conta.');
-        novoId = r.userId;
-        precisaConfirmarEmail = r.needsEmailConfirmation;
-      } catch (err) {
-        setBusy(false);
-        setStep(0);
-        setErrors({ email: (err as Error).message });
-        return;
-      }
-    }
-
-    // A foto só sobe depois que existe um id: o bucket é organizado por pasta
-    // de usuário, e a policy do Storage exige que a pasta seja a de auth.uid().
-    let photo = d.photo;
-    if (supabaseEnabled && d.photoFile) {
-      try {
-        photo = await uploadProfilePhoto(d.photoFile, novoId);
-      } catch (err) {
-        toast((err as Error).message, 'warn');
-        photo = undefined;
-      }
-    }
-
-    const user: User = {
-      id: novoId, name: d.name.trim(), email: d.email.trim().toLowerCase(),
-      passwordHash: supabaseEnabled ? '' : await sha256(d.password),
-      birthDate: d.birthDate, gender: d.gender as Gender,
-      city: d.city.trim(), state: d.state,
+    return {
+      id, name: dados.name.trim(), email: dados.email.trim().toLowerCase(),
+      passwordHash: supabaseEnabled ? '' : await sha256(dados.password),
+      birthDate: dados.birthDate, gender: dados.gender as Gender,
+      city: dados.city.trim(), state: dados.state,
       approxLat: blurCoord(lat), approxLng: blurCoord(lng),
-      photo, extraPhotos: [], profession: d.profession.trim(), bio: d.bio.trim(),
-      interests: d.interests, personality: d.personality, lifestyle: d.lifestyle,
-      chatPace: d.chatPace, goal: d.goal as RelationshipGoal,
-      answers: Object.entries(d.answers).filter(([, v]) => v.trim()).map(([promptId, answer]) => ({ promptId, answer: answer.trim() })),
+      photo: foto, extraPhotos: [], profession: dados.profession.trim(), bio: dados.bio.trim(),
+      interests: dados.interests, personality: dados.personality, lifestyle: dados.lifestyle,
+      chatPace: dados.chatPace, goal: dados.goal as RelationshipGoal,
+      answers: Object.entries(dados.answers).filter(([, v]) => v.trim())
+        .map(([promptId, answer]) => ({ promptId, answer: answer.trim() })),
       preferences: {
-        seeking: d.seeking, ageMin: d.ageMin, ageMax: d.ageMax,
-        maxDistanceKm: d.maxDistanceKm, goals: [], minCompatibility: 0,
+        seeking: dados.seeking, ageMin: dados.ageMin, ageMax: dados.ageMax,
+        maxDistanceKm: dados.maxDistanceKm, goals: [], minCompatibility: 0,
       },
-      verified: d.verified, reputation: 70, plan: 'free', role: 'user', status: 'ativo',
+      verified: false, reputation: 70, plan: 'free', role: 'user', status: 'ativo',
       consents: [
         { kind: 'termos', version: POLICY_VERSION, acceptedAt: now },
         { kind: 'privacidade', version: POLICY_VERSION, acceptedAt: now },
@@ -162,40 +142,179 @@ export function Signup() {
       ],
       createdAt: now, lastActiveAt: now,
     };
-    if (supabaseEnabled) {
+  };
+
+  /** A foto do rascunho volta como dataURL; o upload precisa de um arquivo. */
+  const arquivoDaFoto = async (dados: Draft): Promise<File | undefined> => {
+    if (dados.photoFile) return dados.photoFile;
+    if (!dados.photo?.startsWith('data:')) return undefined;
+    const blob = await (await fetch(dados.photo)).blob();
+    return new File([blob], 'perfil.jpg', { type: blob.type || 'image/jpeg' });
+  };
+
+  /**
+   * Grava o perfil. Só é chamada quando JÁ existe sessão — antes disso o RLS
+   * recusaria tudo, porque tanto a política de `users` quanto a do Storage
+   * comparam com auth.uid().
+   */
+  const gravarPerfil = async (dados: Draft, id: string) => {
+    let foto: string | undefined;
+    const arquivo = await arquivoDaFoto(dados);
+    if (arquivo) {
       try {
-        await backend.saveUser(user);
-        await backend.saveConsents(user.id, user.consents);
-        await refresh();
+        foto = await uploadProfilePhoto(arquivo, id);
       } catch (err) {
-        setBusy(false);
-        toast(`Conta criada, mas o perfil não foi salvo: ${(err as Error).message}`, 'danger');
-        return;
+        // Sem foto o perfil ainda vale; ela pode ser enviada depois.
+        toast((err as Error).message, 'warn');
+      }
+    }
+    const user = await montarUsuario(dados, id, foto);
+    await backend.saveUser(user);
+    await backend.saveConsents(user.id, user.consents);
+    clearDraft();
+    await refresh();
+  };
+
+  // Retomada: a conta existe, o e-mail foi confirmado, e o perfil ficou
+  // esperando neste aparelho. Conclui sozinho, sem pedir tudo de novo.
+  useEffect(() => {
+    if (!pendingAccount) return;
+    const rascunho = loadDraft(pendingAccount.id) as Draft | null;
+    if (!rascunho) { setRetomando(false); return; }
+    setBusy(true);
+    gravarPerfil({ ...rascunho, email: pendingAccount.email }, pendingAccount.id)
+      .then(() => toast('Bem-vindo! Seu perfil está pronto.', 'ok'))
+      .catch((err: Error) => {
+        toast(`Não foi possível concluir o cadastro: ${err.message}`, 'danger');
+        setD({ ...rascunho, email: pendingAccount.email });
+      })
+      .finally(() => { setBusy(false); setRetomando(false); });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingAccount?.id]);
+
+  const finish = async () => {
+    setBusy(true);
+
+    // Caminho de retomada: a conta já existe, só falta o perfil.
+    if (pendingAccount) {
+      try {
+        await gravarPerfil(d, pendingAccount.id);
+        toast('Cadastro concluído. Sua primeira curadoria já está esperando.', 'ok');
+      } catch (err) {
+        toast(`Não foi possível salvar o perfil: ${(err as Error).message}`, 'danger');
       }
       setBusy(false);
-      toast(
-        precisaConfirmarEmail
-          ? 'Conta criada. Confirme o e-mail que enviamos para entrar.'
-          : 'Conta criada. Sua primeira curadoria já está esperando.',
-        'ok',
-      );
-      if (precisaConfirmarEmail) navigate({ name: 'login' });
       return;
     }
 
-    dispatch({ type: 'REGISTER', user });
+    if (!supabaseEnabled) {
+      const user = await montarUsuario(d, uid('u'), d.photo);
+      dispatch({ type: 'REGISTER', user });
+      setBusy(false);
+      toast('Conta criada. Sua primeira curadoria já está esperando.', 'ok');
+      return;
+    }
+
+    let novoId: string;
+    let precisaConfirmarEmail: boolean;
+    try {
+      const r = await signUp(d.email, d.password);
+      if (!r.userId) throw new Error('Não foi possível criar a conta.');
+      novoId = r.userId;
+      precisaConfirmarEmail = r.needsEmailConfirmation;
+    } catch (err) {
+      setBusy(false);
+      setStep(0);
+      setErrors({ email: (err as Error).message });
+      return;
+    }
+
+    // Com confirmação de e-mail ligada não há sessão ainda, e sem sessão o RLS
+    // recusa qualquer escrita. O perfil espera no aparelho e sobe na primeira
+    // entrada — ver services/signupDraft.ts.
+    if (precisaConfirmarEmail) {
+      saveDraft(novoId, d.email.trim().toLowerCase(), { ...d, photoFile: undefined, password: '', password2: '' });
+      setBusy(false);
+      setAguardandoEmail(d.email.trim().toLowerCase());
+      return;
+    }
+
+    try {
+      await gravarPerfil(d, novoId);
+      toast('Conta criada. Sua primeira curadoria já está esperando.', 'ok');
+    } catch (err) {
+      toast(`Conta criada, mas o perfil não foi salvo: ${(err as Error).message}`, 'danger');
+    }
     setBusy(false);
-    toast('Conta criada. Sua primeira curadoria já está esperando.', 'ok');
   };
 
   const progress = ((step + 1) / STEPS.length) * 100;
+
+  // Cadastro feito, falta confirmar o e-mail. Nada foi gravado no servidor
+  // ainda — o perfil está guardado neste aparelho e sobe na primeira entrada.
+  if (aguardandoEmail) {
+    return (
+      <div className="mx-auto w-full max-w-2xl px-5 py-10">
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">Cadastro</p>
+        <h1 className="mt-1 font-display text-2xl font-bold tracking-tight">Confirme seu e-mail</h1>
+        <Card className="mt-5 p-6">
+          <p className="text-[15px] leading-relaxed">
+            Enviamos um link de confirmação para <strong>{aguardandoEmail}</strong>. Abra a mensagem
+            e clique no link — você volta para cá já com a conta ativa, e o perfil que você acabou
+            de preencher é salvo automaticamente.
+          </p>
+          <div className="mt-4">
+            <Banner tone="info" icon="info" title="Ainda não gravamos nada no servidor">
+              Seu perfil está guardado neste navegador até a confirmação. Se você confirmar em outro
+              aparelho, a conta funciona igual — só vamos pedir os dados do perfil de novo.
+            </Banner>
+          </div>
+          <div className="mt-5 flex flex-wrap gap-2">
+            <Button
+              variant="outline" icon="mail" loading={busy}
+              onClick={async () => {
+                setBusy(true);
+                try {
+                  await resendConfirmation(aguardandoEmail);
+                  toast('Enviamos de novo. Confira também a caixa de spam.', 'ok');
+                } catch (err) {
+                  toast((err as Error).message, 'danger');
+                } finally { setBusy(false); }
+              }}
+            >
+              Reenviar o e-mail
+            </Button>
+            <Button variant="ghost" onClick={() => navigate({ name: 'login' })}>Ir para a entrada</Button>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
+  // Retomada automática em andamento.
+  if (retomando) {
+    return (
+      <div className="mx-auto w-full max-w-2xl px-5 py-10">
+        <h1 className="font-display text-2xl font-bold tracking-tight">Concluindo seu cadastro</h1>
+        <Card className="mt-5 p-6">
+          <p className="text-[13px] text-muted">Salvando o perfil que você preencheu. Um instante…</p>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto w-full max-w-2xl px-5 py-8">
       <div className="mb-6 flex items-center gap-3">
         <button
           type="button" aria-label="Voltar"
-          onClick={() => (step === 0 ? navigate({ name: 'landing' }) : setStep(step - 1))}
+          onClick={() => {
+            // Na retomada a etapa "Conta" não existe: e-mail e senha já estão
+            // definidos, e voltar até ela pediria uma senha que não será usada.
+            const minimo = pendingAccount ? 1 : 0;
+            if (step > minimo) setStep(step - 1);
+            else if (!pendingAccount) navigate({ name: 'landing' });
+          }}
           className="-ml-2 grid h-9 w-9 place-items-center rounded-full text-muted hover:bg-brandSoft hover:text-ink"
         >
           <Icon name="back" />
