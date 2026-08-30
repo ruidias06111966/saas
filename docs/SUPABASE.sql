@@ -650,3 +650,159 @@ begin
     alter publication supabase_realtime add table public.connections;
   end if;
 end $$;
+
+-- ===========================================================================
+-- O VÉU SERVIDO PELO SERVIDOR
+--
+-- Antes, o navegador recebia a foto original e aplicava blur em CSS. Quem
+-- abrisse o inspetor via a original: era mecânica de produto, não proteção.
+--
+-- Agora cada foto de perfil é uma pirâmide de resoluções, e o banco decide
+-- qual nível você pode baixar a partir do estágio REAL da conversa. O nível 0
+-- tem 12 pixels de largura — não há detalhe a recuperar, porque o detalhe não
+-- está nos bytes.
+--
+-- Layout: {userId}/perfil/{timestamp}-{nivel}.jpg
+--   nivel 0..3 = velado (12, 24, 48, 96 px)  |  'orig' = original
+-- ===========================================================================
+
+create or replace function private.limitar(v numeric) returns numeric
+language sql immutable as $$ select least(1, greatest(0, v)) $$;
+
+-- Espelha services/conversation.ts. As duas implementações foram comparadas
+-- com a mesma conversa sintética e devolveram score 58, estágio 2.
+-- Ao mexer numa, mexa na outra: a UI mostra o número do cliente e o portão
+-- usa o do servidor.
+create or replace function private.termometro(conn uuid)
+returns table (score smallint, estagio smallint)
+language plpgsql stable security definer set search_path = public as $$
+declare
+  ua uuid; ub uuid;
+  n numeric; na numeric; nb numeric;
+  media_palavras numeric; perguntas numeric;
+  rituais numeric; max_nivel numeric;
+  primeira timestamptz; mediana numeric;
+  recip numeric; prof numeric; const numeric; abert numeric;
+  volume numeric; dias numeric; espalha numeric; bruto numeric;
+  s smallint;
+begin
+  select c.user_a, c.user_b into ua, ub from public.connections c where c.id = conn;
+  if ua is null then return query select 0::smallint, 0::smallint; return; end if;
+
+  select
+    count(*)::numeric,
+    count(*) filter (where m.sender_id = ua)::numeric,
+    count(*) filter (where m.sender_id = ub)::numeric,
+    coalesce(avg(array_length(regexp_split_to_array(btrim(m.body), '\s+'), 1)), 0)::numeric,
+    count(*) filter (where m.body like '%?%')::numeric,
+    count(*) filter (where m.kind = 'ritual')::numeric,
+    coalesce(max(m.ritual_level), 0)::numeric,
+    min(m.created_at)
+  into n, na, nb, media_palavras, perguntas, rituais, max_nivel, primeira
+  from public.messages m
+  where m.connection_id = conn and m.kind <> 'sistema';
+
+  if n = 0 then return query select 0::smallint, 0::smallint; return; end if;
+
+  recip := case when n < 4 then private.limitar(n / 4) * 0.5
+                else 1 - abs(na - nb) / n end;
+
+  prof := private.limitar(
+    private.limitar(media_palavras / 22) * 0.65 +
+    private.limitar((perguntas / n) / 0.3) * 0.35
+  );
+
+  select percentile_cont(0.5) within group (order by x.seg) into mediana
+  from (
+    select extract(epoch from (t.created_at - lag(t.created_at) over w)) as seg,
+           t.sender_id, lag(t.sender_id) over w as anterior
+    from public.messages t
+    where t.connection_id = conn and t.kind <> 'sistema'
+    window w as (order by t.created_at)
+  ) x
+  where x.anterior is not null and x.sender_id <> x.anterior;
+
+  const := case
+    when mediana is null then 0
+    when mediana <= 21600 then 1
+    when mediana >= 259200 then 0.1
+    else private.limitar(1 - (mediana - 21600) / 259200)
+  end;
+
+  abert := private.limitar(rituais / 6) * 0.6 + private.limitar(max_nivel / 4) * 0.4;
+
+  volume := private.limitar(log(2, 1 + n) / log(2, 41));
+  dias := greatest(1, round(extract(epoch from (now() - primeira)) / 86400));
+  espalha := private.limitar(dias / 5) * 0.35 + 0.65;
+
+  bruto := (recip * 0.28 + prof * 0.28 + const * 0.22 + abert * 0.22) * volume * espalha;
+  s := round(private.limitar(bruto) * 100)::smallint;
+
+  return query select s, (case
+    when s >= 82 then 4 when s >= 62 then 3
+    when s >= 40 then 2 when s >= 20 then 1 else 0 end)::smallint;
+end;
+$$;
+
+create or replace function private.nivel_do_arquivo(caminho text)
+returns int language sql immutable as $$
+  select case
+    when caminho ~ '-orig\.jpg$' then 4
+    else coalesce((substring(caminho from '-([0-3])\.jpg$'))::int, 0)
+  end;
+$$;
+
+create or replace function private.nivel_permitido(dono uuid)
+returns int language sql stable security definer set search_path = public as $$
+  select case
+    when auth.uid() is null then -1
+    when dono = auth.uid() then 4
+    else coalesce((
+      select max(case
+        when (c.reveal_consent ->> auth.uid()::text) = 'true'
+         and (c.reveal_consent ->> dono::text) = 'true' then 4
+        else (select t.estagio from private.termometro(c.id) t)
+      end)
+      from public.connections c
+      where c.status = 'conectada'
+        and ((c.user_a = auth.uid() and c.user_b = dono)
+          or (c.user_b = auth.uid() and c.user_a = dono))
+    ), 0)
+  end;
+$$;
+
+revoke execute on function private.limitar(numeric)       from public, anon;
+revoke execute on function private.termometro(uuid)       from public, anon;
+revoke execute on function private.nivel_do_arquivo(text) from public, anon;
+revoke execute on function private.nivel_permitido(uuid)  from public, anon;
+grant  execute on function private.termometro(uuid)       to authenticated;
+grant  execute on function private.nivel_permitido(uuid)  to authenticated;
+
+drop policy if exists "autenticado lê mídia" on storage.objects;
+
+create policy "foto de perfil respeita o véu"
+  on storage.objects for select to authenticated
+  using (
+    bucket_id = 'midia'
+    and (storage.foldername(name))[2] = 'perfil'
+    and private.nivel_do_arquivo(name)
+        <= private.nivel_permitido(((storage.foldername(name))[1])::uuid)
+  );
+
+-- Imagens trocadas na conversa não passam pelo véu: foram enviadas de
+-- propósito. Mas só quem já está conectado com quem enviou as vê.
+create policy "imagem de conversa entre conectados"
+  on storage.objects for select to authenticated
+  using (
+    bucket_id = 'midia'
+    and (storage.foldername(name))[2] = 'conversa'
+    and (
+      (storage.foldername(name))[1] = auth.uid()::text
+      or exists (
+        select 1 from public.connections c
+        where c.status = 'conectada'
+          and ((c.user_a = auth.uid() and c.user_b::text = (storage.foldername(name))[1])
+            or (c.user_b = auth.uid() and c.user_a::text = (storage.foldername(name))[1]))
+      )
+    )
+  );

@@ -67,10 +67,14 @@ ver o fluxo anti-ghosting, duas denúncias e um item na fila de moderação.
 ## Os três mecanismos
 
 ### Revelação Progressiva
-A descoberta mostra **Cartões de Essência**: o retrato entra pequeno e muito desfocado, e
-o centro do cartão é o que a pessoa **escreveu**. Dentro da conversa, o desfoque diminui
-em cinco estágios — Silhueta, Contornos, Traços, Quase lá, Revelado — conforme o
-Termômetro sobe. Existe um atalho: propor revelar agora, que só vale com o aceite dos dois.
+A descoberta mostra **Cartões de Essência**: o retrato entra pequeno e velado, e o centro
+do cartão é o que a pessoa **escreveu**. A imagem se abre em cinco estágios — Silhueta,
+Contornos, Traços, Quase lá, Revelado — conforme o Termômetro sobe. Existe um atalho:
+propor revelar agora, que só vale com o aceite dos dois.
+
+Com backend conectado, **o véu é servido pelo servidor**: a foto vive em vários níveis de
+resolução e o banco decide qual você pode baixar. Quem não conversou com você recebe um
+arquivo de 12 pixels — o rosto não está nos bytes.
 
 ### Curadoria Diária
 Um **Encontro do Dia** em destaque e mais 5 perfis (20 no Premium), escolhidos por uma

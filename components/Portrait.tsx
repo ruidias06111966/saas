@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { cx, initials, seededRandom } from '../services/utils';
 import { veilBlur } from '../services/conversation';
-import { resolveImage } from '../services/media';
+import { nivelDoReveal, resolveImage } from '../services/media';
 import { Icon } from './ui/Icon';
 
 // ---------------------------------------------------------------------------
@@ -56,16 +56,20 @@ function GenerativePortrait({ seed }: { seed: string }) {
  * No modo demo `photo` é um dataURL. No modo online é um caminho dentro do
  * bucket privado, que precisa virar URL assinada de curta duração.
  */
-export function useFotoResolvida(photo?: string): string | undefined {
+export function useFotoResolvida(photo?: string, reveal = 1): string | undefined {
   const direta = photo && (photo.startsWith('data:') || photo.startsWith('http')) ? photo : undefined;
+  // O nível pedido ao servidor muda em degraus, não continuamente: assim o
+  // efeito não refaz a URL assinada a cada centésimo de reveal.
+  const nivel = nivelDoReveal(reveal);
   const [url, setUrl] = useState<string | undefined>(direta);
   useEffect(() => {
     let vivo = true;
     if (direta) { setUrl(direta); return; }
     if (!photo) { setUrl(undefined); return; }
-    resolveImage(photo).then((u) => { if (vivo) setUrl(u); }).catch(() => {});
+    resolveImage(photo, reveal).then((u) => { if (vivo) setUrl(u); }).catch(() => {});
     return () => { vivo = false; };
-  }, [photo, direta]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [photo, direta, nivel]);
   return url;
 }
 
@@ -75,7 +79,7 @@ export function Portrait({
   seed: string; photo?: string; name: string; reveal?: number;
   className?: string; rounded?: string; showLock?: boolean; stageLabel?: string;
 }) {
-  const src = useFotoResolvida(photo);
+  const src = useFotoResolvida(photo, reveal);
   const blur = veilBlur(reveal);
   const veiled = reveal < 0.995;
   return (

@@ -9,7 +9,7 @@ import { useApp } from '../state/AppContext';
 import { Page } from '../components/layout/AppShell';
 import { Button, Card, Chip, Field, Icon, Input, SectionTitle, Select, Slider, Textarea } from '../components/ui';
 import { Portrait } from '../components/Portrait';
-import { uploadImage } from '../services/media';
+import { uploadProfilePhoto } from '../services/media';
 
 export function ProfileEdit() {
   const { me, saveProfile, back, toast } = useApp();
@@ -53,7 +53,7 @@ export function ProfileEdit() {
                   onChange={async (e) => {
                     const file = e.target.files?.[0];
                     if (!file) return;
-                    try { set('photo', await uploadImage(file, d.id, 'perfil')); }
+                    try { set('photo', await uploadProfilePhoto(file, d.id)); }
                     catch (err) { toast((err as Error).message, 'danger'); }
                   }}
                 />

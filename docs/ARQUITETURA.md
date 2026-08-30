@@ -34,9 +34,24 @@ screens/            15 telas
 
 ### 1. Revelação Progressiva
 
-`Portrait` aplica `blur((1 - reveal) * 26)px` mais uma leve dessaturação e um `scale`
-compensatório (o blur encolhe a imagem nas bordas). O `reveal` vem do termômetro:
-`min(1, score / 82)`.
+**O Véu é controle de acesso, não efeito visual.** Cada foto de perfil é guardada como
+uma pirâmide de resoluções — 12, 24, 48, 96 px e a original — e o banco decide qual
+nível você pode baixar, a partir do estágio real da conversa entre vocês
+(`private.nivel_permitido`, aplicada como policy no `storage.objects`).
+
+Resolução em vez de desfoque foi escolha deliberada: um arquivo de 12 px **não tem
+detalhe a recuperar**, enquanto um JPEG desfocado ainda carrega mais informação do que
+parece. `Portrait` continua aplicando `blur((1 - reveal) * 26)px`, mas agora isso é só
+suavização por cima de uma imagem que já não contém o rosto.
+
+Consequência importante: **o termômetro precisou existir no banco**. `private.termometro`
+espelha `services/conversation.ts` — as duas foram comparadas com a mesma conversa
+sintética e devolveram `score 58, estágio 2`. O cliente continua calculando o número para
+*exibir* (ele tem todas as mensagens, então o cálculo é fiel, não um palpite), mas quem
+guarda o portão é o banco. Ao mexer numa fórmula, mexa na outra.
+
+No modo demo não há servidor para fazer valer nada, e o véu volta a ser cosmético — a
+tela de privacidade diz isso com todas as letras em vez de fingir proteção.
 
 Sem foto, `GenerativePortrait` desenha um SVG determinístico a partir de `hash32(id)`:
 gradiente de dois matizes, três blobs e uma silhueta. Mesma pessoa, sempre a mesma arte.
@@ -191,18 +206,19 @@ senão a assinatura seria refeita a cada navegação ou mudança de estado.
 
 ### O que ainda falta para produção
 
-1. **O Véu é mecânica de produto, não criptografia.** O desfoque é aplicado no
-   cliente; quem abrir o inspetor vê a original. O bucket é privado justamente para
-   permitir a correção certa depois: servir uma derivada já desfocada pelo servidor
-   até a conversa atingir o estágio. Está documentado em `services/media.ts`.
-3. **Cota de IA no servidor.** O limite diário de chamadas é conferido no cliente, em
+1. **Os níveis velados são gerados no navegador.** Quem sobe a foto pode, em tese,
+   mandar um "nível 0" mais nítido do que devia — mas é a foto dele mesmo, e o único
+   efeito é se revelar mais cedo. O que ninguém consegue é ver a foto de OUTRA pessoa
+   antes da hora, que é o que importa. Gerar a pirâmide numa Edge Function fecharia
+   também esse buraco.
+2. **Cota de IA no servidor.** O limite diário de chamadas é conferido no cliente, em
    `daily_usage`. A Edge Function tem o JWT em mãos e poderia checar e incrementar a
    cota ela mesma — hoje não faz. Quem quiser abusar consegue, dentro do limite de
    quem tem conta.
-4. **"Digitando…" de verdade.** O indicador existe na interface mas só é acionado pela
+3. **"Digitando…" de verdade.** O indicador existe na interface mas só é acionado pela
    simulação do modo demo. Fazer valer exige Broadcast ou Presence do Realtime, que é
    um canal diferente do `postgres_changes` usado aqui.
-5. **Paginação.** `loadSnapshot` traz tudo de uma vez. Funciona na escala de um MVP e
+4. **Paginação.** `loadSnapshot` traz tudo de uma vez. Funciona na escala de um MVP e
    quebra na de milhares de perfis.
 
 ### Decisões de segurança do schema

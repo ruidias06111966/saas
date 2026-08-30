@@ -12,7 +12,7 @@ import { ConversationThermometer, VeilProgress } from '../components/Conversatio
 import { CopilotPanel } from '../components/Copilot';
 import { ReportDialog } from '../components/ReportDialog';
 import { Avatar, ImagemDaMensagem, Portrait } from '../components/Portrait';
-import { uploadImage } from '../services/media';
+import { uploadChatImage } from '../services/media';
 import { clockTime, cx, dayLabel, firstName, seededRandom, shuffle } from '../services/utils';
 
 // Respostas simuladas: este é um MVP sem backend, e a simulação existe para
@@ -286,7 +286,7 @@ export function Chat({ id }: { id: string }) {
                       const file = e.target.files?.[0];
                       if (!file) return;
                       try {
-                        const caminho = await uploadImage(file, me.id, 'conversa', 900);
+                        const caminho = await uploadChatImage(file, me.id);
                         doSend('📷 Imagem', 'imagem', { imageData: caminho });
                       } catch (err) { toast((err as Error).message, 'danger'); }
                     }}
