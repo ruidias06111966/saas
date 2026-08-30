@@ -21,11 +21,86 @@ function median(nums: number[]): number {
   return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
 }
 
-export function conversationHealth(
+/**
+ * As oito medidas cruas do termômetro. Existem como tipo próprio porque agora
+ * elas têm duas procedências possíveis: o cálculo local (modo demo, ou conversa
+ * curta cujo histórico inteiro está no cliente) e o `private.termometro()` do
+ * Postgres, que é o único capaz de contar uma conversa longa depois que a
+ * paginação passou a trazer só o fim dela.
+ */
+export interface HealthMetrics {
+  /** 0..100 */
+  score: number;
+  reciprocity: number;
+  depth: number;
+  consistency: number;
+  openness: number;
+  messages: number;
+  days: number;
+}
+
+/**
+ * Deriva o resto do termômetro a partir das medidas cruas. Tudo o que é
+ * interpretação — estágio, véu, próximo objetivo, silêncio — mora aqui e só
+ * aqui, para que o valor vindo do servidor e o calculado no navegador nunca
+ * divirjam em nada além dos números que os dois já concordam em produzir.
+ *
+ * `tail` são as mensagens que o cliente tem em mãos. Para saber quem está
+ * devendo resposta e há quanto tempo, bastam as últimas — e essas o cliente
+ * sempre tem, mesmo com a conversa paginada.
+ */
+export function buildHealth(
+  connection: Connection,
+  m: HealthMetrics,
+  tail: Message[],
+  now: number = Date.now(),
+): ConversationHealth {
+  const a = connection.userA;
+  const b = connection.userB;
+
+  let stageIdx = 0;
+  VEIL_STAGES.forEach((s, i) => { if (m.score >= s.min) stageIdx = i; });
+  const stageIndex = stageIdx as ConversationHealth['stage'];
+
+  const mutualReveal = !!connection.revealConsent[a] && !!connection.revealConsent[b];
+  const reveal = mutualReveal ? 1 : clamp(m.score / 82);
+
+  const real = tail.filter((x) => x.kind !== 'sistema');
+  const last = real[real.length - 1];
+  const silence = last ? now - new Date(last.createdAt).getTime() : 0;
+  const stale = !!last && silence > 5 * DAY;
+  const waitingOn = last ? (last.senderId === a ? b : a) : undefined;
+
+  const nextGoal =
+    stageIndex >= 4 ? 'Vocês já se revelaram. Agora é com vocês.'
+      : m.reciprocity < 60 ? 'Dê espaço para o outro falar — a troca precisa ser dos dois.'
+      : m.depth < 50 ? 'Faça uma pergunta aberta. Respostas longas revelam mais.'
+      : m.openness < 50 ? 'Aceite um Ritual de Conversa para subir um degrau.'
+      : 'Continue no ritmo. O véu está abrindo.';
+
+  return {
+    score: m.score,
+    reciprocity: m.reciprocity,
+    depth: m.depth,
+    consistency: m.consistency,
+    openness: m.openness,
+    messages: m.messages,
+    days: m.days,
+    stage: stageIndex,
+    stageLabel: VEIL_STAGES[stageIndex].label,
+    reveal,
+    nextGoal,
+    stale,
+    waitingOn,
+  };
+}
+
+/** As medidas cruas calculadas no navegador. Exige o histórico completo. */
+export function healthMetrics(
   connection: Connection,
   messages: Message[],
   now: number = Date.now(),
-): ConversationHealth {
+): HealthMetrics {
   const real = messages.filter((m) => m.kind !== 'sistema');
   const a = connection.userA;
   const b = connection.userB;
@@ -67,41 +142,24 @@ export function conversationHealth(
 
   const rawScore =
     (reciprocity * 0.28 + depth * 0.28 + consistency * 0.22 + openness * 0.22) * volume * spread;
-  const score = Math.round(clamp(rawScore) * 100);
-
-  let stageIdx = 0;
-  VEIL_STAGES.forEach((s, i) => { if (score >= s.min) stageIdx = i; });
-  const stageIndex = stageIdx as ConversationHealth['stage'];
-  const mutualReveal = !!connection.revealConsent[a] && !!connection.revealConsent[b];
-  const reveal = mutualReveal ? 1 : clamp(score / 82);
-
-  const last = real[real.length - 1];
-  const silence = last ? now - new Date(last.createdAt).getTime() : 0;
-  const stale = !!last && silence > 5 * DAY;
-  const waitingOn = last ? (last.senderId === a ? b : a) : undefined;
-
-  const nextGoal =
-    stageIndex >= 4 ? 'Vocês já se revelaram. Agora é com vocês.'
-      : reciprocity < 0.6 ? 'Dê espaço para o outro falar — a troca precisa ser dos dois.'
-      : depth < 0.5 ? 'Faça uma pergunta aberta. Respostas longas revelam mais.'
-      : openness < 0.5 ? 'Aceite um Ritual de Conversa para subir um degrau.'
-      : 'Continue no ritmo. O véu está abrindo.';
 
   return {
-    score,
+    score: Math.round(clamp(rawScore) * 100),
     reciprocity: Math.round(reciprocity * 100),
     depth: Math.round(depth * 100),
     consistency: Math.round(consistency * 100),
     openness: Math.round(openness * 100),
     messages: total,
     days,
-    stage: stageIndex,
-    stageLabel: VEIL_STAGES[stageIndex].label,
-    reveal,
-    nextGoal,
-    stale,
-    waitingOn,
   };
+}
+
+export function conversationHealth(
+  connection: Connection,
+  messages: Message[],
+  now: number = Date.now(),
+): ConversationHealth {
+  return buildHealth(connection, healthMetrics(connection, messages, now), messages, now);
 }
 
 /** Blur em pixels aplicado ao retrato, dado o quanto já foi revelado. */

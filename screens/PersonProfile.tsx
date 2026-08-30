@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useApp } from '../state/AppContext';
-import { connectionWith, findUser, messagesOf } from '../state/appState';
+import { connectionWith, findUser, healthOf, messagesOf } from '../state/appState';
 import { computeCompatibility } from '../services/compatibility';
-import { conversationHealth } from '../services/conversation';
 import { explainMatch, suggestOpeners } from '../services/geminiService';
 import { AXES, GOAL_EMOJI, GOAL_LABEL, LIFESTYLE_FIELDS, PACE_LABEL } from '../constants';
 import { INTEREST_MAP } from '../data/interests';
@@ -41,7 +40,7 @@ export function PersonProfile({ id }: { id: string }) {
 
   const result = computeCompatibility(me, other);
   const conn = connectionWith(state, me.id, other.id);
-  const health = conn ? conversationHealth(conn, messagesOf(state, conn.id)) : null;
+  const health = conn ? healthOf(state, conn, messagesOf(state, conn.id)) : null;
   const reveal = conn?.status === 'conectada' && health ? health.reveal : 0.14;
   const connected = conn?.status === 'conectada';
   const iLiked = !!conn?.likes[me.id];

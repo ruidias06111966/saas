@@ -38,7 +38,9 @@ export function Settings() {
             {[
               ['Seu e-mail', 'Nunca é exibido. Serve só para login e avisos.'],
               ['Sua localização', `Guardamos apenas a cidade (${me.city}) e uma coordenada arredondada em cerca de 5 km. Outras pessoas veem só uma faixa de distância, tipo "até 30 km".`],
-              ['Sua foto', 'Entra velada na descoberta e se revela conforme suas conversas evoluem, ou quando os dois concordam em revelar antes.'],
+              ['Sua foto', mode === 'online'
+                ? 'Guardamos sua foto em vários níveis de resolução. Quem ainda não conversou com você só consegue baixar a versão de 12 pixels — o rosto não está nos bytes que essa pessoa recebe. O servidor libera níveis maiores conforme a conversa evolui, ou quando os dois concordam em revelar antes.'
+                : 'Entra velada na descoberta e se revela conforme suas conversas evoluem. Neste modo de demonstração o desfoque é aplicado no navegador, ou seja, é mecânica de produto e não proteção — com o backend conectado, quem decide o que você baixa é o servidor.'],
               ['Suas mensagens', 'Só você e a outra pessoa leem. Mensagens sinalizadas pela moderação podem ser lidas por um moderador humano durante a análise.'],
             ].map(([t, d]) => (
               <div key={t} className="rounded-2xl bg-bg p-3.5">
@@ -103,14 +105,15 @@ export function Settings() {
 
         <Card className="p-5">
           <SectionTitle>Copiloto de conversa</SectionTitle>
-          <Banner tone={aiEnabled ? 'ok' : 'info'} icon="sparkle" title={aiEnabled ? 'Gemini conectado' : 'Modo local'}>
+          <Banner tone={aiEnabled ? 'ok' : 'info'} icon="sparkle" title={aiEnabled ? 'Copiloto no servidor' : 'Modo local'}>
             {aiEnabled
-              ? 'As sugestões são geradas pelo Gemini. Nenhum dado sensível (e-mail, senha, coordenada) é enviado — só o que já é público no perfil.'
-              : 'Sem GEMINI_API_KEY configurada, as sugestões vêm de um banco curado local. O app funciona igual.'}
+              ? 'As sugestões são geradas por uma função no servidor, que exige que você esteja autenticado. Nenhum dado sensível (e-mail, senha, coordenada) é enviado — só o que já é público no perfil.'
+              : 'As sugestões vêm de um banco curado local. O app funciona igual; a geração por IA exige o backend conectado.'}
           </Banner>
           <ul className="mt-3 space-y-1.5 text-[13px] text-muted">
             <li className="flex gap-2"><Icon name="check" size={15} className="mt-0.5 shrink-0 text-sage" />A IA nunca envia mensagem no seu lugar.</li>
             <li className="flex gap-2"><Icon name="check" size={15} className="mt-0.5 shrink-0 text-sage" />A IA nunca se passa por você.</li>
+            <li className="flex gap-2"><Icon name="check" size={15} className="mt-0.5 shrink-0 text-sage" />A chave do modelo nunca sai do servidor.</li>
             <li className="flex gap-2"><Icon name="check" size={15} className="mt-0.5 shrink-0 text-sage" />Nenhuma suspensão é decidida por algoritmo sem revisão humana.</li>
           </ul>
         </Card>

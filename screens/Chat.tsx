@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Message } from '../types';
 import { useApp } from '../state/AppContext';
-import { findUser, messagesOf, otherId } from '../state/appState';
-import { conversationHealth, nextRitualLevel } from '../services/conversation';
+import { findUser, healthOf, messagesOf, otherId } from '../state/appState';
+import { nextRitualLevel } from '../services/conversation';
 import { blocksSending, CATEGORY_LABEL, moderateText, SAFETY_TIPS } from '../services/moderation';
 import { suggestGentleGoodbye, suggestNextQuestion, summarizeAffinities } from '../services/geminiService';
 import { LADDER } from '../data/prompts';
@@ -12,7 +12,8 @@ import { ConversationThermometer, VeilProgress } from '../components/Conversatio
 import { CopilotPanel } from '../components/Copilot';
 import { ReportDialog } from '../components/ReportDialog';
 import { Avatar, ImagemDaMensagem, Portrait } from '../components/Portrait';
-import { uploadImage } from '../services/media';
+import { uploadChatImage } from '../services/media';
+import { ouvirDigitacao } from '../services/realtime';
 import { clockTime, cx, dayLabel, firstName, seededRandom, shuffle } from '../services/utils';
 
 // Respostas simuladas: este é um MVP sem backend, e a simulação existe para
@@ -29,7 +30,8 @@ const SIMULATED = [
 export function Chat({ id }: { id: string }) {
   const {
     me, state, back, navigate, sendMessage, dispatch, toggleFavorite, closeConnection,
-    blockUser, setRevealConsent, markRead, toast, canUseAi, spendAi,
+    blockUser, setRevealConsent, markRead, toast, canUseAi, spendAi, mode,
+    loadOlder, hasOlder,
   } = useApp();
 
   const [draft, setDraft] = useState('');
@@ -44,19 +46,36 @@ export function Chat({ id }: { id: string }) {
   const [goodbyes, setGoodbyes] = useState<string[]>([]);
   const [farewell, setFarewell] = useState('');
   const [typing, setTyping] = useState(false);
+  const [carregandoAntigas, setCarregandoAntigas] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
 
   const conn = state.connections.find((c) => c.id === id);
   const other = conn && me ? findUser(state, otherId(conn, me.id)) : undefined;
   const messages = useMemo(() => (conn ? messagesOf(state, conn.id) : []), [state, conn]);
-  const health = useMemo(() => (conn ? conversationHealth(conn, messages) : null), [conn, messages]);
+  const health = useMemo(
+    () => (conn ? healthOf(state, conn, messages) : null),
+    [state, conn, messages],
+  );
 
   useEffect(() => {
     if (conn && me) markRead(conn.id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conn?.id, messages.length]);
 
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages.length, typing]);
+  // Rola para o fim quando chega mensagem nova — mas não quando o que entrou
+  // foi o histórico antigo, que aparece acima e não deve tirar a pessoa do lugar.
+  const ultimaId = messages[messages.length - 1]?.id;
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [ultimaId, typing]);
+
+  // "Digitando…" real, enquanto esta conversa estiver aberta.
+  const digitacaoRef = useRef<{ avisar: () => void } | null>(null);
+  useEffect(() => {
+    if (!conn || !me) return;
+    const d = ouvirDigitacao(conn.id, me.id, setTyping);
+    digitacaoRef.current = d;
+    return () => { digitacaoRef.current = null; setTyping(false); d.encerrar(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conn?.id, me?.id]);
 
   useEffect(() => {
     if (!me || !other) return;
@@ -74,6 +93,9 @@ export function Chat({ id }: { id: string }) {
     );
   }
 
+  // No modo online a conversa chega paginada: só as últimas mensagens vêm no
+  // primeiro carregamento, e o resto é buscado sob demanda.
+  const podeCarregarAntigas = hasOlder(conn.id) && messages.length > 0;
   const closed = conn.status === 'encerrada' || conn.status === 'bloqueada';
   const mutualRevealed = !!conn.revealConsent[conn.userA] && !!conn.revealConsent[conn.userB];
   const level = nextRitualLevel(messages);
@@ -185,6 +207,22 @@ export function Chat({ id }: { id: string }) {
               </Card>
             )}
 
+            {podeCarregarAntigas && (
+              <div className="flex justify-center pb-2">
+                <Button
+                  size="sm" variant="outline" icon="clock" loading={carregandoAntigas}
+                  onClick={async () => {
+                    setCarregandoAntigas(true);
+                    try { await loadOlder(conn.id); }
+                    catch (err) { toast((err as Error).message, 'danger'); }
+                    finally { setCarregandoAntigas(false); }
+                  }}
+                >
+                  Carregar mensagens anteriores
+                </Button>
+              </div>
+            )}
+
             {grouped.map((g) => (
               <div key={g.day} className="space-y-2">
                 <p className="my-4 text-center text-[11px] font-semibold uppercase tracking-wide text-muted">{g.day}</p>
@@ -286,24 +324,32 @@ export function Chat({ id }: { id: string }) {
                       const file = e.target.files?.[0];
                       if (!file) return;
                       try {
-                        const caminho = await uploadImage(file, me.id, 'conversa', 900);
+                        const caminho = await uploadChatImage(file, me.id);
                         doSend('📷 Imagem', 'imagem', { imageData: caminho });
                       } catch (err) { toast((err as Error).message, 'danger'); }
                     }}
                   />
                 </label>
-                <button
-                  type="button" onClick={simulateReply}
-                  className="ml-auto rounded-full border border-dashed border-line px-3 py-1.5 text-[11px] text-muted hover:text-ink"
-                  title="Recurso de demonstração: simula uma resposta para você ver o termômetro e o véu evoluindo."
-                >
-                  Simular resposta (demo)
-                </button>
+                {mode === 'demo' ? (
+                  <button
+                    type="button" onClick={simulateReply}
+                    className="ml-auto rounded-full border border-dashed border-line px-3 py-1.5 text-[11px] text-muted hover:text-ink"
+                    title="Recurso de demonstração: simula uma resposta para você ver o termômetro e o véu evoluindo."
+                  >
+                    Simular resposta (demo)
+                  </button>
+                ) : (
+                  <span className="ml-auto flex items-center gap-1.5 text-[11px] text-muted" title="As mensagens desta conversa chegam sem recarregar a página.">
+                    <span className="h-1.5 w-1.5 rounded-full bg-sage" />
+                    ao vivo
+                  </span>
+                )}
               </div>
 
               <div className="flex items-end gap-2">
                 <Textarea
-                  value={draft} onChange={(e) => setDraft(e.target.value)}
+                  value={draft}
+                  onChange={(e) => { setDraft(e.target.value); digitacaoRef.current?.avisar(); }}
                   onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); trySend(); } }}
                   placeholder={`Escreva para ${firstName(other.name)}…`}
                   className="min-h-[46px] flex-1 py-3"

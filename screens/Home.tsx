@@ -1,9 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useApp } from '../state/AppContext';
-import { blockedIdsFor, connectionsOf, findUser, messagesOf, otherId } from '../state/appState';
+import { blockedIdsFor, connectionsOf, findUser, healthOf, messagesOf, otherId } from '../state/appState';
 import { buildCandidates, dailyCuration } from '../services/curation';
 import { profileCompletion } from '../services/compatibility';
-import { conversationHealth } from '../services/conversation';
 import { suggestProfileImprovements } from '../services/geminiService';
 import { SAFETY_TIPS } from '../services/moderation';
 import { Page } from '../components/layout/AppShell';
@@ -44,7 +43,7 @@ export function Home() {
 
     const active = conns.filter((c) => c.status === 'conectada');
     const staleOnes = active
-      .map((c) => ({ c, h: conversationHealth(c, messagesOf(state, c.id)) }))
+      .map((c) => ({ c, h: healthOf(state, c, messagesOf(state, c.id)) }))
       .filter((x) => x.h.stale && x.h.messages > 0);
     const pending = conns.filter((c) => c.status === 'pendente' && !c.likes[me.id]);
     const talking = active.filter((c) => messagesOf(state, c.id).length > 0);
@@ -172,7 +171,7 @@ export function Home() {
                 const other = findUser(state, otherId(c, me.id));
                 const msgs = messagesOf(state, c.id);
                 const last = msgs[msgs.length - 1];
-                const health = conversationHealth(c, msgs);
+                const health = healthOf(state, c, msgs);
                 if (!other) return null;
                 return (
                   <button

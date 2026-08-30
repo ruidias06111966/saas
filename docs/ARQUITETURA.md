@@ -34,9 +34,24 @@ screens/            15 telas
 
 ### 1. Revelação Progressiva
 
-`Portrait` aplica `blur((1 - reveal) * 26)px` mais uma leve dessaturação e um `scale`
-compensatório (o blur encolhe a imagem nas bordas). O `reveal` vem do termômetro:
-`min(1, score / 82)`.
+**O Véu é controle de acesso, não efeito visual.** Cada foto de perfil é guardada como
+uma pirâmide de resoluções — 12, 24, 48, 96 px e a original — e o banco decide qual
+nível você pode baixar, a partir do estágio real da conversa entre vocês
+(`private.nivel_permitido`, aplicada como policy no `storage.objects`).
+
+Resolução em vez de desfoque foi escolha deliberada: um arquivo de 12 px **não tem
+detalhe a recuperar**, enquanto um JPEG desfocado ainda carrega mais informação do que
+parece. `Portrait` continua aplicando `blur((1 - reveal) * 26)px`, mas agora isso é só
+suavização por cima de uma imagem que já não contém o rosto.
+
+Consequência importante: **o termômetro precisou existir no banco**. `private.termometro`
+espelha `services/conversation.ts` — as duas foram comparadas com a mesma conversa
+sintética e devolveram `score 58, estágio 2`. O cliente continua calculando o número para
+*exibir* (ele tem todas as mensagens, então o cálculo é fiel, não um palpite), mas quem
+guarda o portão é o banco. Ao mexer numa fórmula, mexa na outra.
+
+No modo demo não há servidor para fazer valer nada, e o véu volta a ser cosmético — a
+tela de privacidade diz isso com todas as letras em vez de fingir proteção.
 
 Sem foto, `GenerativePortrait` desenha um SVG determinístico a partir de `hash32(id)`:
 gradiente de dois matizes, três blobs e uma silhueta. Mesma pessoa, sempre a mesma arte.
@@ -89,15 +104,30 @@ Interesses usam Jaccard **ponderado por raridade**, suavizado por raiz quadrada.
 "astronomia" (peso 1,5) vale mais que bater em "séries" (peso 0,8), e quem marca 20
 interesses não é punido pelo denominador.
 
-## IA: sugere, nunca escreve
+## IA: sugere, nunca escreve — e a chave nunca chega ao navegador
 
-`geminiService.ts` tem uma regra estrutural: **toda função tem fallback determinístico
-local**. Sem `API_KEY`, `askJson` devolve o fallback e o app segue funcionando. Isso não é
-só robustez — é o que permite rodar o produto sem custo variável enquanto ele é pequeno.
+**A chave do Gemini não existe no cliente.** Não há caminho no código que a leve ao
+navegador: o pacote `@google/genai` foi removido das dependências do app. Toda geração
+passa pela Edge Function `copiloto` (`supabase/functions/copiloto`), onde a chave é
+segredo do projeto.
 
-O `systemInstruction` proíbe explicitamente ghostwriting, invenção de fatos, pedido de
-dados pessoais e conteúdo sexual. E o `profileDigest` que vai para o modelo só carrega o
-que já é público no perfil: nunca e-mail, senha ou coordenada.
+Duas proteções de desenho na função:
+
+1. **Exige JWT.** `verify_jwt` ligado — só gente autenticada chama. Foi por isso que
+   esta etapa dependia da autenticação existir primeiro.
+2. **O servidor é dono dos prompts.** O cliente envia apenas dados de perfil já
+   públicos, em campos tipados e truncados em 4000 caracteres, e escolhe uma ação de
+   uma lista fechada de oito. Não há como injetar `systemInstruction` nem transformar
+   a função num proxy genérico de LLM. O `systemInstruction` inclui a instrução de
+   ignorar ordens que apareçam dentro dos dados de perfil.
+
+A regra estrutural continua: **toda função tem fallback determinístico local**. Sem
+backend, ou sem `GEMINI_API_KEY` no servidor, a função devolve `{ fallback: true }` e o
+app segue funcionando com o banco curado de perguntas. Nenhuma tela quebra em nenhuma
+combinação.
+
+O `profileDigest` que vai para o modelo só carrega o que já é público no perfil: nunca
+e-mail, senha ou coordenada.
 
 ## Moderação em duas camadas
 
@@ -155,19 +185,102 @@ pedindo recarregar — o estado local nunca mente em silêncio sobre ter salvado
 **apenas o tema**. Espelhar o banco ali deixaria mensagens de conversas reais em claro
 no navegador, sobrevivendo ao logout.
 
+### Realtime
+
+`services/realtime.ts` assina `messages` e `connections` por `postgres_changes`. Três
+decisões que valem registro:
+
+- **Não há filtro por id no cliente.** O Supabase entrega os eventos já filtrados pelo
+  RLS de quem assina, e a policy de `messages` exige participar da conexão. Filtrar de
+  novo aqui daria falsa sensação de segurança e esconderia um erro de policy.
+- **`REPLICA IDENTITY FULL` nas duas tabelas.** Sem isso o WAL carrega apenas a chave
+  primária nos `UPDATE`, e o RLS não teria colunas suficientes para decidir quem pode
+  receber o evento. Custa mais WAL por escrita — na escala deste app, vale a correção.
+- **`UPSERT_MESSAGE` é idempotente.** A mensagem que você acabou de enviar volta pelo
+  stream, e o `UPDATE` de leitura chega com o mesmo id. Em ambos os casos o reducer
+  substitui em vez de duplicar. É isso que faz o recibo de leitura ("enviada" → "lida")
+  aparecer ao vivo no lado de quem enviou.
+
+O handler consulta rota e lista de usuários por `ref`, não por dependência do efeito:
+senão a assinatura seria refeita a cada navegação ou mudança de estado.
+
+### Paginação, e a consequência que ela teve no termômetro
+
+`loadSnapshot` trazia o histórico inteiro de todas as conversas de uma vez. Funciona
+com doze perfis fictícios e não funciona com quem conversa há um ano. Agora o
+primeiro carregamento traz as **últimas 40 mensagens de cada conversa**
+(`mensagens_recentes`), e o resto vem sob demanda (`mensagens_anteriores`).
+
+A consequência não é óbvia e é a parte interessante: **sem o histórico completo, o
+cliente não pode mais calcular o termômetro sozinho**. Ele contaria menos mensagens e
+menos dias, e como é o termômetro que abre o véu, o retrato *fecharia* por causa de uma
+decisão de performance. Numa conversa real de 14 mensagens, calcular só sobre as 5
+últimas dá score 23 em vez de 58 — o retrato cairia de 71% para 28% revelado.
+
+Por isso `termometros()` vem junto no primeiro carregamento, e o seletor `healthOf`
+escolhe a fonte:
+
+- **cliente tem tudo** (modo demo, ou conversa que coube numa página, ou já lida até o
+  começo) → conta local, que reage na hora à mensagem que você acabou de mandar;
+- **cliente tem só o fim** → valor do Postgres, recalculado a cada envio.
+
+As duas implementações — `services/conversation.ts` e `private.termometro()` — foram
+comparadas com a mesma conversa sintética e devolvem os mesmos oito números. Para não
+duplicar a interpretação, só as *medidas cruas* têm duas origens: estágio, véu, próximo
+objetivo e silêncio são derivados uma única vez, em `buildHealth()`.
+
+### O véu é gerado no servidor
+
+A pirâmide de resoluções (12, 24, 48, 96 px e o original) era gerada no **navegador de
+quem sobe a foto**. O portão de leitura sempre foi do banco — ninguém nunca conseguiu
+ver a foto alheia antes da hora —, mas quem subia escolhia o conteúdo dos próprios
+níveis borrados e podia mandar um "nível 0" nítido, revelando-se cedo demais para todo
+mundo.
+
+Agora o navegador entrega **só o original**, e a Edge Function `velar` gera os quatro
+níveis com `service_role`. A política de escrita do Storage foi ajustada junto: o
+cliente só consegue gravar `-orig.jpg`. Sem essa segunda metade a primeira não valeria
+nada — bastaria subir o arquivo velado direto.
+
+Falha fechada por construção: se a geração falhar, os níveis velados não existem, quem
+não tem direito ao original recebe 404 e cai no retrato generativo. Nenhum caminho de
+erro revela mais do que devia. O cliente ainda apaga o original órfão e avisa, porque
+foto invisível é pior do que foto ausente.
+
+### Cota de IA imposta no servidor
+
+O limite diário era conferido no cliente. Agora quem conta é `public.consumir_cota_ia()`,
+chamada de dentro da Edge Function `copiloto` com o JWT de quem pediu; o `for update`
+serializa dois pedidos simultâneos, que antes gastariam uma cota só. **`moderar` é
+isenta**: é proteção, não conveniência, e não pode parar de funcionar porque as
+sugestões do dia acabaram.
+
+### "Digitando…" de verdade
+
+Broadcast em canal privado (`conversa:<id>`), não tabela: o aviso é efêmero e não merece
+uma linha no banco. O canal é privado por policy em `realtime.messages` — senão qualquer
+pessoa autenticada poderia escutar a conversa alheia e saber quando os dois estão
+trocando mensagens, que é metadado sobre gente real. O envio é limitado a um aviso a
+cada 2 segundos e o indicador some sozinho em 4.
+
+### Um bug que só apareceu quando o véu foi testado de ponta a ponta
+
+`private.nivel_do_arquivo()` tinha `revoke execute ... from public, anon` e **nenhum
+`grant` para `authenticated`**. A policy de leitura avalia
+`nivel_do_arquivo(name) <= nivel_permitido(dono)`, e o operando da esquerda vem
+primeiro: toda leitura de foto morria em *permission denied*, inclusive a da própria
+pessoa.
+
+O erro nunca chegou à tela. `resolveImage()` desce de nível quando a assinatura falha e,
+ao esgotar os níveis, cai no retrato generativo — então o véu *parecia* funcionar e
+nenhuma foto real jamais era exibida. Vale como lembrete: num sistema que degrada
+graciosamente, a degradação esconde a falha. O teste que pegou isso foi o de ponta a
+ponta, não o unitário.
+
 ### O que ainda falta para produção
 
-1. **Realtime.** Hoje a conversa só atualiza ao recarregar; falta assinar `messages`
-   via Supabase Realtime.
-2. **Gemini no servidor.** `geminiService.ts` ainda chama o modelo do cliente, o que
-   expõe a chave. A correção é uma Edge Function — e ela depende do login existir,
-   que é o que esta etapa entregou: agora dá para exigir JWT na função.
-3. **O Véu é mecânica de produto, não criptografia.** O desfoque é aplicado no
-   cliente; quem abrir o inspetor vê a original. O bucket é privado justamente para
-   permitir a correção certa depois: servir uma derivada já desfocada pelo servidor
-   até a conversa atingir o estágio. Está documentado em `services/media.ts`.
-4. **Paginação.** `loadSnapshot` traz tudo de uma vez. Funciona na escala de um MVP e
-   quebra na de milhares de perfis.
+Nada dos quatro itens anteriores. O que resta é de outra natureza: verificação por
+selfie de verdade, pagamento real, e um trabalho de carga que este projeto nunca fez.
 
 ### Decisões de segurança do schema
 

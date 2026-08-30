@@ -18,5 +18,7 @@
     "types": ["vite/client"]
   },
   "include": ["**/*.ts", "**/*.tsx"],
-  "exclude": ["node_modules", "dist"]
+  // supabase/functions roda em Deno, com globais e specifiers npm:
+  // próprios. Tem o seu próprio tsconfig e não entra no typecheck do app.
+  "exclude": ["node_modules", "dist", "supabase/functions"]
 }

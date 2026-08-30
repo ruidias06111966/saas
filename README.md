@@ -39,9 +39,19 @@ VITE_SUPABASE_URL=https://SEU-PROJETO.supabase.co
 VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
 ```
 
-O Copiloto de IA é independente disso: com `GEMINI_API_KEY` as sugestões são geradas;
-sem ela vêm de um banco curado local e o app avisa que está em "modo local". Nenhuma
-tela quebra em nenhuma combinação.
+### O Copiloto de IA
+
+A chave do Gemini **não** vai no `.env` do app — tudo que está lá acaba no JavaScript
+entregue ao navegador. Ela é segredo do projeto Supabase, e a geração passa por uma Edge
+Function que exige login:
+
+```bash
+supabase secrets set GEMINI_API_KEY=sua_chave
+# ou no painel: Edge Functions → Secrets → Add new secret
+```
+
+Sem a chave — ou sem backend — as sugestões vêm de um banco curado local e o app avisa
+que está em "modo local". Nenhuma tela quebra em nenhuma combinação.
 
 ### Contas de demonstração
 
@@ -57,10 +67,14 @@ ver o fluxo anti-ghosting, duas denúncias e um item na fila de moderação.
 ## Os três mecanismos
 
 ### Revelação Progressiva
-A descoberta mostra **Cartões de Essência**: o retrato entra pequeno e muito desfocado, e
-o centro do cartão é o que a pessoa **escreveu**. Dentro da conversa, o desfoque diminui
-em cinco estágios — Silhueta, Contornos, Traços, Quase lá, Revelado — conforme o
-Termômetro sobe. Existe um atalho: propor revelar agora, que só vale com o aceite dos dois.
+A descoberta mostra **Cartões de Essência**: o retrato entra pequeno e velado, e o centro
+do cartão é o que a pessoa **escreveu**. A imagem se abre em cinco estágios — Silhueta,
+Contornos, Traços, Quase lá, Revelado — conforme o Termômetro sobe. Existe um atalho:
+propor revelar agora, que só vale com o aceite dos dois.
+
+Com backend conectado, **o véu é servido pelo servidor**: a foto vive em vários níveis de
+resolução e o banco decide qual você pode baixar. Quem não conversou com você recebe um
+arquivo de 12 pixels — o rosto não está nos bytes.
 
 ### Curadoria Diária
 Um **Encontro do Dia** em destaque e mais 5 perfis (20 no Premium), escolhidos por uma
@@ -77,11 +91,14 @@ aciona o **Encerrar com gentileza**: quem se despede ganha reputação, quem som
 - **Compatibilidade explicável** — 7 dimensões com peso, score e a frase do porquê. Nunca
   um número solto, sempre com grau de confiança e o ponto de atrito.
 - **Copiloto Gemini** — sugere aberturas, próximas perguntas e melhorias de perfil.
-  Nunca envia por você, nunca finge ser você, nunca pede dado pessoal.
+  Nunca envia por você, nunca finge ser você, nunca pede dado pessoal. Roda numa Edge
+  Function que exige JWT e é dona dos prompts: a chave do modelo nunca chega ao navegador.
 - **Moderação em duas camadas** — heurística local antes do envio, Gemini como reforço,
   e nenhuma suspensão automática: tudo cai na fila de revisão humana.
 - **LGPD funcionando** — exportar dados em JSON, corrigir, excluir a conta com
   anonimização, consentimentos versionados. Localização só por cidade e faixa de distância.
+- **Conversa ao vivo** — mensagens e recibos de leitura chegam sem recarregar, por
+  Supabase Realtime, com o mesmo RLS que protege a leitura filtrando o stream.
 - **Painel administrativo** — usuários, denúncias e fila de moderação. A métrica de topo é
   a taxa de conexões que viraram conversa, não tempo de tela.
 - **15 telas**, mobile-first, modo claro e escuro, acessível.

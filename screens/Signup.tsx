@@ -11,7 +11,7 @@ import {
 } from '../components/ui';
 import { Portrait } from '../components/Portrait';
 import { readImageAsDataUrl } from '../services/storage';
-import { uploadImage } from '../services/media';
+import { uploadProfilePhoto } from '../services/media';
 import { signUp } from '../services/auth';
 import { supabaseEnabled } from '../services/supabaseClient';
 import * as backend from '../services/backend';
@@ -132,7 +132,7 @@ export function Signup() {
     let photo = d.photo;
     if (supabaseEnabled && d.photoFile) {
       try {
-        photo = await uploadImage(d.photoFile, novoId, 'perfil');
+        photo = await uploadProfilePhoto(d.photoFile, novoId);
       } catch (err) {
         toast((err as Error).message, 'warn');
         photo = undefined;

@@ -14,7 +14,14 @@ export function loadState(): AppState | null {
     const parsed = JSON.parse(raw) as AppState;
     // Um estado salvo em modo online guarda só o tema; não serve de estado inicial.
     if (!parsed || !Array.isArray(parsed.users)) return null;
-    return parsed;
+    // Estado gravado por uma versão anterior não tem os campos novos. Sem estes
+    // padrões, a primeira leitura de `state.healths` quebraria a tela de quem já
+    // usou o modo demo antes desta versão.
+    return {
+      ...parsed,
+      healths: parsed.healths ?? {},
+      fullyLoaded: parsed.fullyLoaded ?? [],
+    };
   } catch {
     return null;
   }
