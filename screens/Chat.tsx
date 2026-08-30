@@ -29,7 +29,7 @@ const SIMULATED = [
 export function Chat({ id }: { id: string }) {
   const {
     me, state, back, navigate, sendMessage, dispatch, toggleFavorite, closeConnection,
-    blockUser, setRevealConsent, markRead, toast, canUseAi, spendAi,
+    blockUser, setRevealConsent, markRead, toast, canUseAi, spendAi, mode,
   } = useApp();
 
   const [draft, setDraft] = useState('');
@@ -292,13 +292,20 @@ export function Chat({ id }: { id: string }) {
                     }}
                   />
                 </label>
-                <button
-                  type="button" onClick={simulateReply}
-                  className="ml-auto rounded-full border border-dashed border-line px-3 py-1.5 text-[11px] text-muted hover:text-ink"
-                  title="Recurso de demonstração: simula uma resposta para você ver o termômetro e o véu evoluindo."
-                >
-                  Simular resposta (demo)
-                </button>
+                {mode === 'demo' ? (
+                  <button
+                    type="button" onClick={simulateReply}
+                    className="ml-auto rounded-full border border-dashed border-line px-3 py-1.5 text-[11px] text-muted hover:text-ink"
+                    title="Recurso de demonstração: simula uma resposta para você ver o termômetro e o véu evoluindo."
+                  >
+                    Simular resposta (demo)
+                  </button>
+                ) : (
+                  <span className="ml-auto flex items-center gap-1.5 text-[11px] text-muted" title="As mensagens desta conversa chegam sem recarregar a página.">
+                    <span className="h-1.5 w-1.5 rounded-full bg-sage" />
+                    ao vivo
+                  </span>
+                )}
               </div>
 
               <div className="flex items-end gap-2">

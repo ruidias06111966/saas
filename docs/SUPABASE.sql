@@ -618,3 +618,35 @@ insert into public.prompts (id, label, max_length) values
   ('me_faz_rir', 'O que sempre me faz rir...', 180),
   ('daqui_cinco_anos', 'Daqui a cinco anos, eu quero...', 220)
 on conflict (id) do update set label = excluded.label, max_length = excluded.max_length;
+
+-- ---------------------------------------------------------------------------
+-- Realtime na conversa.
+--
+-- O Supabase entrega eventos de postgres_changes já filtrados pelo RLS de quem
+-- assina. Como a policy de `messages` exige participar da conexão, ninguém
+-- recebe evento de conversa alheia — a MESMA regra que protege o SELECT
+-- protege o stream, sem precisar de filtro no cliente.
+-- ---------------------------------------------------------------------------
+
+-- REPLICA IDENTITY FULL: sem isso o WAL carrega apenas a chave primária nos
+-- UPDATE, e o RLS não tem colunas suficientes para decidir quem pode receber
+-- o evento. Custa mais WAL por escrita; na escala deste app, vale a correção.
+alter table public.messages    replica identity full;
+alter table public.connections replica identity full;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'messages'
+  ) then
+    alter publication supabase_realtime add table public.messages;
+  end if;
+
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'connections'
+  ) then
+    alter publication supabase_realtime add table public.connections;
+  end if;
+end $$;

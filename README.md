@@ -93,6 +93,8 @@ aciona o **Encerrar com gentileza**: quem se despede ganha reputação, quem som
   e nenhuma suspensão automática: tudo cai na fila de revisão humana.
 - **LGPD funcionando** — exportar dados em JSON, corrigir, excluir a conta com
   anonimização, consentimentos versionados. Localização só por cidade e faixa de distância.
+- **Conversa ao vivo** — mensagens e recibos de leitura chegam sem recarregar, por
+  Supabase Realtime, com o mesmo RLS que protege a leitura filtrando o stream.
 - **Painel administrativo** — usuários, denúncias e fila de moderação. A métrica de topo é
   a taxa de conexões que viraram conversa, não tempo de tela.
 - **15 telas**, mobile-first, modo claro e escuro, acessível.

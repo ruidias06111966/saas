@@ -9,6 +9,7 @@ import {
 import { loadState, saveState } from '../services/storage';
 import * as backend from '../services/backend';
 import { onAuthChange, currentSession, signOut } from '../services/auth';
+import { subscribeToConversations } from '../services/realtime';
 import { supabaseEnabled } from '../services/supabaseClient';
 import { computeCompatibility } from '../services/compatibility';
 import { conversationHealth, reputationDelta } from '../services/conversation';
@@ -71,6 +72,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [booting, setBooting] = useState(supabaseEnabled);
   const historyRef = useRef<Route[]>([]);
+  // A rota vive num ref para o handler do Realtime poder consultá-la sem
+  // entrar nas dependências do efeito — senão reassinaríamos a cada navegação.
+  const routeRef = useRef<Route>({ name: 'landing' });
+  // Mesma razão: o handler precisa resolver nomes sem que a lista de usuários
+  // entre nas dependências e provoque uma reassinatura a cada mudança de estado.
+  const usersRef = useRef<User[]>([]);
 
   const me = useMemo(
     () => state.users.find((u) => u.id === state.sessionUserId) ?? null,
@@ -120,6 +127,37 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return () => { vivo = false; unsubscribe(); };
   }, [hydrate]);
 
+  // ------------------------------------------------------------------------
+  // Realtime: mensagens e conexões chegam sem recarregar a página.
+  // O RLS já filtra o stream, então não há filtro por id aqui de propósito.
+  // ------------------------------------------------------------------------
+  useEffect(() => {
+    if (!supabaseEnabled || !me) return;
+    const meId = me.id;
+
+    return subscribeToConversations({
+      onMessage: (message) => {
+        dispatch({ type: 'UPSERT_MESSAGE', message });
+
+        // Aviso só para mensagem de outra pessoa, e só se você não estiver
+        // justamente naquela conversa — ali ela já aparece na tela.
+        const rota = routeRef.current;
+        const olhandoEsta = rota.name === 'chat' && rota.id === message.connectionId;
+        if (message.senderId !== meId && !olhandoEsta && message.kind !== 'sistema') {
+          setToasts((prev) => [...prev, {
+            id: uid('toast'), tone: 'info',
+            text: `Nova mensagem de ${firstName(
+              usersRef.current.find((u) => u.id === message.senderId)?.name ?? 'alguém',
+            )}.`,
+          }]);
+        }
+      },
+      onConnection: (connection) => {
+        dispatch({ type: 'UPSERT_CONNECTION', connection });
+      },
+    });
+  }, [me]);
+
   /**
    * Escrita no backend. O reducer já aplicou a mudança localmente (otimista),
    * então aqui só propagamos e avisamos se o servidor recusar.
@@ -138,6 +176,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     document.documentElement.classList.toggle('dark', state.theme === 'dark');
   }, [state.theme]);
+
+  useEffect(() => { routeRef.current = route; }, [route]);
+  useEffect(() => { usersRef.current = state.users; }, [state.users]);
 
   // Ao entrar/sair, leva para uma rota coerente.
   useEffect(() => {

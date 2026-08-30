@@ -54,6 +54,7 @@ export type Action =
   | { type: 'UPSERT_CONNECTION'; connection: Connection }
   | { type: 'SET_CONNECTION'; id: string; patch: Partial<Connection> }
   | { type: 'SEND_MESSAGE'; message: Message }
+  | { type: 'UPSERT_MESSAGE'; message: Message }
   | { type: 'MARK_READ'; connectionId: string; readerId: string }
   | { type: 'ADD_REPORT'; report: Report }
   | { type: 'UPDATE_REPORT'; id: string; patch: Partial<Report> }
@@ -124,6 +125,19 @@ export function reducer(state: AppState, action: Action): AppState {
 
     case 'SEND_MESSAGE':
       return { ...state, messages: [...state.messages, action.message] };
+
+    // Chegada pelo Realtime. Idempotente de propósito: a própria mensagem que
+    // acabamos de enviar volta pelo stream, e um UPDATE de leitura chega com o
+    // mesmo id. Em ambos os casos substituímos em vez de duplicar.
+    case 'UPSERT_MESSAGE': {
+      const existe = state.messages.some((m) => m.id === action.message.id);
+      return {
+        ...state,
+        messages: existe
+          ? state.messages.map((m) => (m.id === action.message.id ? action.message : m))
+          : [...state.messages, action.message],
+      };
+    }
 
     case 'MARK_READ': {
       const now = new Date().toISOString();

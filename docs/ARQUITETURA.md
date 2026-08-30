@@ -170,11 +170,28 @@ pedindo recarregar — o estado local nunca mente em silêncio sobre ter salvado
 **apenas o tema**. Espelhar o banco ali deixaria mensagens de conversas reais em claro
 no navegador, sobrevivendo ao logout.
 
+### Realtime
+
+`services/realtime.ts` assina `messages` e `connections` por `postgres_changes`. Três
+decisões que valem registro:
+
+- **Não há filtro por id no cliente.** O Supabase entrega os eventos já filtrados pelo
+  RLS de quem assina, e a policy de `messages` exige participar da conexão. Filtrar de
+  novo aqui daria falsa sensação de segurança e esconderia um erro de policy.
+- **`REPLICA IDENTITY FULL` nas duas tabelas.** Sem isso o WAL carrega apenas a chave
+  primária nos `UPDATE`, e o RLS não teria colunas suficientes para decidir quem pode
+  receber o evento. Custa mais WAL por escrita — na escala deste app, vale a correção.
+- **`UPSERT_MESSAGE` é idempotente.** A mensagem que você acabou de enviar volta pelo
+  stream, e o `UPDATE` de leitura chega com o mesmo id. Em ambos os casos o reducer
+  substitui em vez de duplicar. É isso que faz o recibo de leitura ("enviada" → "lida")
+  aparecer ao vivo no lado de quem enviou.
+
+O handler consulta rota e lista de usuários por `ref`, não por dependência do efeito:
+senão a assinatura seria refeita a cada navegação ou mudança de estado.
+
 ### O que ainda falta para produção
 
-1. **Realtime.** Hoje a conversa só atualiza ao recarregar; falta assinar `messages`
-   via Supabase Realtime.
-2. **O Véu é mecânica de produto, não criptografia.** O desfoque é aplicado no
+1. **O Véu é mecânica de produto, não criptografia.** O desfoque é aplicado no
    cliente; quem abrir o inspetor vê a original. O bucket é privado justamente para
    permitir a correção certa depois: servir uma derivada já desfocada pelo servidor
    até a conversa atingir o estágio. Está documentado em `services/media.ts`.
@@ -182,7 +199,10 @@ no navegador, sobrevivendo ao logout.
    `daily_usage`. A Edge Function tem o JWT em mãos e poderia checar e incrementar a
    cota ela mesma — hoje não faz. Quem quiser abusar consegue, dentro do limite de
    quem tem conta.
-4. **Paginação.** `loadSnapshot` traz tudo de uma vez. Funciona na escala de um MVP e
+4. **"Digitando…" de verdade.** O indicador existe na interface mas só é acionado pela
+   simulação do modo demo. Fazer valer exige Broadcast ou Presence do Realtime, que é
+   um canal diferente do `postgres_changes` usado aqui.
+5. **Paginação.** `loadSnapshot` traz tudo de uma vez. Funciona na escala de um MVP e
    quebra na de milhares de perfis.
 
 ### Decisões de segurança do schema

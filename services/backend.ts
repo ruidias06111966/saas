@@ -110,7 +110,7 @@ function toUser(r: RawUser): User {
   };
 }
 
-interface RawConnection {
+export interface RawConnection {
   id: string; user_a: string; user_b: string; status: Connection['status'];
   likes: Record<string, boolean>; favorite: Record<string, boolean>;
   reveal_consent: Record<string, boolean>; compatibility: number;
@@ -118,7 +118,7 @@ interface RawConnection {
   closed_by: string | null; closed_reason: string | null; closed_gently: boolean;
 }
 
-const toConnection = (r: RawConnection): Connection => ({
+export const toConnection = (r: RawConnection): Connection => ({
   id: r.id,
   userA: r.user_a,
   userB: r.user_b,
@@ -135,14 +135,14 @@ const toConnection = (r: RawConnection): Connection => ({
   curatedOn: r.curated_on ?? undefined,
 });
 
-interface RawMessage {
+export interface RawMessage {
   id: string; connection_id: string; sender_id: string; kind: Message['kind'];
   body: string; image_url: string | null; ritual_level: number | null;
   created_at: string; read_at: string | null;
   mod_level: 'ok' | 'atencao' | 'risco'; mod_categories: string[] | null;
 }
 
-const toMessage = (r: RawMessage): Message => ({
+export const toMessage = (r: RawMessage): Message => ({
   id: r.id,
   connectionId: r.connection_id,
   senderId: r.sender_id,
