@@ -1380,3 +1380,86 @@ $$;
 
 revoke execute on function private.nivel_permitido(uuid) from public, anon;
 grant  execute on function private.nivel_permitido(uuid) to authenticated;
+
+
+-- ===========================================================================
+-- ASSINATURA: O PLANO MUDA SÓ PELO WEBHOOK
+--
+-- `users.plan` está congelada para o cliente pelo gatilho campos_privilegiados
+-- — sem isso, virar premium seria uma requisição do console do navegador. Quem
+-- muda é o webhook do Stripe, com service_role, DEPOIS de conferir a assinatura
+-- criptográfica do evento.
+--
+-- O cliente nunca informa "paguei". Ele só pede um link de checkout; quem diz
+-- que o pagamento aconteceu é o Stripe, falando com o nosso servidor.
+-- ===========================================================================
+
+-- Idempotência: o Stripe reentrega eventos quando não recebe 2xx rápido, e a
+-- mesma cobrança pode chegar duas vezes. Sem isto, uma reentrega estenderia o
+-- vencimento de novo.
+create table if not exists public.webhook_events (
+  id          text primary key,
+  provider    text not null,
+  type        text not null,
+  received_at timestamptz not null default now()
+);
+
+alter table public.webhook_events enable row level security;
+-- Sem políticas, de propósito: só o service_role toca nesta tabela, e ele passa
+-- por cima do RLS. Para qualquer outro papel, a tabela não existe.
+
+create index if not exists webhook_events_limpeza on public.webhook_events (received_at);
+
+create or replace function private.aplicar_assinatura(
+  dono uuid, novo_plano plan_type, novo_status text,
+  provedor text, id_no_provedor text, expira timestamptz
+) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  perform set_config('conexao.rotina_do_servidor', 'on', true);
+  update public.users set plan = novo_plano where id = dono;
+  -- Uma assinatura por pessoa por provedor: a de agora substitui a anterior.
+  delete from public.subscriptions where user_id = dono and provider = provedor;
+  insert into public.subscriptions (id, user_id, plan, status, provider, provider_id, started_at, expires_at)
+  values (gen_random_uuid(), dono, novo_plano, novo_status, provedor, id_no_provedor, now(), expira);
+  perform set_config('conexao.rotina_do_servidor', 'off', true);
+end;
+$$;
+
+revoke execute on function private.aplicar_assinatura(uuid, plan_type, text, text, text, timestamptz)
+  from public, anon, authenticated;
+
+-- Casca pública, porque RPC só enxerga o schema `public`. Executável apenas
+-- pelo service_role, que é quem o webhook usa — e recusa explicitamente
+-- qualquer chamada vinda de sessão de usuário final.
+create or replace function public.aplicar_assinatura_stripe(
+  dono uuid, novo_plano plan_type, novo_status text,
+  id_no_provedor text, expira timestamptz
+) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if auth.role() = 'authenticated' then
+    raise exception 'Somente o servidor.' using errcode = '42501';
+  end if;
+  perform private.aplicar_assinatura(dono, novo_plano, novo_status, 'stripe', id_no_provedor, expira);
+end;
+$$;
+
+revoke execute on function public.aplicar_assinatura_stripe(uuid, plan_type, text, text, timestamptz)
+  from public, anon, authenticated;
+grant execute on function public.aplicar_assinatura_stripe(uuid, plan_type, text, text, timestamptz)
+  to service_role;
+
+-- O que o cliente PODE perguntar: qual é a minha assinatura. Nada além disso.
+create or replace function public.minha_assinatura()
+returns table (plano plan_type, status text, provedor text, expira timestamptz)
+language sql stable security definer set search_path = public as $$
+  select s.plan, s.status, s.provider, s.expires_at
+  from public.subscriptions s
+  where s.user_id = auth.uid()
+  order by s.started_at desc
+  limit 1;
+$$;
+
+revoke execute on function public.minha_assinatura() from public, anon;
+grant  execute on function public.minha_assinatura() to authenticated;
