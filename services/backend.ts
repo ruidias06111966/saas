@@ -442,6 +442,25 @@ export async function bumpUsage(userId: string, field: 'interests' | 'aiCalls'):
   }, { onConflict: 'user_id,day' });
 }
 
+/**
+ * Encerra a conversa e ajusta a reputação — tudo no servidor.
+ *
+ * A reputação deixou de ser gravável pelo cliente (ver o gatilho
+ * `campos_privilegiados` em docs/SUPABASE.sql), senão bastava um PATCH para
+ * ficar com 100. Aqui o servidor conta as mensagens reais e aplica a regra.
+ */
+export async function closeConversation(
+  connectionId: string, gently: boolean,
+): Promise<{ reputation: number; delta: number }> {
+  const db = requireSupabase();
+  const { data, error } = await db.rpc('encerrar_conversa', {
+    conn: connectionId, gentilmente: gently,
+  });
+  if (error) throw new Error(`Falha ao encerrar a conversa: ${error.message}`);
+  const linha = (Array.isArray(data) ? data[0] : data) as { reputacao: number; delta: number };
+  return { reputation: linha.reputacao, delta: linha.delta };
+}
+
 /** LGPD art. 18, VI — a exclusão roda no servidor, dentro de delete_my_account(). */
 export async function deleteMyAccount(): Promise<void> {
   const db = requireSupabase();

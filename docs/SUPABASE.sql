@@ -1065,3 +1065,131 @@ create policy "participantes falam no canal da conversa"
         and (c.user_a = auth.uid() or c.user_b = auth.uid())
     )
   );
+
+
+-- ===========================================================================
+-- COLUNAS PRIVILEGIADAS: O RLS PROTEGE LINHAS, NÃO COLUNAS
+--
+-- A política "usuário atualiza o próprio registro" é `id = auth.uid()`. Ela
+-- impede mexer no cadastro alheio — e deixa a pessoa mudar QUALQUER coluna do
+-- próprio, inclusive `role`. Medido antes desta correção:
+--
+--   mexer no cadastro de OUTRA pessoa ......... bloqueado
+--   no PRÓPRIO: plano, papel, selo, reputação . conseguiu as quatro
+--   já como admin, banir qualquer pessoa ...... conseguiu
+--
+-- Ou seja: uma requisição do console do navegador bastava para virar
+-- administradora e, daí, dominar a plataforma. Política não resolve isso,
+-- porque RLS não tem granularidade de coluna. Resolve com gatilho.
+--
+-- Ele reverte em silêncio em vez de recusar, de propósito: `saveUser` manda a
+-- linha inteira a cada salvamento de perfil, e recusar quebraria toda edição
+-- legítima. O cliente pode mandar o que quiser; o banco ignora a parte que não
+-- é dele.
+-- ===========================================================================
+
+create or replace function private.campos_privilegiados()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  -- Porta do servidor, ligada só de dentro das nossas rotinas. O PostgREST
+  -- nunca executa set_config a mando de quem chama, então o cliente não a liga.
+  if coalesce(current_setting('conexao.rotina_do_servidor', true), '') = 'on' then
+    return new;
+  end if;
+
+  -- `auth.role()` vem de request.jwt.claims, que o PostgREST preenche do JWT já
+  -- verificado — não dá para forjar sem o segredo do projeto. Note que
+  -- `current_user` NÃO serve aqui: dentro de uma função security definer ele é
+  -- o dono da função, não quem chamou.
+  --   'authenticated' -> pessoa comum, congela
+  --   'service_role'  -> Edge Function / webhook, passa
+  --   null            -> acesso direto ao banco (editor SQL, migração), passa
+  if auth.role() is distinct from 'authenticated' then return new; end if;
+  if private.is_admin() then return new; end if;
+
+  if tg_op = 'INSERT' then
+    -- Cadastro nasce sempre igual, não importa o que o cliente mandou.
+    new.role       := 'user';
+    new.plan       := 'free';
+    new.verified   := false;
+    new.reputation := 70;
+    new.status     := 'ativo';
+    new.deleted_at := null;
+    -- O e-mail é o do Supabase Auth. Sem isto dava para exibir no perfil um
+    -- e-mail que não é o seu.
+    new.email := coalesce((select au.email from auth.users au where au.id = new.id), new.email);
+  else
+    new.role       := old.role;
+    new.plan       := old.plan;
+    new.verified   := old.verified;
+    new.reputation := old.reputation;
+    new.status     := old.status;
+    new.email      := old.email;
+    new.deleted_at := old.deleted_at;
+    new.created_at := old.created_at;
+  end if;
+
+  return new;
+end;
+$$;
+
+revoke execute on function private.campos_privilegiados() from public, anon, authenticated;
+
+drop trigger if exists campos_privilegiados on public.users;
+create trigger campos_privilegiados
+  before insert or update on public.users
+  for each row execute function private.campos_privilegiados();
+
+-- ---------------------------------------------------------------------------
+-- O caminho legítimo da reputação.
+--
+-- Ela era calculada e gravada pelo cliente ao encerrar uma conversa. Com a
+-- coluna congelada, precisa de uma porta — e a porta faz a conta ela mesma,
+-- sobre a contagem real de mensagens, em vez de aceitar o número que o
+-- navegador afirma.
+-- ---------------------------------------------------------------------------
+
+create or replace function public.encerrar_conversa(conn uuid, gentilmente boolean)
+returns table (reputacao smallint, delta smallint)
+language plpgsql security definer set search_path = public as $$
+declare
+  me uuid := auth.uid();
+  msgs int; d smallint; nova smallint;
+begin
+  if me is null then
+    raise exception 'É preciso estar autenticado.' using errcode = '42501';
+  end if;
+  if not exists (
+    select 1 from public.connections c
+    where c.id = conn and (c.user_a = me or c.user_b = me)
+  ) then
+    raise exception 'Conversa indisponível.' using errcode = '42501';
+  end if;
+
+  select t.mensagens into msgs from private.termometro(conn) t;
+
+  -- Espelha reputationDelta() em services/conversation.ts: quem se despede
+  -- ganha, quem some perde, e conversa longa pesa mais que conversa curta.
+  d := case
+    when gentilmente then case when msgs >= 6 then 3 else 1 end
+    else case when msgs >= 6 then -4 else -1 end
+  end;
+
+  update public.connections set
+    status = 'encerrada', closed_by = me, closed_gently = gentilmente,
+    closed_reason = case when gentilmente then 'despedida' else 'sem_aviso' end
+  where id = conn;
+
+  perform set_config('conexao.rotina_do_servidor', 'on', true);
+  update public.users u
+     set reputation = greatest(0, least(100, u.reputation + d))
+   where u.id = me
+  returning u.reputation into nova;
+  perform set_config('conexao.rotina_do_servidor', 'off', true);
+
+  return query select nova, d;
+end;
+$$;
+
+revoke execute on function public.encerrar_conversa(uuid, boolean) from public, anon;
+grant  execute on function public.encerrar_conversa(uuid, boolean) to authenticated;

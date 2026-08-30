@@ -455,20 +455,33 @@ export function Signup() {
               </div>
             </div>
 
+            {/* O selo não é mais gravável pelo cliente: o servidor congela a
+                coluna `verified` (gatilho campos_privilegiados). No modo online
+                o botão de simular seria uma promessa que o banco recusa. */}
             <div className="rounded-2xl border border-line p-4">
               <p className="flex items-center gap-2 text-[13px] font-semibold">
                 <Icon name="shield" size={16} className="text-sage" /> Verificação de perfil
               </p>
-              <p className="mt-1 text-xs leading-relaxed text-muted">
-                Na versão final, pedimos uma selfie reproduzindo uma pose aleatória, comparada com sua
-                foto por visão computacional. Perfis verificados aparecem com selo e recebem mais conexões.
-              </p>
-              <Button
-                size="sm" variant={d.verified ? 'secondary' : 'outline'} className="mt-3"
-                icon={d.verified ? 'check' : 'shield'} onClick={() => set('verified', !d.verified)}
-              >
-                {d.verified ? 'Verificado (simulado)' : 'Simular verificação agora'}
-              </Button>
+              {supabaseEnabled ? (
+                <p className="mt-1 text-xs leading-relaxed text-muted">
+                  Depois de entrar, você pode pedir a verificação no seu perfil: uma selfie
+                  reproduzindo uma pose sorteada, analisada por uma pessoa da equipe. O selo é
+                  concedido pelo servidor — nunca pelo aplicativo no seu aparelho.
+                </p>
+              ) : (
+                <>
+                  <p className="mt-1 text-xs leading-relaxed text-muted">
+                    Esta é a demonstração local, então o selo aqui é só enfeite. No modo online ele
+                    depende de uma selfie analisada por uma pessoa da equipe.
+                  </p>
+                  <Button
+                    size="sm" variant={d.verified ? 'secondary' : 'outline'} className="mt-3"
+                    icon={d.verified ? 'check' : 'shield'} onClick={() => set('verified', !d.verified)}
+                  >
+                    {d.verified ? 'Verificado (simulado)' : 'Simular verificação agora'}
+                  </Button>
+                </>
+              )}
             </div>
 
             <div className="rounded-2xl bg-bg p-4">

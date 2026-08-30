@@ -424,11 +424,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       closedReason: gently ? 'despedida' : 'sem_aviso',
     };
     dispatch({ type: 'SET_CONNECTION', id: connectionId, patch });
-    persist(() => backend.saveConnection({ ...conn, ...patch }), 'Não foi possível encerrar a conversa no servidor.');
-
-    const reputation = Math.max(0, Math.min(100, me.reputation + delta));
-    dispatch({ type: 'UPDATE_USER', id: me.id, patch: { reputation } });
-    persist(() => backend.saveUser({ ...me, reputation }), 'Não foi possível atualizar sua reputação.');
+    // Otimista na tela; no servidor quem decide é encerrar_conversa(), que
+    // conta as mensagens de verdade. A reputação não é mais gravável pelo
+    // cliente — se fosse, bastava um PATCH para ficar com 100.
+    dispatch({
+      type: 'UPDATE_USER', id: me.id,
+      patch: { reputation: Math.max(0, Math.min(100, me.reputation + delta)) },
+    });
+    if (supabaseEnabled) {
+      backend.closeConversation(connectionId, gently)
+        .then(({ reputation }) => dispatch({ type: 'UPDATE_USER', id: me.id, patch: { reputation } }))
+        .catch((err: Error) => {
+          console.error('[CONEXÃO] Falha ao encerrar a conversa.', err);
+          setToasts((prev) => [...prev, {
+            id: uid('toast'), tone: 'danger',
+            text: `Não foi possível encerrar a conversa no servidor. ${err.message}`,
+          }]);
+        });
+    }
     toast(
       gently
         ? 'Conversa encerrada com uma despedida. Sua reputação de conversa agradece.'
