@@ -353,6 +353,32 @@ derrubar o plano na primeira falha puniria quem só trocou de cartão.
 Dados de cartão não passam pelo aplicativo em momento nenhum, nem no cancelamento, que
 acontece no portal do próprio Stripe.
 
+#### A falha que não dá erro em lugar nenhum
+
+Um endpoint de webhook no Stripe pode estar criado, ativo, apontando para a URL certa e
+com o segredo correto — e ainda assim **não assinar os eventos que importam**. Foi
+exatamente o caso aqui: dos quatro eventos, só `invoice.payment_failed` estava marcado,
+e ele é o único que o nosso código ignora de propósito. O pagamento seria cobrado, o
+Stripe registraria sucesso, o app mostraria a tela de volta — e o plano continuaria
+`free`, sem uma linha de erro em lugar nenhum para explicar por quê.
+
+Nada no código detecta isso, porque do lado de cá não acontece nada: a entrega
+simplesmente nunca é feita. Por isso a configuração do Stripe virou algo que se
+**pergunta**, em vez de se supor. `assinar` responde a `{"acao":"diagnostico"}`, só para
+administração, dizendo se o endpoint existe, se aponta para cá e quais dos quatro eventos
+faltam; com `"corrigir": true` ele acrescenta os que faltam. O reparo tem duas amarras:
+mexe unicamente no endpoint cuja URL é exatamente a nossa, e só acrescenta — nunca remove
+um evento já assinado.
+
+Os quatro eventos, e por que cada um:
+
+| evento | para quê |
+|---|---|
+| `checkout.session.completed` | concede o premium — sem ele, nada acontece |
+| `customer.subscription.updated` | renovação, e o rebaixamento quando o Stripe desiste |
+| `customer.subscription.deleted` | fim da assinatura |
+| `invoice.payment_failed` | registrado de propósito sem efeito, para não punir troca de cartão |
+
 ### O que ainda falta para produção
 
 Um trabalho de carga que este projeto nunca fez, e um provedor de e-mail com domínio

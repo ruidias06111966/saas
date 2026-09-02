@@ -1,0 +1,26 @@
+# ---------------------------------------------------------------------------
+# CONEXÃO — configuração das Edge Functions.
+#
+# Este arquivo existe por um motivo específico: `verify_jwt` estava só no
+# painel do Supabase. Um `supabase functions deploy` feito a partir do
+# repositório traria o webhook do Stripe de volta COM verificação de JWT — e o
+# Stripe, que não tem sessão no app, passaria a levar 401 em toda entrega, sem
+# erro visível em lugar nenhum. Declarado aqui, o ajuste viaja com o código.
+# ---------------------------------------------------------------------------
+
+[functions.copiloto]
+verify_jwt = true
+
+[functions.velar]
+verify_jwt = true
+
+[functions.decidir-verificacao]
+verify_jwt = true
+
+[functions.assinar]
+verify_jwt = true
+
+# A única porta aberta sem JWT. Ela se defende pela assinatura criptográfica do
+# evento, conferida na primeira coisa que a função faz.
+[functions.stripe-webhook]
+verify_jwt = false
