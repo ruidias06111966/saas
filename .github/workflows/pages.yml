@@ -36,6 +36,7 @@ jobs:
         env:
           VAR_URL: ${{ vars.VITE_SUPABASE_URL }}
           VAR_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
+          VAR_DSN: ${{ vars.VITE_SENTRY_DSN }}
           # Lidos só para detectar o engano mais comum: guardar em Secrets, que
           # é a aba vizinha. O site não lê daqui — o Build usa `vars.`.
           SEC_URL: ${{ secrets.VITE_SUPABASE_URL }}
@@ -45,9 +46,15 @@ jobs:
           echo "Em Variables (é daqui que o site lê):"
           diz VITE_SUPABASE_URL             "$VAR_URL"
           diz VITE_SUPABASE_PUBLISHABLE_KEY "$VAR_KEY"
+          diz VITE_SENTRY_DSN               "$VAR_DSN"
           echo "Em Secrets (o site NAO le daqui):"
           diz VITE_SUPABASE_URL             "$SEC_URL"
           diz VITE_SUPABASE_PUBLISHABLE_KEY "$SEC_KEY"
+          if [ -n "$VAR_DSN" ]; then
+            echo "=> Registro de erros LIGADO."
+          else
+            echo "=> Registro de erros desligado (o app funciona igual)."
+          fi
           if [ -n "$VAR_URL" ] && [ -n "$VAR_KEY" ]; then
             echo "=> Vai subir em MODO ONLINE."
           else
@@ -69,6 +76,11 @@ jobs:
           # é o RLS. NUNCA use aqui a chave service_role.
           VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
+          # Registro de erros. Sem ela o app funciona igual, só sem registro.
+          # O DSN é público por natureza — vai dentro do pacote do navegador,
+          # e quem protege o projeto no Sentry é a lista de domínios permitidos
+          # configurada lá. Por isso fica em Variables, como as de cima.
+          VITE_SENTRY_DSN: ${{ vars.VITE_SENTRY_DSN }}
         run: npm run build
 
       # Confere o resultado, não a intenção: a URL tem de estar mesmo dentro

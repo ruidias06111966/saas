@@ -12,6 +12,7 @@ import * as backend from '../services/backend';
 import { onAuthChange, currentSession, signOut } from '../services/auth';
 import { subscribeToConversations } from '../services/realtime';
 import { supabaseEnabled } from '../services/supabaseClient';
+import { identificarUsuario, reportarErro } from '../services/monitoring';
 import { computeCompatibility } from '../services/compatibility';
 import { reputationDelta } from '../services/conversation';
 import { moderateText } from '../services/moderation';
@@ -154,14 +155,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       })
       .catch((err) => {
         console.error('[CONEXÃO] Falha ao restaurar a sessão.', err);
+        reportarErro(err, 'restaurar-sessao');
       })
       .finally(() => { if (vivo) setBooting(false); });
 
     const unsubscribe = onAuthChange((userId) => {
       if (!vivo) return;
+      identificarUsuario(userId);
       if (userId) {
         void currentSession().then((s2) =>
-          hydrate(userId, s2?.user?.email ?? '').catch(() => {}),
+          // Este catch protege a tela de quebrar, e por isso mesmo precisa
+          // avisar: era aqui que uma falha ao carregar os dados da pessoa
+          // deixava o app parado sem explicação para ninguém.
+          hydrate(userId, s2?.user?.email ?? '').catch((err) => {
+            reportarErro(err, 'hidratar-apos-login');
+          }),
         );
       } else {
         setPendingAccount(null);
