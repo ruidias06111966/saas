@@ -1,6 +1,6 @@
 import type { AxisKey, Lifestyle, Personality, User } from '../types';
 import { POLICY_VERSION } from '../constants';
-import { blurCoord } from '../services/utils';
+import { age, blurCoord } from '../services/utils';
 
 // Senha de todas as contas de demonstração: conexao123
 const DEMO_HASH = '5e2ae7ceae8c9779261cb2286ef75fe09cc9e3549e787ecd0ff6dd8a3c7b9bda';
@@ -44,6 +44,7 @@ function build(s: Spec, daysAgo: number): User {
     email: s.email,
     passwordHash: DEMO_HASH,
     birthDate: s.birthDate,
+    age: age(s.birthDate),
     gender: s.gender,
     city,
     state: s.city === 'rio' ? 'RJ' : 'SP',

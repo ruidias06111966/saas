@@ -34,7 +34,7 @@ export function Login() {
       return;
     }
 
-    const user = state.users.find((u) => u.email.toLowerCase() === email.trim().toLowerCase());
+    const user = state.users.find((u) => (u.email ?? '').toLowerCase() === email.trim().toLowerCase());
     const hash = await sha256(password);
     setBusy(false);
     if (!user || user.passwordHash !== hash) return setError('E-mail ou senha incorretos.');

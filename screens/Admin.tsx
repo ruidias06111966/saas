@@ -8,7 +8,7 @@ import { Page } from '../components/layout/AppShell';
 import { Banner, Button, Card, Chip, Empty, Icon, Input, Tabs } from '../components/ui';
 import { Avatar } from '../components/Portrait';
 import { FilaVerificacao } from '../components/FilaVerificacao';
-import { age, dateKey, firstName, timeAgo } from '../services/utils';
+import { dateKey, firstName, timeAgo } from '../services/utils';
 
 type Tab = 'painel' | 'usuarios' | 'denuncias' | 'moderacao' | 'verificacao';
 
@@ -127,7 +127,7 @@ export function Admin() {
                 <Avatar seed={u.id} photo={u.photo} name={u.name} size={44} />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-semibold">
-                    {u.name}, {age(u.birthDate)}
+                    {u.name}, {u.age}
                     {u.verified && <Icon name="check" size={12} className="ml-1.5 inline text-sage" />}
                   </p>
                   <p className="truncate text-[12px] text-muted">{u.email} · {u.city} · reputação {u.reputation}</p>

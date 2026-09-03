@@ -4,7 +4,7 @@ import type {
 } from '../types';
 import type { HealthMetrics } from './conversation';
 import { requireSupabase, supabaseEnabled } from './supabaseClient';
-import { dateKey } from './utils';
+import { age, dateKey } from './utils';
 
 // ---------------------------------------------------------------------------
 // Camada de acesso ao Supabase.
@@ -22,35 +22,76 @@ import { dateKey } from './utils';
 export const pairOrder = (x: string, y: string): [string, string] =>
   x < y ? [x, y] : [y, x];
 
-const SELECT_USER = `
-  id, name, email, birth_date, gender, city, state, approx_lat, approx_lng,
-  photo_url, extra_photos, profession, bio, goal, chat_pace, verified,
-  reputation, plan, role, status, created_at, last_active_at,
+/** As colunas ligadas ao perfil que valem para os dois caminhos de leitura. */
+const CAMPOS_COMUNS = `
+  gender, city, state, photo_url, extra_photos, profession, bio,
+  goal, chat_pace, verified, reputation, plan, status,
+  created_at, last_active_at,
   profiles ( personality, lifestyle ),
-  preferences ( seeking, age_min, age_max, max_distance_km, goals, min_compatibility ),
   user_interests ( interest_id ),
-  prompt_answers ( prompt_id, answer ),
+  prompt_answers ( prompt_id, answer )
+`;
+
+/**
+ * O PRÓPRIO registro, direto de `public.users`. Vem completo — o e-mail, a data
+ * de nascimento e as coordenadas são da própria pessoa, e ela tem todo o direito
+ * de recebê-los. `preferences` e `consents` também só existem aqui: o RLS deles
+ * é `user_id = auth.uid()`, então nunca viriam de outra pessoa mesmo.
+ */
+const SELECT_EU = `
+  id, name, email, birth_date, approx_lat, approx_lng, role,
+  ${CAMPOS_COMUNS},
+  preferences ( seeking, age_min, age_max, max_distance_km, goals, min_compatibility ),
   consents ( kind, version, accepted_at )
 `;
 
-interface RawUser {
-  id: string; name: string; email: string; birth_date: string;
+/**
+ * TERCEIROS, pela view `perfis_descobriveis`.
+ *
+ * A view é a correção do vazamento confirmado em 03/09/2026: o RLS protege
+ * linhas, não colunas, então ler `users` direto entregava e-mail, nascimento,
+ * coordenadas e papel de todas as contas ativas. Aqui só sai o que a tela
+ * precisa, com idade e distância já derivadas no servidor.
+ *
+ * A view não devolve administradores nem a própria pessoa — os dois filtros que
+ * antes eram feitos no cliente.
+ */
+const SELECT_OUTROS = `
+  id, name, idade, distancia_km,
+  ${CAMPOS_COMUNS}
+`;
+
+/** O que os dois caminhos de leitura têm em comum. */
+interface RawComum {
+  id: string; name: string;
   gender: User['gender']; city: string; state: string;
-  approx_lat: number | string; approx_lng: number | string;
   photo_url: string | null; extra_photos: string[] | null;
   profession: string | null; bio: string | null;
   goal: User['goal']; chat_pace: User['chatPace'];
   verified: boolean; reputation: number; plan: User['plan'];
-  role: User['role']; status: User['status'];
+  status: User['status'];
   created_at: string; last_active_at: string;
   profiles: { personality: Personality; lifestyle: Lifestyle } | null;
+  user_interests: { interest_id: string }[] | null;
+  prompt_answers: { prompt_id: string; answer: string }[] | null;
+}
+
+/** O próprio registro, de `public.users`. */
+interface RawEu extends RawComum {
+  email: string; birth_date: string; role: User['role'];
+  approx_lat: number | string; approx_lng: number | string;
   preferences: {
     seeking: string[]; age_min: number; age_max: number;
     max_distance_km: number; goals: string[]; min_compatibility: number;
   } | null;
-  user_interests: { interest_id: string }[] | null;
-  prompt_answers: { prompt_id: string; answer: string }[] | null;
   consents: { kind: string; version: string; accepted_at: string }[] | null;
+}
+
+/** Terceiros, da view. Idade e distância já vêm calculadas. */
+interface RawOutro extends RawComum {
+  idade: number;
+  /** `numeric` do Postgres chega como string no JSON. Null quando falta coordenada. */
+  distancia_km: number | string | null;
 }
 
 const DEFAULT_PERSONALITY: Personality = {
@@ -65,19 +106,16 @@ const DEFAULT_PREFERENCES: Preferences = {
   maxDistanceKm: 50, goals: [], minCompatibility: 0,
 };
 
-function toUser(r: RawUser): User {
+/** O miolo compartilhado. Nada aqui é dado de contato nem de localização. */
+function baseUser(r: RawComum): Omit<User, 'age'> {
   return {
     id: r.id,
     name: r.name,
-    email: r.email,
     // A senha vive no Supabase Auth. Este campo existe só para o modo demo.
     passwordHash: '',
-    birthDate: r.birth_date,
     gender: r.gender,
     city: r.city,
     state: r.state,
-    approxLat: Number(r.approx_lat),
-    approxLng: Number(r.approx_lng),
     photo: r.photo_url ?? undefined,
     extraPhotos: r.extra_photos ?? [],
     profession: r.profession ?? '',
@@ -88,6 +126,29 @@ function toUser(r: RawUser): User {
     chatPace: r.chat_pace,
     goal: r.goal,
     answers: (r.prompt_answers ?? []).map((a) => ({ promptId: a.prompt_id, answer: a.answer })),
+    // Preferências e consentimentos só chegam pelo próprio registro; o RLS
+    // deles é `user_id = auth.uid()`. Para terceiros ficam nos padrões.
+    preferences: DEFAULT_PREFERENCES,
+    consents: [],
+    verified: r.verified,
+    reputation: r.reputation,
+    plan: r.plan,
+    status: r.status,
+    createdAt: r.created_at,
+    lastActiveAt: r.last_active_at,
+  };
+}
+
+/** O próprio registro: completo, porque o dado é da própria pessoa. */
+function toEu(r: RawEu): User {
+  return {
+    ...baseUser(r),
+    email: r.email,
+    birthDate: r.birth_date,
+    age: age(r.birth_date),
+    approxLat: Number(r.approx_lat),
+    approxLng: Number(r.approx_lng),
+    role: r.role,
     preferences: r.preferences
       ? {
           seeking: r.preferences.seeking as Preferences['seeking'],
@@ -98,16 +159,22 @@ function toUser(r: RawUser): User {
           minCompatibility: r.preferences.min_compatibility,
         }
       : DEFAULT_PREFERENCES,
-    verified: r.verified,
-    reputation: r.reputation,
-    plan: r.plan,
-    role: r.role,
-    status: r.status,
     consents: (r.consents ?? []).map((c) => ({
       kind: c.kind as Consent['kind'], version: c.version, acceptedAt: c.accepted_at,
     })),
-    createdAt: r.created_at,
-    lastActiveAt: r.last_active_at,
+  };
+}
+
+/**
+ * Terceiros: sem e-mail, sem nascimento, sem coordenadas, sem papel.
+ * Idade e distância vêm prontas do servidor — o cliente não as recalcula
+ * porque não tem, e não deve ter, o insumo.
+ */
+function toOutro(r: RawOutro): User {
+  return {
+    ...baseUser(r),
+    age: r.idade,
+    distanceKm: r.distancia_km === null ? undefined : Number(r.distancia_km),
   };
 }
 
@@ -219,9 +286,13 @@ export interface RemoteSnapshot {
 export async function loadSnapshot(meId: string): Promise<RemoteSnapshot> {
   const db = requireSupabase();
 
-  const [users, connections, notifications, blocks, reports, moderation, usage, mensagens, termometros] =
+  const [eu, outros, connections, notifications, blocks, reports, moderation, usage, mensagens, termometros] =
     await Promise.all([
-      db.from('users').select(SELECT_USER),
+      // Duas leituras em vez de uma. O próprio registro vem completo de
+      // `users`; todo o resto vem da view, que não carrega dado de contato nem
+      // de localização. Ver supabase/migrations/001_perfis_descobriveis.sql.
+      db.from('users').select(SELECT_EU).eq('id', meId).maybeSingle(),
+      db.from('perfis_descobriveis').select(SELECT_OUTROS),
       db.from('connections').select('*'),
       db.from('notifications').select('*').order('created_at', { ascending: false }),
       db.from('blocks').select('*'),
@@ -232,7 +303,7 @@ export async function loadSnapshot(meId: string): Promise<RemoteSnapshot> {
       db.rpc('termometros'),
     ]);
 
-  const firstError = [users, connections, notifications, blocks, reports, moderation, usage, mensagens, termometros]
+  const firstError = [eu, outros, connections, notifications, blocks, reports, moderation, usage, mensagens, termometros]
     .find((r) => r.error)?.error;
   if (firstError) throw new Error(`Falha ao carregar dados: ${firstError.message}`);
 
@@ -256,7 +327,12 @@ export async function loadSnapshot(meId: string): Promise<RemoteSnapshot> {
     .map((c) => c.id);
 
   return {
-    users: (users.data ?? []).map((u) => toUser(u as unknown as RawUser)),
+    // O próprio registro primeiro: várias telas assumem que ele está na lista.
+    // Sem ele, `me` fica indefinido e o app trata como "sessão sem perfil".
+    users: [
+      ...(eu.data ? [toEu(eu.data as unknown as RawEu)] : []),
+      ...((outros.data ?? []) as unknown as RawOutro[]).map(toOutro),
+    ],
     connections: conns,
     messages,
     healths,

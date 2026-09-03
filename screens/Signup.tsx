@@ -78,7 +78,7 @@ export function Signup() {
     if (step === 0) {
       if (d.name.trim().split(/\s+/).length < 2) e.name = 'Informe nome e sobrenome.';
       if (!isEmail(d.email)) e.email = 'E-mail inválido.';
-      if (!supabaseEnabled && state.users.some((u) => u.email.toLowerCase() === d.email.trim().toLowerCase())) {
+      if (!supabaseEnabled && state.users.some((u) => (u.email ?? '').toLowerCase() === d.email.trim().toLowerCase())) {
         e.email = 'Já existe uma conta com este e-mail.';
       }
       if (d.password.length < 8) e.password = 'Use pelo menos 8 caracteres.';
@@ -121,7 +121,7 @@ export function Signup() {
     return {
       id, name: dados.name.trim(), email: dados.email.trim().toLowerCase(),
       passwordHash: supabaseEnabled ? '' : await sha256(dados.password),
-      birthDate: dados.birthDate, gender: dados.gender as Gender,
+      birthDate: dados.birthDate, age: age(dados.birthDate), gender: dados.gender as Gender,
       city: dados.city.trim(), state: dados.state,
       approxLat: blurCoord(lat), approxLng: blurCoord(lng),
       photo: foto, extraPhotos: [], profession: dados.profession.trim(), bio: dados.bio.trim(),

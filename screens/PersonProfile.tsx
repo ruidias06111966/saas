@@ -12,7 +12,7 @@ import { Portrait } from '../components/Portrait';
 import { CompatibilityPanel } from '../components/CompatibilityPanel';
 import { CopilotPanel } from '../components/Copilot';
 import { ReportDialog } from '../components/ReportDialog';
-import { age, distanceBand, firstName, timeAgo } from '../services/utils';
+import { distanceBand, firstName, timeAgo } from '../services/utils';
 
 export function PersonProfile({ id }: { id: string }) {
   const { me, state, back, navigate, expressInterest, blockUser, toast, canUseAi, spendAi } = useApp();
@@ -63,7 +63,7 @@ export function PersonProfile({ id }: { id: string }) {
           />
           <div className="min-w-0 flex-1">
             <h1 className="font-display text-2xl font-bold leading-tight">
-              {firstName(other.name)}, {age(other.birthDate)}
+              {firstName(other.name)}, {other.age}
               {other.verified && <Icon name="check" size={16} className="ml-2 inline text-sage" />}
             </h1>
             <p className="mt-1 text-sm text-muted">

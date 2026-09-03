@@ -7,7 +7,7 @@ import type {
 } from '../types';
 import { AXES, GOAL_LABEL, LIFESTYLE_FIELDS } from '../constants';
 import { INTEREST_MAP } from '../data/interests';
-import { age, clamp, distanceBand, firstName, haversineKm } from './utils';
+import { clamp, distanceBand, firstName, haversineKm } from './utils';
 
 // ---------------------------------------------------------------------------
 // Índice de Compatibilidade — EXPLICÁVEL por construção.
@@ -177,8 +177,11 @@ function paceScore(a: User, b: User): CompatibilityDimension {
 }
 
 function ageScore(a: User, b: User): CompatibilityDimension {
-  const ageA = age(a.birthDate);
-  const ageB = age(b.birthDate);
+  // `age` já vem pronto: calculado pela view, no servidor, para terceiros; e a
+  // partir de `birthDate` para o próprio registro e no modo demo. A data de
+  // nascimento de outra pessoa não chega mais até aqui, e não precisa chegar.
+  const ageA = a.age;
+  const ageB = b.age;
   const fit = (u: User, other: number) => {
     if (other >= u.preferences.ageMin && other <= u.preferences.ageMax) return 1;
     const dist = other < u.preferences.ageMin ? u.preferences.ageMin - other : other - u.preferences.ageMax;
@@ -194,8 +197,19 @@ function ageScore(a: User, b: User): CompatibilityDimension {
   };
 }
 
+/**
+ * A distância vem pronta do servidor (`b.distanceKm`), calculada em relação a
+ * quem está olhando. O cálculo local a partir de coordenadas continua para o
+ * modo demo, que não tem servidor e onde os perfis são fictícios.
+ */
+function distanciaEntre(a: User, b: User): number {
+  if (b.distanceKm !== undefined) return b.distanceKm;
+  if (a.approxLat === undefined || b.approxLat === undefined) return 0;
+  return haversineKm(a.approxLat, a.approxLng ?? 0, b.approxLat, b.approxLng ?? 0);
+}
+
 function distanceScore(a: User, b: User): { dim: CompatibilityDimension; km: number } {
-  const km = haversineKm(a.approxLat, a.approxLng, b.approxLat, b.approxLng);
+  const km = distanciaEntre(a, b);
   const limit = Math.min(a.preferences.maxDistanceKm, b.preferences.maxDistanceKm);
   const score = km <= 10 ? 1 : clamp(1 - (km - 10) / Math.max(20, limit * 1.2));
   return {
@@ -273,18 +287,19 @@ const genderMatches = (seeking: User['preferences']['seeking'], g: User['gender'
 export function isEligible(me: User, other: User, blockedIds: Set<string>): boolean {
   if (me.id === other.id) return false;
   if (other.status !== 'ativo') return false;
+  // Administração não entra no funil. No modo online a view nem devolve essas
+  // linhas — este teste sobrou para o modo demo, onde `role` existe em todo
+  // perfil fictício.
   if (other.role === 'admin') return false;
   if (blockedIds.has(other.id)) return false;
-  if (age(other.birthDate) < 18 || age(me.birthDate) < 18) return false;
+  if (other.age < 18 || me.age < 18) return false;
   if (!genderMatches(me.preferences.seeking, other.gender)) return false;
   if (!genderMatches(other.preferences.seeking, me.gender)) return false;
 
-  const ageOther = age(other.birthDate);
-  const ageMe = age(me.birthDate);
-  if (ageOther < me.preferences.ageMin || ageOther > me.preferences.ageMax) return false;
-  if (ageMe < other.preferences.ageMin || ageMe > other.preferences.ageMax) return false;
+  if (other.age < me.preferences.ageMin || other.age > me.preferences.ageMax) return false;
+  if (me.age < other.preferences.ageMin || me.age > other.preferences.ageMax) return false;
 
-  const km = haversineKm(me.approxLat, me.approxLng, other.approxLat, other.approxLng);
+  const km = distanciaEntre(me, other);
   if (km > Math.max(me.preferences.maxDistanceKm, 10)) return false;
 
   if (me.preferences.goals.length && !me.preferences.goals.includes(other.goal)) return false;

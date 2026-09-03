@@ -9,7 +9,7 @@ import { VerificacaoCard } from '../components/Verificacao';
 import { Bar, Banner, Button, Card, Chip, Icon, Ring, SectionTitle } from '../components/ui';
 import { Portrait } from '../components/Portrait';
 import { EssenceCard } from '../components/EssenceCard';
-import { age, firstName } from '../services/utils';
+import { firstName } from '../services/utils';
 
 export function Profile() {
   const { me, state, navigate, logout } = useApp();
@@ -31,7 +31,7 @@ export function Profile() {
           <Portrait seed={me.id} photo={me.photo} name={me.name} reveal={1} className="h-32 w-32 shrink-0" />
           <div className="min-w-0 flex-1">
             <h2 className="font-display text-2xl font-bold">
-              {me.name}, {age(me.birthDate)}
+              {me.name}, {me.age}
               {me.verified && <Icon name="check" size={16} className="ml-2 inline text-sage" />}
             </h2>
             <p className="mt-1 text-sm text-muted">
