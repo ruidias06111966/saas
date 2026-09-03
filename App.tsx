@@ -4,6 +4,8 @@ import { Toasts } from './components/Toasts';
 import { Landing } from './screens/Landing';
 import { Login } from './screens/Login';
 import { Signup } from './screens/Signup';
+import { RecuperarSenha } from './screens/RecuperarSenha';
+import { RedefinirSenha } from './screens/RedefinirSenha';
 import { Home } from './screens/Home';
 import { Discover } from './screens/Discover';
 import { PersonProfile } from './screens/PersonProfile';
@@ -23,6 +25,8 @@ function Router() {
     case 'landing': return <Landing />;
     case 'login': return <Login />;
     case 'signup': return <Signup />;
+    case 'recuperarSenha': return <RecuperarSenha />;
+    case 'redefinirSenha': return <RedefinirSenha />;
     case 'home': return <Home />;
     case 'discover': return <Discover />;
     case 'person': return <PersonProfile id={route.id} />;

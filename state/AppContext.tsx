@@ -159,9 +159,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       })
       .finally(() => { if (vivo) setBooting(false); });
 
-    const unsubscribe = onAuthChange((userId) => {
+    const unsubscribe = onAuthChange((userId, evento) => {
       if (!vivo) return;
       identificarUsuario(userId);
+
+      // O link de "esqueci minha senha" cria uma sessão de verdade. Sem este
+      // desvio a pessoa cairia direto no app — logada, mas sem ter definido
+      // senha nenhuma, e sem entender o que aconteceu.
+      if (evento === 'PASSWORD_RECOVERY') {
+        setRoute({ name: 'redefinirSenha' });
+        setBooting(false);
+        return;
+      }
+
       if (userId) {
         void currentSession().then((s2) =>
           // Este catch protege a tela de quebrar, e por isso mesmo precisa

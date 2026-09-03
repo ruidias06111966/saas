@@ -255,6 +255,8 @@ export type Route =
   | { name: 'landing' }
   | { name: 'login' }
   | { name: 'signup' }
+  | { name: 'recuperarSenha' }
+  | { name: 'redefinirSenha' }
   | { name: 'home' }
   | { name: 'discover' }
   | { name: 'person'; id: string }
