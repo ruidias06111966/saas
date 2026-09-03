@@ -1065,3 +1065,401 @@ create policy "participantes falam no canal da conversa"
         and (c.user_a = auth.uid() or c.user_b = auth.uid())
     )
   );
+
+
+-- ===========================================================================
+-- COLUNAS PRIVILEGIADAS: O RLS PROTEGE LINHAS, NÃO COLUNAS
+--
+-- A política "usuário atualiza o próprio registro" é `id = auth.uid()`. Ela
+-- impede mexer no cadastro alheio — e deixa a pessoa mudar QUALQUER coluna do
+-- próprio, inclusive `role`. Medido antes desta correção:
+--
+--   mexer no cadastro de OUTRA pessoa ......... bloqueado
+--   no PRÓPRIO: plano, papel, selo, reputação . conseguiu as quatro
+--   já como admin, banir qualquer pessoa ...... conseguiu
+--
+-- Ou seja: uma requisição do console do navegador bastava para virar
+-- administradora e, daí, dominar a plataforma. Política não resolve isso,
+-- porque RLS não tem granularidade de coluna. Resolve com gatilho.
+--
+-- Ele reverte em silêncio em vez de recusar, de propósito: `saveUser` manda a
+-- linha inteira a cada salvamento de perfil, e recusar quebraria toda edição
+-- legítima. O cliente pode mandar o que quiser; o banco ignora a parte que não
+-- é dele.
+-- ===========================================================================
+
+create or replace function private.campos_privilegiados()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  -- Porta do servidor, ligada só de dentro das nossas rotinas. O PostgREST
+  -- nunca executa set_config a mando de quem chama, então o cliente não a liga.
+  if coalesce(current_setting('conexao.rotina_do_servidor', true), '') = 'on' then
+    return new;
+  end if;
+
+  -- `auth.role()` vem de request.jwt.claims, que o PostgREST preenche do JWT já
+  -- verificado — não dá para forjar sem o segredo do projeto. Note que
+  -- `current_user` NÃO serve aqui: dentro de uma função security definer ele é
+  -- o dono da função, não quem chamou.
+  --   'authenticated' -> pessoa comum, congela
+  --   'service_role'  -> Edge Function / webhook, passa
+  --   null            -> acesso direto ao banco (editor SQL, migração), passa
+  if auth.role() is distinct from 'authenticated' then return new; end if;
+  if private.is_admin() then return new; end if;
+
+  if tg_op = 'INSERT' then
+    -- Cadastro nasce sempre igual, não importa o que o cliente mandou.
+    new.role       := 'user';
+    new.plan       := 'free';
+    new.verified   := false;
+    new.reputation := 70;
+    new.status     := 'ativo';
+    new.deleted_at := null;
+    -- O e-mail é o do Supabase Auth. Sem isto dava para exibir no perfil um
+    -- e-mail que não é o seu.
+    new.email := coalesce((select au.email from auth.users au where au.id = new.id), new.email);
+  else
+    new.role       := old.role;
+    new.plan       := old.plan;
+    new.verified   := old.verified;
+    new.reputation := old.reputation;
+    new.status     := old.status;
+    new.email      := old.email;
+    new.deleted_at := old.deleted_at;
+    new.created_at := old.created_at;
+  end if;
+
+  return new;
+end;
+$$;
+
+revoke execute on function private.campos_privilegiados() from public, anon, authenticated;
+
+drop trigger if exists campos_privilegiados on public.users;
+create trigger campos_privilegiados
+  before insert or update on public.users
+  for each row execute function private.campos_privilegiados();
+
+-- ---------------------------------------------------------------------------
+-- O caminho legítimo da reputação.
+--
+-- Ela era calculada e gravada pelo cliente ao encerrar uma conversa. Com a
+-- coluna congelada, precisa de uma porta — e a porta faz a conta ela mesma,
+-- sobre a contagem real de mensagens, em vez de aceitar o número que o
+-- navegador afirma.
+-- ---------------------------------------------------------------------------
+
+create or replace function public.encerrar_conversa(conn uuid, gentilmente boolean)
+returns table (reputacao smallint, delta smallint)
+language plpgsql security definer set search_path = public as $$
+declare
+  me uuid := auth.uid();
+  msgs int; d smallint; nova smallint;
+begin
+  if me is null then
+    raise exception 'É preciso estar autenticado.' using errcode = '42501';
+  end if;
+  if not exists (
+    select 1 from public.connections c
+    where c.id = conn and (c.user_a = me or c.user_b = me)
+  ) then
+    raise exception 'Conversa indisponível.' using errcode = '42501';
+  end if;
+
+  select t.mensagens into msgs from private.termometro(conn) t;
+
+  -- Espelha reputationDelta() em services/conversation.ts: quem se despede
+  -- ganha, quem some perde, e conversa longa pesa mais que conversa curta.
+  d := case
+    when gentilmente then case when msgs >= 6 then 3 else 1 end
+    else case when msgs >= 6 then -4 else -1 end
+  end;
+
+  update public.connections set
+    status = 'encerrada', closed_by = me, closed_gently = gentilmente,
+    closed_reason = case when gentilmente then 'despedida' else 'sem_aviso' end
+  where id = conn;
+
+  perform set_config('conexao.rotina_do_servidor', 'on', true);
+  update public.users u
+     set reputation = greatest(0, least(100, u.reputation + d))
+   where u.id = me
+  returning u.reputation into nova;
+  perform set_config('conexao.rotina_do_servidor', 'off', true);
+
+  return query select nova, d;
+end;
+$$;
+
+revoke execute on function public.encerrar_conversa(uuid, boolean) from public, anon;
+grant  execute on function public.encerrar_conversa(uuid, boolean) to authenticated;
+
+
+-- ===========================================================================
+-- VERIFICAÇÃO DE PERFIL POR SELFIE, COM REVISÃO HUMANA
+--
+-- Por que revisão humana e não reconhecimento facial: biometria é dado pessoal
+-- SENSÍVEL na LGPD (art. 11), com base legal e exigências próprias, e
+-- comparação facial confiável é serviço pago de terceiro. Uma selfie
+-- reproduzindo uma pose sorteada, olhada por uma pessoa da equipe, resolve o
+-- problema real — provar que existe alguém por trás do perfil — sem construir
+-- uma base biométrica.
+--
+-- Três decisões que seguem daí:
+--
+-- 1. A POSE É SORTEADA PELO SERVIDOR. Se o cliente escolhesse, dava para
+--    garimpar entre fotos antigas uma que já servisse.
+-- 2. A SELFIE É APAGADA ASSIM QUE HÁ DECISÃO, aprovada ou recusada (art. 6º,
+--    III e art. 16). Quem apaga é a Edge Function `decidir-verificacao`: se
+--    dependesse do navegador do revisor, fechar a aba deixaria a selfie lá.
+-- 3. O SELO NUNCA É ESCRITO PELO CLIENTE. `users.verified` está congelada pelo
+--    gatilho campos_privilegiados; quem concede é a Edge Function, com
+--    service_role, depois de ler no BANCO que quem pediu é administrador.
+-- ===========================================================================
+
+do $$ begin
+  create type verification_status as enum ('pendente', 'aprovada', 'recusada');
+exception when duplicate_object then null; end $$;
+
+create table if not exists public.verification_requests (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid not null references public.users(id) on delete cascade,
+  pose        text not null,
+  status      verification_status not null default 'pendente',
+  created_at  timestamptz not null default now(),
+  decided_at  timestamptz,
+  decided_by  uuid references public.users(id),
+  reason      text,
+  selfie_removida boolean not null default false
+);
+
+-- Um pedido em aberto por pessoa. Sem isto dá para encher a fila do revisor.
+create unique index if not exists verificacao_um_pendente_por_pessoa
+  on public.verification_requests (user_id) where status = 'pendente';
+create index if not exists verificacao_fila
+  on public.verification_requests (created_at) where status = 'pendente';
+
+alter table public.verification_requests enable row level security;
+
+drop policy if exists "vê os próprios pedidos" on public.verification_requests;
+create policy "vê os próprios pedidos"
+  on public.verification_requests for select to authenticated
+  using (user_id = auth.uid() or private.is_admin());
+
+-- Sem política de INSERT/UPDATE/DELETE para `authenticated`, de propósito: o
+-- pedido nasce dentro de pedir_verificacao() e a decisão vem da Edge Function.
+-- Assim a pose não pode ser escolhida por quem vai ser verificado.
+
+create or replace function public.pedir_verificacao()
+returns table (id uuid, pose text)
+language plpgsql security definer set search_path = public as $$
+declare
+  me uuid := auth.uid();
+  poses text[] := array[
+    'Levante a mão direita ao lado do rosto, palma para a câmera',
+    'Incline a cabeça para o seu ombro esquerdo',
+    'Faça um sinal de joia com a mão esquerda, na altura do queixo',
+    'Olhe para cima e sorria',
+    'Toque a orelha direita com a mão esquerda',
+    'Mostre três dedos da mão direita ao lado do rosto',
+    'Coloque a mão aberta sobre o peito',
+    'Vire o rosto de perfil para a sua direita'
+  ];
+  escolhida text; novo uuid;
+begin
+  if me is null then
+    raise exception 'É preciso estar autenticado.' using errcode = '42501';
+  end if;
+  if not exists (select 1 from public.users u where u.id = me and u.photo_url is not null) then
+    raise exception 'Envie uma foto de perfil antes de pedir a verificação.' using errcode = '22023';
+  end if;
+  -- LGPD art. 11: dado sensível exige consentimento específico e destacado.
+  if not exists (select 1 from public.consents c where c.user_id = me and c.kind = 'dados_sensiveis') then
+    raise exception 'É preciso aceitar o uso da selfie para verificação.' using errcode = '22023';
+  end if;
+  if exists (select 1 from public.users u where u.id = me and u.verified) then
+    raise exception 'Seu perfil já está verificado.' using errcode = '22023';
+  end if;
+  if exists (select 1 from public.verification_requests r where r.user_id = me and r.status = 'pendente') then
+    raise exception 'Você já tem um pedido em análise.' using errcode = '22023';
+  end if;
+
+  escolhida := poses[1 + floor(random() * array_length(poses, 1))::int];
+  insert into public.verification_requests (user_id, pose) values (me, escolhida)
+  returning verification_requests.id into novo;
+  return query select novo, escolhida;
+end;
+$$;
+
+revoke execute on function public.pedir_verificacao() from public, anon;
+grant  execute on function public.pedir_verificacao() to authenticated;
+
+create or replace function public.fila_de_verificacao()
+returns table (
+  id uuid, user_id uuid, nome text, pose text,
+  criado_em timestamptz, foto_base text, cidade text, nascimento date
+)
+language sql stable security definer set search_path = public as $$
+  select r.id, r.user_id, u.name, r.pose, r.created_at, u.photo_url, u.city, u.birth_date
+  from public.verification_requests r
+  join public.users u on u.id = r.user_id
+  where r.status = 'pendente' and private.is_admin()
+  order by r.created_at;
+$$;
+
+revoke execute on function public.fila_de_verificacao() from public, anon;
+grant  execute on function public.fila_de_verificacao() to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Bucket `verificacao` — mais restrito que o `midia`, de propósito.
+--
+--   ESCRITA  — só na própria pasta, só com um pedido em aberto, e o arquivo
+--              tem de se chamar como o pedido: {user_id}/{request_id}.jpg.
+--   LEITURA  — SÓ administrador. Nem a própria pessoa relê: ela viu no momento
+--              da captura, e cada caminho de leitura a mais é risco a mais.
+--   REMOÇÃO  — dono (desistir) e administrador. A remoção normal é feita pela
+--              Edge Function, com service_role, assim que decide.
+-- ---------------------------------------------------------------------------
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('verificacao', 'verificacao', false, 3145728, array['image/jpeg','image/png'])
+on conflict (id) do update set public = false;
+
+drop policy if exists "selfie: envia na propria pasta com pedido aberto" on storage.objects;
+drop policy if exists "selfie: so admin le" on storage.objects;
+drop policy if exists "selfie: dono ou admin remove" on storage.objects;
+
+create policy "selfie: envia na propria pasta com pedido aberto"
+  on storage.objects for insert to authenticated
+  with check (
+    bucket_id = 'verificacao'
+    and (storage.foldername(name))[1] = auth.uid()::text
+    and exists (
+      select 1 from public.verification_requests r
+      where r.user_id = auth.uid() and r.status = 'pendente'
+        and name = auth.uid()::text || '/' || r.id::text || '.jpg'
+    )
+  );
+
+create policy "selfie: so admin le"
+  on storage.objects for select to authenticated
+  using (bucket_id = 'verificacao' and private.is_admin());
+
+create policy "selfie: dono ou admin remove"
+  on storage.objects for delete to authenticated
+  using (
+    bucket_id = 'verificacao'
+    and ((storage.foldername(name))[1] = auth.uid()::text or private.is_admin())
+  );
+
+-- ---------------------------------------------------------------------------
+-- O revisor precisa ver a foto de perfil sem véu para comparar com a selfie.
+-- É poder real e fica aqui declarado: administrador enxerga o original de
+-- qualquer retrato — o mesmo acesso que a moderação de denúncias já exige.
+-- ---------------------------------------------------------------------------
+
+create or replace function private.nivel_permitido(dono uuid)
+returns int language sql stable security definer set search_path = public as $$
+  select case
+    when auth.uid() is null then -1
+    when dono = auth.uid() then 4
+    when private.is_admin() then 4
+    else coalesce((
+      select max(case
+        when (c.reveal_consent ->> auth.uid()::text) = 'true'
+         and (c.reveal_consent ->> dono::text) = 'true' then 4
+        else (select t.estagio from private.termometro(c.id) t)
+      end)
+      from public.connections c
+      where c.status = 'conectada'
+        and ((c.user_a = auth.uid() and c.user_b = dono)
+          or (c.user_b = auth.uid() and c.user_a = dono))
+    ), 0)
+  end;
+$$;
+
+revoke execute on function private.nivel_permitido(uuid) from public, anon;
+grant  execute on function private.nivel_permitido(uuid) to authenticated;
+
+
+-- ===========================================================================
+-- ASSINATURA: O PLANO MUDA SÓ PELO WEBHOOK
+--
+-- `users.plan` está congelada para o cliente pelo gatilho campos_privilegiados
+-- — sem isso, virar premium seria uma requisição do console do navegador. Quem
+-- muda é o webhook do Stripe, com service_role, DEPOIS de conferir a assinatura
+-- criptográfica do evento.
+--
+-- O cliente nunca informa "paguei". Ele só pede um link de checkout; quem diz
+-- que o pagamento aconteceu é o Stripe, falando com o nosso servidor.
+-- ===========================================================================
+
+-- Idempotência: o Stripe reentrega eventos quando não recebe 2xx rápido, e a
+-- mesma cobrança pode chegar duas vezes. Sem isto, uma reentrega estenderia o
+-- vencimento de novo.
+create table if not exists public.webhook_events (
+  id          text primary key,
+  provider    text not null,
+  type        text not null,
+  received_at timestamptz not null default now()
+);
+
+alter table public.webhook_events enable row level security;
+-- Sem políticas, de propósito: só o service_role toca nesta tabela, e ele passa
+-- por cima do RLS. Para qualquer outro papel, a tabela não existe.
+
+create index if not exists webhook_events_limpeza on public.webhook_events (received_at);
+
+create or replace function private.aplicar_assinatura(
+  dono uuid, novo_plano plan_type, novo_status text,
+  provedor text, id_no_provedor text, expira timestamptz
+) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  perform set_config('conexao.rotina_do_servidor', 'on', true);
+  update public.users set plan = novo_plano where id = dono;
+  -- Uma assinatura por pessoa por provedor: a de agora substitui a anterior.
+  delete from public.subscriptions where user_id = dono and provider = provedor;
+  insert into public.subscriptions (id, user_id, plan, status, provider, provider_id, started_at, expires_at)
+  values (gen_random_uuid(), dono, novo_plano, novo_status, provedor, id_no_provedor, now(), expira);
+  perform set_config('conexao.rotina_do_servidor', 'off', true);
+end;
+$$;
+
+revoke execute on function private.aplicar_assinatura(uuid, plan_type, text, text, text, timestamptz)
+  from public, anon, authenticated;
+
+-- Casca pública, porque RPC só enxerga o schema `public`. Executável apenas
+-- pelo service_role, que é quem o webhook usa — e recusa explicitamente
+-- qualquer chamada vinda de sessão de usuário final.
+create or replace function public.aplicar_assinatura_stripe(
+  dono uuid, novo_plano plan_type, novo_status text,
+  id_no_provedor text, expira timestamptz
+) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if auth.role() = 'authenticated' then
+    raise exception 'Somente o servidor.' using errcode = '42501';
+  end if;
+  perform private.aplicar_assinatura(dono, novo_plano, novo_status, 'stripe', id_no_provedor, expira);
+end;
+$$;
+
+revoke execute on function public.aplicar_assinatura_stripe(uuid, plan_type, text, text, timestamptz)
+  from public, anon, authenticated;
+grant execute on function public.aplicar_assinatura_stripe(uuid, plan_type, text, text, timestamptz)
+  to service_role;
+
+-- O que o cliente PODE perguntar: qual é a minha assinatura. Nada além disso.
+create or replace function public.minha_assinatura()
+returns table (plano plan_type, status text, provedor text, expira timestamptz)
+language sql stable security definer set search_path = public as $$
+  select s.plan, s.status, s.provider, s.expires_at
+  from public.subscriptions s
+  where s.user_id = auth.uid()
+  order by s.started_at desc
+  limit 1;
+$$;
+
+revoke execute on function public.minha_assinatura() from public, anon;
+grant  execute on function public.minha_assinatura() to authenticated;

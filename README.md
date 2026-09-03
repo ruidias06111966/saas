@@ -53,6 +53,47 @@ supabase secrets set GEMINI_API_KEY=sua_chave
 Sem a chave — ou sem backend — as sugestões vêm de um banco curado local e o app avisa
 que está em "modo local". Nenhuma tela quebra em nenhuma combinação.
 
+### As quatro Edge Functions
+
+| Função | O que faz | JWT |
+|---|---|---|
+| `copiloto` | fala com o Gemini; o servidor é dono dos prompts e da cota | exige |
+| `velar` | gera os níveis velados do retrato (12, 24, 48, 96 px) | exige |
+| `decidir-verificacao` | concede o selo e apaga a selfie | exige, e só administrador |
+| `stripe-webhook` | muda o plano depois do pagamento | **não** — confere a assinatura do Stripe |
+
+O webhook é a única sem JWT, e não poderia ser diferente: o Stripe não tem sessão no app.
+Em troca, a primeira coisa que ela faz é conferir a assinatura criptográfica do evento com
+o segredo do webhook. Sem isso, quem descobrisse a URL daria premium a quem quisesse.
+
+### Cobrança
+
+O plano **não** é gravável pelo cliente: `users.plan` está congelada pelo gatilho
+`campos_privilegiados`, e quem escreve é o webhook, com `service_role`. Para ligar:
+
+```bash
+supabase secrets set STRIPE_SECRET_KEY=sk_test_...
+supabase secrets set STRIPE_WEBHOOK_SECRET=whsec_...
+supabase secrets set URLS_DO_APP=https://seu-site/
+```
+
+O endpoint do webhook é `https://SEU-PROJETO.supabase.co/functions/v1/stripe-webhook`, e
+os eventos a assinar são `checkout.session.completed`,
+`customer.subscription.updated`, `customer.subscription.deleted` e
+`invoice.payment_failed`.
+
+Sem as chaves o app não quebra: a tela de Premium diz que a cobrança ainda não foi ligada.
+
+### Confirmação de e-mail
+
+Se a confirmação estiver ligada (padrão do Supabase), aponte o **Site URL** em
+*Authentication → URL Configuration* para o endereço do seu site — senão o link do e-mail
+devolve a pessoa para `localhost`.
+
+O serviço de e-mail interno do Supabase é limitado a poucos envios por hora e, em projeto
+novo, só entrega para o e-mail dono do projeto. Para gente de verdade, configure um SMTP
+próprio.
+
 ### Contas de demonstração
 
 | Conta | E-mail | Senha |

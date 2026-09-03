@@ -61,6 +61,12 @@ interface Ctx {
   loadOlder: (connectionId: string) => Promise<void>;
   /** true se ainda há mensagens mais antigas no servidor. */
   hasOlder: (connectionId: string) => boolean;
+  /**
+   * Sessão válida, mas sem linha em `public.users`. Acontece quando a pessoa
+   * confirma o e-mail: a conta existe no Auth desde o cadastro, e o perfil só
+   * pôde ser gravado agora, porque só agora existe sessão.
+   */
+  pendingAccount: { id: string; email: string } | null;
 }
 
 const AppCtx = createContext<Ctx | null>(null);
@@ -76,6 +82,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [route, setRoute] = useState<Route>(() => ({ name: 'landing' }));
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [booting, setBooting] = useState(supabaseEnabled);
+  const [pendingAccount, setPendingAccount] = useState<{ id: string; email: string } | null>(null);
   const historyRef = useRef<Route[]>([]);
   // A rota vive num ref para o handler do Realtime poder consultá-la sem
   // entrar nas dependências do efeito — senão reassinaríamos a cada navegação.
@@ -94,14 +101,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // ------------------------------------------------------------------------
   // Modo online: restaura a sessão e carrega o recorte que o RLS devolve.
   // ------------------------------------------------------------------------
-  const hydrate = useCallback(async (userId: string) => {
+  const hydrate = useCallback(async (userId: string, email = '') => {
     const snapshot = await backend.loadSnapshot(userId);
     dispatch({ type: 'HYDRATE_REMOTE', snapshot, sessionUserId: userId });
+    // Sessão sem perfil = cadastro pela metade. Não é erro: com a confirmação
+    // de e-mail ligada, o perfil não pôde ser gravado no momento do cadastro,
+    // porque ainda não havia sessão.
+    setPendingAccount(
+      snapshot.users.some((u) => u.id === userId) ? null : { id: userId, email },
+    );
   }, []);
 
   const refresh = useCallback(async () => {
     const session = await currentSession();
-    if (session?.user?.id) await hydrate(session.user.id);
+    if (session?.user?.id) await hydrate(session.user.id, session.user.email ?? '');
   }, [hydrate]);
 
   /**
@@ -137,7 +150,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     currentSession()
       .then(async (session) => {
         if (!vivo) return;
-        if (session?.user?.id) await hydrate(session.user.id);
+        if (session?.user?.id) await hydrate(session.user.id, session.user.email ?? '');
       })
       .catch((err) => {
         console.error('[CONEXÃO] Falha ao restaurar a sessão.', err);
@@ -147,10 +160,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const unsubscribe = onAuthChange((userId) => {
       if (!vivo) return;
       if (userId) {
-        // Pode falhar logo após o cadastro, quando a linha em public.users
-        // ainda não existe; a tela de cadastro chama refresh() ao terminar.
-        hydrate(userId).catch(() => {});
+        void currentSession().then((s2) =>
+          hydrate(userId, s2?.user?.email ?? '').catch(() => {}),
+        );
       } else {
+        setPendingAccount(null);
         dispatch({ type: 'LOGOUT' });
       }
     });
@@ -424,11 +438,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       closedReason: gently ? 'despedida' : 'sem_aviso',
     };
     dispatch({ type: 'SET_CONNECTION', id: connectionId, patch });
-    persist(() => backend.saveConnection({ ...conn, ...patch }), 'Não foi possível encerrar a conversa no servidor.');
-
-    const reputation = Math.max(0, Math.min(100, me.reputation + delta));
-    dispatch({ type: 'UPDATE_USER', id: me.id, patch: { reputation } });
-    persist(() => backend.saveUser({ ...me, reputation }), 'Não foi possível atualizar sua reputação.');
+    // Otimista na tela; no servidor quem decide é encerrar_conversa(), que
+    // conta as mensagens de verdade. A reputação não é mais gravável pelo
+    // cliente — se fosse, bastava um PATCH para ficar com 100.
+    dispatch({
+      type: 'UPDATE_USER', id: me.id,
+      patch: { reputation: Math.max(0, Math.min(100, me.reputation + delta)) },
+    });
+    if (supabaseEnabled) {
+      backend.closeConversation(connectionId, gently)
+        .then(({ reputation }) => dispatch({ type: 'UPDATE_USER', id: me.id, patch: { reputation } }))
+        .catch((err: Error) => {
+          console.error('[CONEXÃO] Falha ao encerrar a conversa.', err);
+          setToasts((prev) => [...prev, {
+            id: uid('toast'), tone: 'danger',
+            text: `Não foi possível encerrar a conversa no servidor. ${err.message}`,
+          }]);
+        });
+    }
     toast(
       gently
         ? 'Conversa encerrada com uma despedida. Sua reputação de conversa agradece.'
@@ -472,6 +499,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const logout = useCallback(async () => {
     await signOut();
+    setPendingAccount(null);
     dispatch({ type: 'LOGOUT' });
   }, []);
 
@@ -493,7 +521,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     blockUser, reportUser, setRevealConsent, markRead,
     saveProfile, logout, deleteAccount,
     quota, canUseAi, spendAi,
-    mode: state.mode, booting, refresh, loadOlder, hasOlder,
+    mode: state.mode, booting, refresh, loadOlder, hasOlder, pendingAccount,
   };
 
   return <AppCtx.Provider value={value}>{children}</AppCtx.Provider>;

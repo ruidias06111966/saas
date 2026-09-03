@@ -40,6 +40,13 @@ jobs:
       - name: Typecheck
         run: npx tsc --noEmit
 
+      # Os testes cobrem a lógica pura que carrega as regras do produto: o
+      # termômetro (que precisa bater com a função do Postgres), a
+      # compatibilidade, a moderação e o formato dos ids — este último é
+      # regressão do bug que fazia toda escrita no modo online falhar.
+      - name: Testes
+        run: npx vitest run
+
       - name: Build
         run: npx vite build
 

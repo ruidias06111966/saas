@@ -5,6 +5,7 @@ import { AXES, GOAL_EMOJI, GOAL_LABEL, LIFESTYLE_FIELDS, PACE_LABEL } from '../c
 import { INTEREST_MAP } from '../data/interests';
 import { PROFILE_PROMPT_MAP } from '../data/prompts';
 import { Page } from '../components/layout/AppShell';
+import { VerificacaoCard } from '../components/Verificacao';
 import { Bar, Banner, Button, Card, Chip, Icon, Ring, SectionTitle } from '../components/ui';
 import { Portrait } from '../components/Portrait';
 import { EssenceCard } from '../components/EssenceCard';
@@ -145,6 +146,10 @@ export function Profile() {
             ))}
           </div>
         </Card>
+      </section>
+
+      <section className="mt-6">
+        <VerificacaoCard />
       </section>
 
       <div className="mt-8 flex flex-wrap gap-2">

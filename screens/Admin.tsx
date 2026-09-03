@@ -7,9 +7,10 @@ import { findUser } from '../state/appState';
 import { Page } from '../components/layout/AppShell';
 import { Banner, Button, Card, Chip, Empty, Icon, Input, Tabs } from '../components/ui';
 import { Avatar } from '../components/Portrait';
+import { FilaVerificacao } from '../components/FilaVerificacao';
 import { age, dateKey, firstName, timeAgo } from '../services/utils';
 
-type Tab = 'painel' | 'usuarios' | 'denuncias' | 'moderacao';
+type Tab = 'painel' | 'usuarios' | 'denuncias' | 'moderacao' | 'verificacao';
 
 function Metric({ label, value, hint }: { label: string; value: React.ReactNode; hint?: string }) {
   return (
@@ -84,6 +85,7 @@ export function Admin() {
           { id: 'usuarios', label: 'Usuários', count: stats.total },
           { id: 'denuncias', label: 'Denúncias', count: stats.openReports },
           { id: 'moderacao', label: 'Moderação', count: stats.pendingModeration },
+          { id: 'verificacao', label: 'Verificação' },
         ]}
       />
 
@@ -232,6 +234,17 @@ export function Admin() {
           })}
         </div>
       )}
+
+      {tab === 'verificacao' && (
+        <div className="mt-5">
+          <Banner tone="info" icon="shield" title="Comparação feita por pessoa, não por máquina">
+            Confira se a selfie reproduz a pose sorteada e se é a mesma pessoa da foto do perfil.
+            Decidir apaga a selfie do servidor — ela existe só para esta decisão.
+          </Banner>
+          <FilaVerificacao />
+        </div>
+      )}
+
     </Page>
   );
 }

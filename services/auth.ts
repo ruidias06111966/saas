@@ -54,6 +54,17 @@ export async function signIn(email: string, password: string): Promise<AuthResul
   return { userId: data.user?.id ?? null, needsEmailConfirmation: false };
 }
 
+/**
+ * Reenvia o e-mail de confirmação. Existe porque o primeiro se perde: cai no
+ * spam, a pessoa fecha a aba, o endereço tinha um erro de digitação.
+ */
+export async function resendConfirmation(email: string): Promise<void> {
+  const { error } = await requireSupabase().auth.resend({
+    type: 'signup', email: email.trim().toLowerCase(),
+  });
+  if (error) throw new Error(traduzErro(error.message));
+}
+
 export async function signOut(): Promise<void> {
   if (!supabaseEnabled) return;
   await requireSupabase().auth.signOut();

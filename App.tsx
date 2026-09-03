@@ -54,8 +54,19 @@ function Booting() {
 }
 
 function Chrome() {
-  const { booting } = useApp();
+  const { booting, pendingAccount } = useApp();
   if (booting) return <Booting />;
+  // Sessão válida sem perfil: o cadastro ficou pela metade porque a confirmação
+  // de e-mail acontece depois. Não há para onde navegar antes de completá-lo —
+  // qualquer outra tela leria um usuário que não existe.
+  if (pendingAccount) {
+    return (
+      <>
+        <Signup />
+        <Toasts />
+      </>
+    );
+  }
   return (
     <>
       <AppShell><Router /></AppShell>
