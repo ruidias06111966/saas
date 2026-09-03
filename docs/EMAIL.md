@@ -214,8 +214,12 @@ Corpo:
 
 ### Reset Password
 
-Ainda não há tela de "esqueci minha senha" no app — quando houver, este é o
-texto. Deixar pronto custa nada e evita o modelo em inglês vazar para alguém.
+**Este modelo está em uso.** A tela de "esqueci minha senha" existe desde
+03/09/2026, e é o único caminho de volta para quem perde a senha — sem SMTP
+funcionando, a pessoa perde a conta e as conversas dentro dela.
+
+Vale saber por que o link é curto de validade: ele **cria uma sessão de
+verdade** ao ser aberto. Quem tiver o link tem a conta pelo tempo que ele durar.
 
 Assunto:
 
@@ -268,6 +272,29 @@ ficar como estão: o app não usa nenhum deles hoje.
 
 ---
 
+## Onde cada credencial mora
+
+Nenhuma delas entra no repositório, no `.env` do app ou em variável do GitHub.
+Tudo que está nesses lugares acaba dentro do JavaScript que o navegador baixa.
+
+| Coisa | Onde vive | Quem enxerga |
+|---|---|---|
+| Senha SMTP (a API Key do provedor) | **Painel do Supabase** → Authentication → Emails → SMTP Settings | só o servidor de autenticação |
+| Remetente e nome de exibição | mesmo lugar | — |
+| Limite de envios por hora | Authentication → Rate Limits | — |
+| `Site URL` e `Redirect URLs` | Authentication → URL Configuration | — |
+
+**Configuração externa, que depende do provedor escolhido e não pode ser
+inventada aqui:** o host SMTP, a porta, o usuário, a chave, e os valores exatos
+dos registros SPF, DKIM e DMARC. Todos vêm da tela do provedor no momento em que
+você adiciona o domínio — copie de lá, não daqui.
+
+O único valor deste documento que é do projeto, e não do provedor, é o endereço
+de retorno: `https://ruidias06111966.github.io/saas/` enquanto o site estiver no
+GitHub Pages.
+
+---
+
 ## Conferir que funcionou
 
 Não confie no "salvou sem erro". Teste com um endereço **que não seja o dono do
@@ -288,10 +315,6 @@ passo 7.
 ---
 
 ## O que continua faltando depois disto
-
-**Não existe "esqueci minha senha" no app.** Quem esquecer a senha hoje perde a
-conta. O SMTP próprio é o que torna essa tela possível — antes dele, não fazia
-sentido construí-la, porque o e-mail não chegaria.
 
 **O site continua no endereço do GitHub.** Com o domínio registrado, dá para
 apontá-lo para o GitHub Pages. Aí o `Site URL`, o `Redirect URLs` e o

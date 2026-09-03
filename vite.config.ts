@@ -12,9 +12,12 @@ export default defineConfig(({ mode }) => {
   return {
     base,
     plugins: [react()],
-    define: {
-      'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY || env.API_KEY || ''),
-    },
+    // Havia aqui um `define` que injetava a chave do Gemini como
+    // `process.env.API_KEY`. Nenhum código do cliente a lia — verificado — mas
+    // era uma armadilha carregada: bastava alguém reintroduzir essa leitura
+    // para a chave ir inteira dentro do pacote que qualquer visitante baixa.
+    // A chave vive nos segredos do Supabase e só a Edge Function `copiloto` a
+    // enxerga. Ver docs/ARQUITETURA.md.
     server: { port: 5173, host: true },
     build: { outDir: 'dist', sourcemap: false },
   };
