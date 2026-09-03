@@ -12,6 +12,7 @@ import * as backend from '../services/backend';
 import { onAuthChange, currentSession, signOut } from '../services/auth';
 import { subscribeToConversations } from '../services/realtime';
 import { supabaseEnabled } from '../services/supabaseClient';
+import { identificarUsuario, reportarErro } from '../services/monitoring';
 import { computeCompatibility } from '../services/compatibility';
 import { reputationDelta } from '../services/conversation';
 import { moderateText } from '../services/moderation';
@@ -154,14 +155,31 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       })
       .catch((err) => {
         console.error('[CONEXÃO] Falha ao restaurar a sessão.', err);
+        reportarErro(err, 'restaurar-sessao');
       })
       .finally(() => { if (vivo) setBooting(false); });
 
-    const unsubscribe = onAuthChange((userId) => {
+    const unsubscribe = onAuthChange((userId, evento) => {
       if (!vivo) return;
+      identificarUsuario(userId);
+
+      // O link de "esqueci minha senha" cria uma sessão de verdade. Sem este
+      // desvio a pessoa cairia direto no app — logada, mas sem ter definido
+      // senha nenhuma, e sem entender o que aconteceu.
+      if (evento === 'PASSWORD_RECOVERY') {
+        setRoute({ name: 'redefinirSenha' });
+        setBooting(false);
+        return;
+      }
+
       if (userId) {
         void currentSession().then((s2) =>
-          hydrate(userId, s2?.user?.email ?? '').catch(() => {}),
+          // Este catch protege a tela de quebrar, e por isso mesmo precisa
+          // avisar: era aqui que uma falha ao carregar os dados da pessoa
+          // deixava o app parado sem explicação para ninguém.
+          hydrate(userId, s2?.user?.email ?? '').catch((err) => {
+            reportarErro(err, 'hidratar-apos-login');
+          }),
         );
       } else {
         setPendingAccount(null);

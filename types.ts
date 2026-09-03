@@ -50,19 +50,45 @@ export interface Consent {
 export type AccountStatus = 'ativo' | 'suspenso' | 'banido';
 export type Plan = 'free' | 'premium';
 
+// ---------------------------------------------------------------------------
+// Um `User` chega por dois caminhos, e eles carregam coisas diferentes.
+//
+//   • O PRÓPRIO registro, lido direto de `public.users`: vem completo.
+//   • Um registro de TERCEIRO, lido da view `perfis_descobriveis`: vem sem
+//     e-mail, sem data de nascimento, sem coordenadas e sem papel.
+//
+// Os campos opcionais abaixo marcam exatamente essa diferença. Não é descuido
+// de tipagem: é o vazamento de dado pessoal corrigido em 03/09/2026 ficando
+// visível no tipo, para que o compilador recuse quem tentar usá-los sem checar.
+// No modo demo tudo vem preenchido, porque ali não há servidor nem terceiros.
+// ---------------------------------------------------------------------------
 export interface User {
   id: string;
   name: string;
-  email: string;
+  /** Só do próprio registro (e para administração). Nunca de terceiros. */
+  email?: string;
   /** Demo: SHA-256 no navegador. Em produção isto vive no provedor de auth. */
   passwordHash: string;
-  birthDate: string; // ISO yyyy-mm-dd
+  /** Só do próprio registro. Para qualquer pessoa existe `age`. */
+  birthDate?: string; // ISO yyyy-mm-dd
+  /**
+   * Anos completos. SEMPRE presente — é o que as telas de fato usam.
+   * Recalculado a cada carregamento (pela view, no servidor; por `age()`, no
+   * modo demo), então não envelhece dentro de uma sessão longa.
+   */
+  age: number;
   gender: Gender;
   city: string;
   state: string;
-  /** Coordenada APROXIMADA (arredondada a ~0.05°, ≈5 km). Nunca a exata. */
-  approxLat: number;
-  approxLng: number;
+  /**
+   * Coordenada APROXIMADA (arredondada a ~0.05°, ≈5 km). Nunca a exata, e
+   * nunca de terceiros: a base inteira de coordenadas permite trilateração.
+   * Para a distância até outra pessoa existe `distanceKm`.
+   */
+  approxLat?: number;
+  approxLng?: number;
+  /** Distância até quem está olhando, em km. Calculada no servidor. */
+  distanceKm?: number;
   photo?: string; // dataURL; ausente => retrato generativo determinístico
   extraPhotos: string[];
   profession: string;
@@ -78,7 +104,13 @@ export interface User {
   /** Reputação de conversa 0..100 (encerra com gentileza sobe, some baixa). */
   reputation: number;
   plan: Plan;
-  role: 'user' | 'admin';
+  /**
+   * Só do próprio registro. A descoberta não recebe o papel de ninguém — antes
+   * recebia, só para filtrar administradores no cliente, o que equivalia a
+   * entregar a lista de administradores a todo mundo. Agora a view simplesmente
+   * não devolve essas linhas.
+   */
+  role?: 'user' | 'admin';
   status: AccountStatus;
   consents: Consent[];
   createdAt: string;
@@ -223,6 +255,8 @@ export type Route =
   | { name: 'landing' }
   | { name: 'login' }
   | { name: 'signup' }
+  | { name: 'recuperarSenha' }
+  | { name: 'redefinirSenha' }
   | { name: 'home' }
   | { name: 'discover' }
   | { name: 'person'; id: string }

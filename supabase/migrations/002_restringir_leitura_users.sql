@@ -1,0 +1,53 @@
+-- ---------------------------------------------------------------------------
+-- 002 · Fecha a leitura de `public.users` a terceiros
+--
+-- ⚠️  NÃO APLICAR ANTES DO DEPLOY DO CÓDIGO QUE USA A VIEW 001.
+--
+-- Esta é a migração que efetivamente fecha o vazamento — e é também a única do
+-- repositório que QUEBRA A VERSÃO PUBLICADA se for aplicada fora de ordem.
+--
+-- O banco de produção é um só, compartilhado entre o site que está no ar e
+-- qualquer branch em desenvolvimento. A versão publicada hoje pede `email` e
+-- `birth_date` de terceiros direto de `public.users`. No instante em que a
+-- política abaixo cair, essa consulta passa a devolver só a própria linha, e a
+-- descoberta fica vazia para todo mundo que estiver com o app aberto.
+--
+-- A ORDEM CORRETA, e não há atalho:
+--
+--   1. 001 aplicada            (aditivo, já feito)
+--   2. código novo publicado   (lê da view; não toca mais nas colunas)
+--   3. ESTA migração
+--
+-- Entre 1 e 3 o vazamento continua aberto. Essa janela é o preço de não
+-- derrubar o site, e é uma escolha consciente.
+--
+-- O QUE MUDA
+-- Remove a política `usuário lê perfis visíveis`, que autorizava a linha inteira
+-- de qualquer conta ativa. Depois disto, sobre `public.users` restam:
+--
+--   • `usuário lê o próprio registro`  — id = auth.uid() OR is_admin()
+--   • `admin atualiza qualquer registro`
+--   • `usuário atualiza o próprio registro`
+--   • `usuário cria o próprio registro`
+--
+-- Ou seja: cada pessoa lê a si mesma por inteiro, administração lê todo mundo,
+-- e o resto do app passa pela view.
+--
+-- O QUE NÃO MUDA
+-- A visibilidade de `profiles`, `prompt_answers` e `user_interests` continua
+-- como está: elas já usam `private.perfil_visivel()` e não carregam dado de
+-- contato nem localização.
+--
+-- COMO REVERTER
+-- Recriar a política com a definição original:
+--
+--   create policy "usuário lê perfis visíveis" on public.users
+--     for select to authenticated
+--     using (status = 'ativo' and deleted_at is null
+--            and not private.is_blocked_with(id));
+--
+-- A reversão reabre o vazamento. Só faz sentido como medida de emergência para
+-- destravar um site que já esteja quebrado.
+-- ---------------------------------------------------------------------------
+
+drop policy if exists "usuário lê perfis visíveis" on public.users;

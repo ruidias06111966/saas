@@ -3,7 +3,7 @@ import { LADDER, OPENERS, PROFILE_PROMPT_MAP } from '../data/prompts';
 import { INTEREST_MAP } from '../data/interests';
 import { computeCompatibility, profileCompletion, sharedInterestIds } from './compatibility';
 import { supabase, supabaseEnabled } from './supabaseClient';
-import { age, firstName, seededRandom, shuffle } from './utils';
+import { firstName, seededRandom, shuffle } from './utils';
 
 // ---------------------------------------------------------------------------
 // Copiloto de Conversa — lado do cliente.
@@ -58,7 +58,7 @@ function profileDigest(u: User, label: string): string {
     .map((a) => `  - "${PROFILE_PROMPT_MAP[a.promptId]?.label ?? a.promptId}" → ${a.answer}`)
     .join('\n');
   return [
-    `${label}: ${firstName(u.name)}, ${age(u.birthDate)} anos, ${u.city}.`,
+    `${label}: ${firstName(u.name)}, ${u.age} anos, ${u.city}.`,
     `Profissão: ${u.profession || 'não informada'}.`,
     `Objetivo: ${u.goal}.`,
     `Bio: ${u.bio || '—'}`,

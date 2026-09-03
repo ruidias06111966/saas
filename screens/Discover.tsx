@@ -8,7 +8,7 @@ import { buildCandidates, dailyCuration } from '../services/curation';
 import { Page } from '../components/layout/AppShell';
 import { Banner, Button, Chip, Empty, Field, Icon, Input, Modal, Select } from '../components/ui';
 import { EssenceCard } from '../components/EssenceCard';
-import { age, dateKey } from '../services/utils';
+import { dateKey } from '../services/utils';
 
 interface Filters {
   ageMin: number; ageMax: number; maxDistanceKm: number; city: string;
@@ -35,7 +35,7 @@ export function Discover() {
     const base = buildCandidates(me, state.users, blocked, seen);
 
     const filtered = base.filter((c) => {
-      const a = age(c.user.birthDate);
+      const a = c.user.age;
       if (a < filters.ageMin || a > filters.ageMax) return false;
       if (c.distanceKm > filters.maxDistanceKm) return false;
       if (filters.city && !c.user.city.toLowerCase().includes(filters.city.toLowerCase())) return false;

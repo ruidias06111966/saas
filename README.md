@@ -153,6 +153,7 @@ aciona o **Encerrar com gentileza**: quem se despede ganha reputação, quem som
 | [`docs/AI-STUDIO-vs-LOVABLE.md`](docs/AI-STUDIO-vs-LOVABLE.md) | Qual ferramenta usar, e por quê |
 | [`docs/ARQUITETURA.md`](docs/ARQUITETURA.md) | Decisões, fórmulas e limitações conhecidas |
 | [`docs/SUPABASE.sql`](docs/SUPABASE.sql) | Schema PostgreSQL completo, com RLS e função de exclusão LGPD |
+| [`docs/EMAIL.md`](docs/EMAIL.md) | Sair do e-mail interno do Supabase: SMTP próprio, DNS e os modelos em português |
 
 ## Stack
 

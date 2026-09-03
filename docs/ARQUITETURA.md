@@ -406,6 +406,74 @@ assinatura no Stripe para que ele reemita o estado atual. A verdade continua
 vindo dele, pelo caminho normal — a alternativa seria corrigir o plano na mão,
 no banco, sem nada que comprove o que o Stripe pensa.
 
+### O RLS protege linhas, não colunas
+
+A política que deixa uma pessoa ver os perfis das outras autoriza a **linha
+inteira** de `public.users` — e a linha inteira carrega `email`, `birth_date`,
+`approx_lat`, `approx_lng` e `role`. Confirmado contra o banco em 03/09/2026:
+uma usuária comum lia o e-mail de todas as contas ativas. O próprio app pedia
+essas colunas, a cada carregamento, para todo mundo.
+
+É a mesma dobra que já tinha mordido este projeto na escrita — onde a resposta
+foi o gatilho `campos_privilegiados` — agora aparecendo na leitura.
+
+A resposta é a view `perfis_descobriveis`, que **deriva no servidor o que a tela
+realmente queria**:
+
+| a tela usava | agora recebe | por quê |
+|---|---|---|
+| `birth_date` dentro de `age()` | `idade` | o dia e o mês vinham de brinde |
+| duas coordenadas dentro de `haversineKm()` | `distancia_km` | uma distância não permite trilateração; a base inteira de coordenadas permite |
+| `role`, para filtrar administradores | nada — a view não devolve essas linhas | entregar a lista de administradores só ajuda quem procura alvo |
+| `email` | nada | nenhuma tela de terceiro precisava dele |
+
+A view roda com direitos do dono (`security_invoker = false`), porque precisa
+enxergar `users` inteira para derivar. Isso a torna uma superfície privilegiada,
+da mesma classe das RPCs `security definer` — o que a mantém segura é o `WHERE`,
+e nada além dele.
+
+No tipo `User`, os cinco campos viraram opcionais e `age` virou obrigatório.
+Não é descuido de tipagem: é o compilador recusando quem tentar usá-los sem
+checar. Foi ele que encontrou os catorze pontos afetados.
+
+### Recuperação de senha
+
+O link do e-mail **cria uma sessão de verdade**. Sem tratar o evento
+`PASSWORD_RECOVERY`, a pessoa cairia direto no app — logada, sem ter definido
+senha nenhuma, e sem entender o motivo. Daí `onAuthChange` entregar o evento
+junto do id.
+
+A tela de pedido responde a mesma coisa exista a conta ou não. "E-mail não
+encontrado" viraria um oráculo para descobrir quem tem conta num aplicativo de
+relacionamentos. Verificado: `/auth/v1/recover` devolve 200 para endereço
+inexistente, e a interface não desfaz isso.
+
+### Por que a descoberta ainda não é paginada
+
+`loadSnapshot()` traz todos os perfis visíveis de uma vez, e é o primeiro teto
+técnico do sistema. A correção parece óbvia — `range()` na consulta — e é uma
+armadilha.
+
+O motivo está em `findUser(state, id)`: **a mesma lista `state.users` resolve
+conversas, conexões, denúncias e a fila de moderação.** Paginar a descoberta
+esvaziaria todas elas ao mesmo tempo. Alguém com quem você conversa há semanas
+sumiria da lista de conversas por não estar na página atual.
+
+A implementação correta tem três partes, e nenhuma é pequena:
+
+1. **A curadoria vai para o servidor.** Uma RPC que recebe as preferências e
+   devolve N candidatos já filtrados e ordenados — hoje `buildCandidates` faz
+   isso no cliente, e para isso precisa de todo mundo em memória.
+2. **Quem já tem vínculo é carregado à parte**, sempre: as pessoas das minhas
+   conexões, das minhas denúncias e da fila. Essa lista é limitada por natureza
+   e não depende de paginação.
+3. **`state.users` deixa de ser "todo mundo"** e passa a ser "quem eu preciso
+   resolver agora", com `findUser` capaz de buscar sob demanda o que faltar.
+
+Fica para uma fase própria, com testes de conversa e conexão antes e depois.
+Fazer junto de uma correção de segurança seria misturar um risco de vazamento
+com um risco de quebrar o chat.
+
 ### O que ainda falta para produção
 
 Um trabalho de carga que este projeto nunca fez, e um provedor de e-mail com domínio

@@ -18,6 +18,28 @@ const PRECO_CENTAVOS = 2990;
 const MOEDA = 'brl';
 const NOME_DO_PLANO = 'CONEXÃO Premium';
 
+// ---------------------------------------------------------------------------
+// DOIS MODOS DE PREÇO, e a escolha é de configuração, não de código.
+//
+// SEM `STRIPE_PRICE_ID` (comportamento histórico, e o padrão)
+// O preço vai inline. A intenção era boa: o valor da tela e o valor cobrado
+// saem da mesma constante, e não há como a página dizer R$ 29,90 enquanto a
+// cobrança é outra. O custo apareceu na auditoria de 03/09/2026 — o Stripe cria
+// um Produto e um Preço NOVOS a cada assinatura. Com cem assinantes, cem Preços
+// no painel, e o relatório de receita por produto deixa de fazer sentido.
+//
+// COM `STRIPE_PRICE_ID`
+// O checkout referencia um Preço do catálogo. Um Produto, um Preço, relatório
+// limpo. Em troca, volta o risco que o inline evitava: catálogo e tela podem
+// divergir sem ninguém notar. A ação `diagnostico` passou a devolver o preço do
+// catálogo justamente para essa divergência ficar visível.
+//
+// QUEM JÁ ASSINOU NÃO MUDA. O Stripe mantém cada assinatura no preço que ela
+// contratou. Ligar esta variável não reajusta, não cancela e não recobra
+// ninguém — vale só para checkouts novos.
+// ---------------------------------------------------------------------------
+const PRECO_DO_CATALOGO = Deno.env.get('STRIPE_PRICE_ID')?.trim() || null;
+
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -122,8 +144,32 @@ Deno.serve(async (req: Request) => {
       registrados = await stripe.webhookEndpoints.list({ limit: 20 });
     }
 
+    // O preço do catálogo, quando há um. Sem isto, catálogo e tela poderiam
+    // divergir em silêncio — que é exatamente o risco reintroduzido ao sair do
+    // preço inline.
+    let catalogo: Record<string, unknown> | null = null;
+    if (PRECO_DO_CATALOGO) {
+      try {
+        const p = await stripe.prices.retrieve(PRECO_DO_CATALOGO);
+        catalogo = {
+          id: p.id,
+          ativo: p.active,
+          centavos: p.unit_amount,
+          moeda: p.currency,
+          intervalo: p.recurring?.interval ?? null,
+          confere_com_a_tela:
+            p.unit_amount === PRECO_CENTAVOS && p.currency === MOEDA,
+        };
+      } catch {
+        catalogo = { id: PRECO_DO_CATALOGO, erro: 'o Stripe não conhece este preço' };
+      }
+    }
+
     return responder({
       modo: chaveStripe.startsWith('sk_test') ? 'teste' : 'producao',
+      preco_na_tela_centavos: PRECO_CENTAVOS,
+      preco_do_catalogo: catalogo,
+      origem_do_preco: PRECO_DO_CATALOGO ? 'catalogo' : 'inline (um Preço novo por assinatura)',
       segredo_do_webhook_configurado: Boolean(Deno.env.get('STRIPE_WEBHOOK_SECRET')),
       urls_do_app: permitidas,
       endpoint_esperado: esperado,
@@ -216,18 +262,22 @@ Deno.serve(async (req: Request) => {
       client_reference_id: uid,
       customer_email: email ?? undefined,
       locale: 'pt-BR',
-      line_items: [{
-        quantity: 1,
-        price_data: {
-          currency: MOEDA,
-          unit_amount: PRECO_CENTAVOS,
-          recurring: { interval: 'month' },
-          product_data: {
-            name: NOME_DO_PLANO,
-            description: 'Mais alcance e mais ferramentas. Segurança e direitos de LGPD seguem fora do paywall.',
-          },
-        },
-      }],
+      line_items: [
+        PRECO_DO_CATALOGO
+          ? { price: PRECO_DO_CATALOGO, quantity: 1 }
+          : {
+              quantity: 1,
+              price_data: {
+                currency: MOEDA,
+                unit_amount: PRECO_CENTAVOS,
+                recurring: { interval: 'month' },
+                product_data: {
+                  name: NOME_DO_PLANO,
+                  description: 'Mais alcance e mais ferramentas. Segurança e direitos de LGPD seguem fora do paywall.',
+                },
+              },
+            },
+      ],
       subscription_data: { metadata: { conexao_user_id: uid } },
       success_url: `${voltar}?assinatura=ok`,
       cancel_url: `${voltar}?assinatura=cancelada`,

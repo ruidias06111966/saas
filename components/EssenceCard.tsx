@@ -2,7 +2,7 @@ import type { User } from '../types';
 import { GOAL_EMOJI, GOAL_LABEL } from '../constants';
 import { INTEREST_MAP } from '../data/interests';
 import { PROFILE_PROMPT_MAP } from '../data/prompts';
-import { age, distanceBand, firstName } from '../services/utils';
+import { distanceBand, firstName } from '../services/utils';
 import { Button, Card, Chip, Icon } from './ui';
 import { Portrait } from './Portrait';
 
@@ -54,7 +54,7 @@ export function EssenceCard({
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <h3 className="truncate font-display text-lg font-semibold leading-tight">
-                  {firstName(user.name)}, {age(user.birthDate)}
+                  {firstName(user.name)}, {user.age}
                   {user.verified && <Icon name="check" size={13} className="ml-1.5 inline text-sage" />}
                 </h3>
                 <p className="mt-0.5 truncate text-[13px] text-muted">

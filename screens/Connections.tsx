@@ -6,7 +6,7 @@ import { Button, Card, Chip, Empty, Icon, Tabs } from '../components/ui';
 import { CompatBadge } from '../components/EssenceCard';
 import { ConversationThermometer } from '../components/ConversationThermometer';
 import { Avatar } from '../components/Portrait';
-import { age, firstName, timeAgo } from '../services/utils';
+import { firstName, timeAgo } from '../services/utils';
 
 type Tab = 'novas' | 'conversando' | 'favoritos' | 'solicitacoes' | 'encerradas';
 
@@ -94,7 +94,7 @@ export function Connections() {
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="truncate font-display text-base font-semibold">
-                        {firstName(user.name)}, {age(user.birthDate)}
+                        {firstName(user.name)}, {user.age}
                         {user.verified && <Icon name="check" size={12} className="ml-1.5 inline text-sage" />}
                       </p>
                       <p className="truncate text-[12px] text-muted">

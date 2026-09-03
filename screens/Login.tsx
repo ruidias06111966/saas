@@ -34,7 +34,7 @@ export function Login() {
       return;
     }
 
-    const user = state.users.find((u) => u.email.toLowerCase() === email.trim().toLowerCase());
+    const user = state.users.find((u) => (u.email ?? '').toLowerCase() === email.trim().toLowerCase());
     const hash = await sha256(password);
     setBusy(false);
     if (!user || user.passwordHash !== hash) return setError('E-mail ou senha incorretos.');
@@ -67,7 +67,17 @@ export function Login() {
           <Button type="submit" full loading={busy}>Entrar</Button>
         </form>
 
-        <p className="mt-4 text-center text-[13px] text-muted">
+        <p className="mt-4 text-center text-[13px]">
+          <button
+            type="button"
+            className="text-muted hover:text-ink hover:underline"
+            onClick={() => navigate({ name: 'recuperarSenha' })}
+          >
+            Esqueci minha senha
+          </button>
+        </p>
+
+        <p className="mt-2 text-center text-[13px] text-muted">
           Não tem conta?{' '}
           <button type="button" className="font-semibold text-brand hover:underline" onClick={() => navigate({ name: 'signup' })}>
             Criar agora
