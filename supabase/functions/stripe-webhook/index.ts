@@ -17,6 +17,7 @@
 
 import Stripe from 'npm:stripe@17.7.0';
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { type AssinaturaComPeriodo, fimDoPeriodo } from './periodo.ts';
 
 Deno.serve(async (req: Request) => {
   if (req.method !== 'POST') return new Response('Use POST.', { status: 405 });
@@ -99,7 +100,7 @@ Deno.serve(async (req: Request) => {
         const uid = await donoDaAssinatura(assin);
         if (!uid) { console.error('[stripe-webhook] assinatura sem dono conhecido'); break; }
         const viva = assin.status === 'active' || assin.status === 'trialing';
-        const fim = assin.cancel_at ?? assin.current_period_end;
+        const fim = assin.cancel_at ?? fimDoPeriodo(assin as unknown as AssinaturaComPeriodo);
         await aplicar(
           uid,
           viva ? 'premium' : 'free',

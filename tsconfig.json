@@ -13,6 +13,9 @@
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "resolveJsonModule": true,
+    // O teste da assinatura importa um arquivo compartilhado com uma Edge
+    // Function, e o Deno exige a extensão `.ts` no import.
+    "allowImportingTsExtensions": true,
     "isolatedModules": true,
     "noEmit": true,
     "types": ["vite/client"]

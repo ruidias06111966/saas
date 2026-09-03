@@ -69,7 +69,7 @@ Deno.serve(async (req: Request) => {
   const email = sessao?.user?.email;
   if (erroAuth || !uid) return responder({ erro: 'Sessão inválida.' }, 401);
 
-  let body: { voltarPara?: string; acao?: string; corrigir?: boolean };
+  let body: { voltarPara?: string; acao?: string; corrigir?: boolean; de?: string };
   try {
     body = await req.json();
   } catch {
@@ -130,6 +130,11 @@ Deno.serve(async (req: Request) => {
       endpoints: registrados.data.map((e) => ({
         url: e.url,
         status: e.status,
+        // A versão da API do ENDPOINT decide como o Stripe serializa o evento,
+        // independente da versão que o SDK daqui usa para chamar a API. Se ela
+        // for `basil` ou mais nova, `current_period_end` já não vive na
+        // assinatura, e sim em cada item dela.
+        versao_da_api: e.api_version,
         aponta_para_ca: e.url === esperado,
         // `*` no Stripe significa "todos os eventos", e cobre a lista toda.
         faltando: e.enabled_events.includes('*')
@@ -137,6 +142,42 @@ Deno.serve(async (req: Request) => {
           : precisamos.filter((n) => !e.enabled_events.includes(n)),
       })),
     });
+  }
+
+  // Ressincronizar: pede ao Stripe que reemita o estado atual de uma assinatura,
+  // tocando nos metadados dela. Existe porque entrega de webhook falha — o
+  // Stripe desiste depois de algumas tentativas, e sem isto a única saída seria
+  // corrigir o plano na mão, no banco, sem nada que comprove o que o Stripe
+  // pensa. Aqui a verdade continua vindo dele, pelo caminho normal.
+  if (body.acao === 'ressincronizar') {
+    const { data: eu } = await comoUsuario
+      .from('users').select('role').eq('id', uid).maybeSingle();
+    if (eu?.role !== 'admin') return responder({ erro: 'Somente administradores.' }, 403);
+
+    const alvo = typeof body.de === 'string' && /^[0-9a-f-]{36}$/.test(body.de) ? body.de : uid;
+    const servico = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+      ?? JSON.parse(Deno.env.get('SUPABASE_SECRET_KEYS') ?? '{}').default;
+    if (!servico) return responder({ erro: 'Serviço indisponível.' }, 503);
+
+    const db = createClient(url, servico, { auth: { persistSession: false } });
+    const { data: linha } = await db.from('subscriptions')
+      .select('provider_id').eq('user_id', alvo).eq('provider', 'stripe').maybeSingle();
+    if (!linha?.provider_id?.startsWith('sub_')) {
+      return responder({ erro: 'Sem assinatura do Stripe para essa conta.' }, 404);
+    }
+
+    const stripe = new Stripe(chaveStripe, { apiVersion: '2025-01-27.acacia' });
+    try {
+      // O Stripe mescla metadados no update: as chaves que não vão aqui ficam
+      // como estavam, então `conexao_user_id` sobrevive.
+      await stripe.subscriptions.update(linha.provider_id, {
+        metadata: { conexao_ressincronizado_em: new Date().toISOString() },
+      });
+    } catch (err) {
+      console.error('[assinar] falha ao ressincronizar', err);
+      return responder({ erro: 'O Stripe recusou a ressincronização.' }, 502);
+    }
+    return responder({ ok: true, assinatura: linha.provider_id });
   }
 
   const voltar = destinoSeguro(body.voltarPara, permitidas)

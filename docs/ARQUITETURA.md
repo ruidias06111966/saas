@@ -379,6 +379,33 @@ Os quatro eventos, e por que cada um:
 | `customer.subscription.deleted` | fim da assinatura |
 | `invoice.payment_failed` | registrado de propósito sem efeito, para não punir troca de cartão |
 
+#### A versão da API do evento não é a versão do nosso código
+
+O primeiro pagamento de verdade gravou o plano certo e a data de renovação
+**nula**. A causa: o Stripe serializa cada evento na versão de API do *endpoint
+do webhook*, que não é a versão que o nosso SDK usa para chamar a API. Aqui o
+endpoint estava em `2026-08-26.dahlia` e o código pinado em `2025-01-27.acacia`
+— e a partir da versão `basil` (2025-04-30) o `current_period_end` deixou de
+viver na assinatura e passou a viver em cada item dela. O código lia o lugar
+antigo, achava `undefined`, e gravava nulo.
+
+Dos campos que lemos do evento, só esse mudou de lugar: `status`, `cancel_at`,
+`metadata` e `client_reference_id` seguem onde sempre estiveram. Por isso o
+premium funcionou e só a data se perdeu. `fimDoPeriodo()` passa a ler os dois
+lugares, para não depender de uma configuração que ninguém lembra de conferir.
+
+O mesmo episódio revelou um segundo problema. `aplicar_assinatura` substitui a
+linha inteira, e o `checkout.session.completed` não conhece o fim do período —
+manda nulo. Os dois eventos chegam quase juntos e sem ordem garantida, então
+bastava o sem-data chegar por último para apagar a data do outro. Agora o nulo
+significa "não sei", e preserva o valor anterior em vez de apagá-lo.
+
+Como o diagnóstico não resolve entrega que nunca chegou, `assinar` também
+responde a `{"acao":"ressincronizar"}`, de administração: toca nos metadados da
+assinatura no Stripe para que ele reemita o estado atual. A verdade continua
+vindo dele, pelo caminho normal — a alternativa seria corrigir o plano na mão,
+no banco, sem nada que comprove o que o Stripe pensa.
+
 ### O que ainda falta para produção
 
 Um trabalho de carga que este projeto nunca fez, e um provedor de e-mail com domínio
