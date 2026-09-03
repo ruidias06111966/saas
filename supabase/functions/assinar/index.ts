@@ -6,9 +6,8 @@
 // nosso webhook — nunca o navegador de quem pagou, que poderia simplesmente
 // afirmar que pagou.
 //
-// O preço vai inline (`price_data`) em vez de referenciar um Price criado à mão
-// no painel. Assim o valor da tela e o valor cobrado saem do mesmo lugar, e
-// não há como a página dizer R$ 29,90 enquanto a cobrança é outra.
+// De onde sai o preço é decisão de configuração, e está explicada logo abaixo
+// em PRECO_DO_CATALOGO.
 // ---------------------------------------------------------------------------
 
 import Stripe from 'npm:stripe@17.7.0';
