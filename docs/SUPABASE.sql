@@ -1415,13 +1415,25 @@ create or replace function private.aplicar_assinatura(
   provedor text, id_no_provedor text, expira timestamptz
 ) returns void
 language plpgsql security definer set search_path = public as $$
+declare
+  anterior timestamptz;
 begin
   perform set_config('conexao.rotina_do_servidor', 'on', true);
   update public.users set plan = novo_plano where id = dono;
+  -- O Stripe entrega `checkout.session.completed` e `customer.subscription.updated`
+  -- quase no mesmo instante e sem ordem garantida, e o primeiro não conhece o
+  -- fim do período: manda nulo. Como esta função substitui a linha inteira,
+  -- bastava o evento sem data chegar por último para apagar a data que o outro
+  -- gravou. Guardar o valor anterior faz o nulo significar "não sei", não "apague".
+  select s.expires_at into anterior
+  from public.subscriptions s
+  where s.user_id = dono and s.provider = provedor
+  limit 1;
   -- Uma assinatura por pessoa por provedor: a de agora substitui a anterior.
   delete from public.subscriptions where user_id = dono and provider = provedor;
   insert into public.subscriptions (id, user_id, plan, status, provider, provider_id, started_at, expires_at)
-  values (gen_random_uuid(), dono, novo_plano, novo_status, provedor, id_no_provedor, now(), expira);
+  values (gen_random_uuid(), dono, novo_plano, novo_status, provedor, id_no_provedor, now(),
+          coalesce(expira, anterior));
   perform set_config('conexao.rotina_do_servidor', 'off', true);
 end;
 $$;
