@@ -142,8 +142,15 @@ export async function pedirRedefinicao(email: string): Promise<void> {
 }
 
 /**
- * Grava a senha nova. Só funciona com a sessão que o link de recuperação criou.
- * Sem ela o Supabase recusa, que é exatamente o comportamento desejado.
+ * Grava a senha nova. Exige uma sessão válida — sem ela o Supabase recusa, que
+ * é exatamente o comportamento desejado.
+ *
+ * Serve aos dois caminhos, e isso não é reaproveitamento preguiçoso: para o
+ * Supabase são a mesma operação. Um é a sessão que o link de "esqueci minha
+ * senha" acabou de criar; o outro é alguém já dentro do app, em Configurações.
+ * O segundo existe porque nem toda entrada passa por senha — quem chega pelo
+ * link de confirmação do cadastro está logado sem nunca ter escolhido uma, e
+ * sem esta tela ficaria dependendo de um e-mail para definir a primeira.
  */
 export async function redefinirSenha(nova: string): Promise<void> {
   const { error } = await requireSupabase().auth.updateUser({ password: nova });
