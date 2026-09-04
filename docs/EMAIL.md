@@ -194,16 +194,57 @@ valor baixo do serviço embutido mesmo depois de ligar o SMTP próprio. Suba par
 algo compatível com o seu plano — com o gratuito do Resend, 100 por hora é um
 teto coerente com os 100 por dia.
 
-## 7. Conferir os endereços de volta
+## 7. Autorizar os endereços de volta
+
+**Este é o passo que quebra tudo, e ele não parece perigoso.** Foi o que
+aconteceu aqui em 04/09/2026: SMTP perfeito, e-mail na caixa de entrada,
+remetente alinhado — e o link levava a pessoa para `localhost:3000`.
 
 Em **Authentication → URL Configuration**:
 
 - **Site URL**: `https://ruidias06111966.github.io/saas/`
-- **Redirect URLs**: o mesmo endereço acima.
+- **Redirect URLs**, uma por linha:
+  - `https://ruidias06111966.github.io/saas/`
+  - `https://ruidias06111966.github.io/saas/**`
+  - `https://conexao.qidominios.com.br/**` (para o dia da troca de endereço)
 
-O app manda o destino explicitamente a cada cadastro (`emailRedirectTo`, em
-`services/auth.ts`), justamente para não depender só desta tela. Mas o Supabase
-só aceita destinos que estejam nesta lista — então os dois precisam bater.
+### Por que o app mandar o destino não basta
+
+O app manda o destino explicitamente a cada envio (`emailRedirectTo`, em
+`services/auth.ts`). Seria razoável supor que isso resolve. Não resolve, e o
+motivo é o detalhe que custa caro:
+
+**Um destino fora da lista não é recusado — é substituído.** O Supabase ignora
+o que o app pediu e usa o `Site URL`, cujo padrão de fábrica é
+`http://localhost:3000`. Não há erro, log ou alerta em lugar nenhum. A pessoa
+recebe o e-mail, clica, e aterrissa num endereço que só existe na máquina de
+quem programa.
+
+Por isso a lista precisa conter o endereço **exato** que o app envia, e não só
+algo parecido.
+
+### O falso alarme que vem junto
+
+Ao cair em `localhost`, a URL costuma trazer também
+`error_code=otp_expired&error_description=Email+link+is+invalid+or+has+expired`.
+
+**Ignore esse erro — ele quase sempre é consequência, não causa.** O link de
+confirmação vale **uma única vez**; ao recarregar a página quebrada, o mesmo
+token é apresentado de novo e o Supabase recusa, corretamente. Confira em
+`auth.users`: se `email_confirmed_at` estiver preenchido, o primeiro clique
+funcionou e o único problema é o endereço.
+
+```sql
+select email, confirmation_sent_at, email_confirmed_at
+from auth.users where email = 'ENDERECO_DE_TESTE';
+```
+
+### O limite da lista é de segurança, não de burocracia
+
+Não use curinga largo (`https://**`). Essa lista é o que impede alguém de
+forjar um link de recuperação que entrega a **sessão da pessoa** num site de
+terceiros. Ela precisa ser estreita: os endereços que você realmente controla,
+e mais nenhum.
 
 ---
 
@@ -370,8 +411,10 @@ GitHub Pages.
 Não confie no "salvou sem erro". Teste com um endereço **que não seja o dono do
 projeto** — é justamente esse caso que o serviço embutido não atendia.
 
-1. Abra o app e cadastre-se com um e-mail de outro provedor (um Gmail seu, o de
-   alguém de confiança).
+1. Abra o app e cadastre-se com um endereço que não seja o do dono. Não precisa
+   de uma segunda caixa: no Gmail, `voce+teste@gmail.com` chega na sua caixa
+   normal, mas para o Supabase é um endereço **diferente** — que é exatamente a
+   condição que se quer testar.
 2. O e-mail deve chegar em segundos, **em português**, com o remetente do seu
    domínio.
 3. Clique no botão. Você tem que cair no app, logado — não em `localhost`, não
