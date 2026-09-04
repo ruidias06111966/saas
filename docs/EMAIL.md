@@ -16,6 +16,16 @@ outro subdomínio. Estes são os valores que o CONEXÃO usa hoje:
 | Domínio de envio, verificado no Resend | `mail.conexao.qidominios.com.br` (região São Paulo) |
 | Remetente | `nao-responda@mail.conexao.qidominios.com.br` |
 | DMARC | `_dmarc.qidominios.com.br` = `v=DMARC1; p=reject; rua=mailto:qidominio@gmail.com` |
+| Limite de envios | 100 por hora (Authentication → Rate Limits) |
+| Site URL | `https://ruidias06111966.github.io/saas/` |
+| Redirect URLs | o mesmo, mais `.../saas/**` e `https://conexao.qidominios.com.br/**` |
+
+**Validado de ponta a ponta em 04/09/2026**, com um cadastro real num endereço
+que não é o do dono do projeto: e-mail na caixa de entrada (não no spam) em
+segundos, remetente sem "via" nem "em nome de", e o link caindo no app.
+
+**Pendente por escolha:** os modelos continuam no texto padrão em inglês.
+Funciona; só não é o texto que o app merece. Ver a seção *Os textos dos e-mails*.
 
 **O padrão para os próximos sistemas:** cada um envia por
 `mail.<sistema>.qidominios.com.br`, verificado separadamente no Resend. A raiz
