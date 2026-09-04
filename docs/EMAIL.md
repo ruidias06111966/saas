@@ -316,6 +316,33 @@ passo 7.
 
 ## O que continua faltando depois disto
 
+### Mudar o site de endereço
+
+O código já está preparado: preencher a variável de repositório
+`DOMINIO_DO_SITE` (Settings → Secrets and variables → Actions → Variables) com,
+por exemplo, `conexao.qidominios.com.br` faz o build sair na raiz do domínio e
+o workflow escrever o `CNAME` que o GitHub Pages exige. Vazia, nada muda.
+
+**Mas a variável sozinha não basta.** Outros três lugares apontam para o
+endereço do site, e se um ficar para trás o login ou o pagamento quebra sem
+erro visível:
+
+| # | Onde |
+|---|---|
+| 1 | Supabase → Authentication → URL Configuration → **Site URL** |
+| 2 | Supabase → Authentication → URL Configuration → **Redirect URLs** |
+| 3 | Supabase → Edge Functions → Secrets → **`URLS_DO_APP`** |
+
+O log da publicação repete essa lista sempre que a variável estiver preenchida,
+e o passo "Conferir o pacote publicado" **aborta** se a base do pacote não
+bater com o destino — a falha aqui seria página em branco, com 404 em cada
+arquivo e nenhuma explicação.
+
+Do lado do DNS, um registro na Cloudflare:
+`CNAME  conexao → ruidias06111966.github.io`, com o proxy **desligado**
+("DNS only"). Com a nuvem laranja ligada o GitHub não emite o certificado e o
+site fica com aviso de não seguro.
+
 **O site continua no endereço do GitHub.** Com o domínio registrado, dá para
 apontá-lo para o GitHub Pages. Aí o `Site URL`, o `Redirect URLs` e o
 `URLS_DO_APP` do Stripe precisam ser atualizados juntos — os três apontam para

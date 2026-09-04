@@ -5,9 +5,27 @@ import react from '@vitejs/plugin-react';
 // O app funciona 100% sem chave: os servicos de IA caem em heuristicas locais.
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
-  // No GitHub Pages o site fica em /saas/, não na raiz do domínio.
-  // Localmente continua em / — por isso a base é condicional.
-  const base = env.GITHUB_PAGES === 'true' ? '/saas/' : '/';
+  // ONDE O SITE VIVE, e por que isto é uma variável e não uma constante.
+  //
+  //   sem domínio próprio → ruidias06111966.github.io/saas/  → base "/saas/"
+  //   com domínio próprio → conexao.qidominios.com.br/       → base "/"
+  //
+  // Com domínio próprio o site passa a viver na RAIZ. Se a base continuasse em
+  // "/saas/", o navegador procuraria cada arquivo em
+  // `conexao.qidominios.com.br/saas/assets/…`, que não existe — e o resultado
+  // seria PÁGINA EM BRANCO: o HTML carrega, todo o resto dá 404, e nenhum erro
+  // explica o motivo em lugar nenhum.
+  //
+  // Por isso a troca é uma variável de repositório, e não uma edição de código:
+  // `DOMINIO_DO_SITE` em Settings → Secrets and variables → Actions →
+  // Variables. Vazia, nada muda. Preenchida, o site muda de endereço e o
+  // workflow escreve o CNAME que o GitHub Pages exige.
+  //
+  // ATENÇÃO: mudar esta variável sozinha quebra o login e o pagamento. Outros
+  // três lugares apontam para o mesmo endereço e precisam mudar juntos — o
+  // workflow lembra quais no log da publicação.
+  const dominioProprio = env.DOMINIO_DO_SITE?.trim();
+  const base = dominioProprio ? '/' : (env.GITHUB_PAGES === 'true' ? '/saas/' : '/');
 
   return {
     base,

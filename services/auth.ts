@@ -38,8 +38,10 @@ function traduzErro(mensagem: string): string {
  * Sem isto o destino sai inteiro do "Site URL" do painel do Supabase, cujo
  * padrão é `localhost:3000` — e o link levaria toda pessoa real a uma página
  * que não existe, sem erro nenhum do nosso lado. Dizendo aqui, o endereço passa
- * a vir do próprio app: `BASE_URL` é `/saas/` na publicação e `/` no
- * desenvolvimento, então os dois funcionam sem configuração diferente.
+ * a vir do próprio app: `BASE_URL` acompanha a base do build — `/saas/` no
+ * GitHub Pages, `/` no desenvolvimento e também com domínio próprio. Os três
+ * funcionam sem configuração diferente, e mudar de endereço não exige tocar
+ * aqui.
  *
  * O Supabase só aceita destinos da lista de Redirect URLs do projeto (o Site
  * URL entra nela automaticamente). Se este endereço não estiver lá, o link cai

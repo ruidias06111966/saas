@@ -81,7 +81,40 @@ jobs:
           # e quem protege o projeto no Sentry é a lista de domínios permitidos
           # configurada lá. Por isso fica em Variables, como as de cima.
           VITE_SENTRY_DSN: ${{ vars.VITE_SENTRY_DSN }}
+          # Vazia: o site fica em github.io/saas/. Preenchida (por exemplo
+          # `conexao.qidominios.com.br`): passa para a raiz do domínio próprio.
+          # Ver o comentário em vite.config.ts — e o passo logo abaixo, que
+          # lembra o que mais precisa mudar junto.
+          DOMINIO_DO_SITE: ${{ vars.DOMINIO_DO_SITE }}
         run: npm run build
+
+      # O GitHub Pages só serve num domínio próprio se encontrar um arquivo
+      # CNAME na raiz do que foi publicado. Ele é escrito aqui, a partir da
+      # mesma variável que decidiu a base — assim os dois não podem divergir.
+      # Um CNAME versionado no repositório seria pior: valeria para toda
+      # publicação, inclusive as que ainda deveriam sair em github.io.
+      - name: Domínio próprio
+        env:
+          DOMINIO: ${{ vars.DOMINIO_DO_SITE }}
+        run: |
+          if [ -z "$DOMINIO" ]; then
+            echo "Sem dominio proprio. O site sai em github.io/saas/."
+            exit 0
+          fi
+          echo "$DOMINIO" > dist/CNAME
+          echo "Publicando em https://$DOMINIO/ (raiz do dominio)."
+          echo
+          echo "=============================================================="
+          echo " LEMBRETE: mais tres lugares apontam para o endereco do site."
+          echo " Se algum ficar para tras, o login ou o pagamento quebra EM"
+          echo " SILENCIO — sem erro em lugar nenhum que explique."
+          echo
+          echo "   1. Supabase - Authentication - URL Configuration - Site URL"
+          echo "   2. Supabase - Authentication - URL Configuration - Redirect URLs"
+          echo "   3. Supabase - Edge Functions - Secrets - URLS_DO_APP"
+          echo
+          echo " Os tres passam a ser:  https://$DOMINIO/"
+          echo "=============================================================="
 
       # Confere o resultado, não a intenção: a URL tem de estar mesmo dentro
       # do JavaScript que vai para o ar.
@@ -94,6 +127,26 @@ jobs:
           else
             echo "MODO DEMO: o pacote nao contem a URL do Supabase."
           fi
+
+          # A base errada nao da erro: da pagina em branco, com 404 em cada
+          # arquivo. Conferir aqui e o que impede isso chegar ao ar.
+          if grep -qE '(src|href)="/saas/assets/' dist/index.html; then
+            NO_HTML="/saas/"
+          else
+            NO_HTML="/"
+          fi
+          if [ -f dist/CNAME ]; then
+            ESPERADO="/"; ONDE="dominio proprio ($(cat dist/CNAME))"
+          else
+            ESPERADO="/saas/"; ONDE="github.io/saas/"
+          fi
+          echo "Destino: $ONDE — base esperada '$ESPERADO', o index.html usa '$NO_HTML'."
+          if [ "$NO_HTML" != "$ESPERADO" ]; then
+            echo "ERRO: a base do pacote nao bate com o destino."
+            echo "Publicar assim daria pagina em branco. Abortando."
+            exit 1
+          fi
+          echo "Base confere."
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
