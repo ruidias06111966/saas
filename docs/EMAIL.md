@@ -5,6 +5,26 @@ SMTP próprio. Escrito para ser seguido de cima para baixo, sem pular.
 
 ---
 
+## O que ficou valendo neste projeto
+
+O roteiro abaixo é genérico de propósito — os outros sistemas vão repeti-lo com
+outro subdomínio. Estes são os valores que o CONEXÃO usa hoje:
+
+| coisa | valor |
+|---|---|
+| Domínio registrado | `qidominios.com.br` (DNS na Cloudflare) |
+| Domínio de envio, verificado no Resend | `mail.conexao.qidominios.com.br` (região São Paulo) |
+| Remetente | `nao-responda@mail.conexao.qidominios.com.br` |
+| DMARC | `_dmarc.qidominios.com.br` = `v=DMARC1; p=reject; rua=mailto:qidominio@gmail.com` |
+
+**O padrão para os próximos sistemas:** cada um envia por
+`mail.<sistema>.qidominios.com.br`, verificado separadamente no Resend. A raiz
+`qidominios.com.br` nunca envia — ela tem `v=spf1 -all` e `MX 0 .`, que é o modo
+de dizer "daqui não sai e-mail nenhum". Assim a reputação de um sistema não
+contamina a dos outros, e o DMARC da raiz vale para todos sem precisar repetir.
+
+---
+
 ## Por que trocar
 
 O serviço de e-mail embutido do Supabase **não serve para gente de verdade**, e
@@ -61,15 +81,30 @@ problema para ter.
 > plano gratuito e o resto do roteiro é igual, trocando só o endereço do
 > servidor e o usuário.
 
-Dentro do Resend: **Domains → Add Domain**, e informe o domínio que você
-registrou.
+Dentro do Resend: **Domains → Add Domain**.
+
+Informe **um subdomínio de envio**, não o domínio raiz: `mail.conexao.<seu
+domínio>`. A raiz fica de fora de propósito — se um dia um sistema queimar a
+reputação, ela queima só a do próprio subdomínio.
+
+Escolha a região mais próxima de quem recebe (**São Paulo**, para o Brasil).
+Ela entra no registro MX e não dá para trocar depois sem refazer o domínio.
 
 Ele vai mostrar uma lista de registros DNS. Deixe essa tela aberta.
 
+> O Resend oferece configurar o DNS sozinho, se você conectar a conta do
+> provedor. **Recuse.** Isso dá a ele permissão de escrita na sua zona inteira,
+> para economizar três cópias e colas.
+
 ## 3. Provar que o domínio é seu
 
-Volte ao registro.br, entre no domínio e procure a área de **DNS / Editar
-Zona**. Copie para lá, um por um, os registros que o Resend mostrou.
+Vá ao provedor de DNS do domínio — neste projeto, a **Cloudflare** (o domínio é
+do registro.br, mas os servidores de nome apontam para a Cloudflare, que é onde
+a zona é editada). Em **DNS → Records**, copie para lá, um por um, os registros
+que o Resend mostrou.
+
+Na Cloudflare, deixe o **Proxy status** em `DNS only` (nuvem cinza) para todos
+eles. Registro de e-mail não passa por proxy.
 
 São três tipos, e vale entender o que cada um faz, porque é o que separa "chega
 na caixa de entrada" de "chega no spam":
@@ -89,16 +124,31 @@ antes de ver `Verified`.**
 
 ### O DMARC, que o Resend deixa opcional
 
-Vale acrescentar mesmo assim. No registro.br, um registro `TXT` com nome
-`_dmarc` e valor:
+Vale acrescentar mesmo assim: um registro `TXT` com nome `_dmarc`, **na raiz do
+domínio**. A política é herdada por todos os subdomínios, então este é o único
+lugar onde ela precisa existir — não crie um `_dmarc` para cada sistema.
 
 ```
-v=DMARC1; p=none; rua=mailto:seu-email@seudominio.com.br
+v=DMARC1; p=reject; rua=mailto:seu-email@exemplo.com
 ```
 
-`p=none` significa "só me avise, não bloqueie nada" — é o modo seguro para
-começar. Depois de algumas semanas recebendo os relatórios e vendo que está tudo
-certo, dá para endurecer para `p=quarantine`.
+Duas escolhas dentro dessa linha, e nenhuma é óbvia:
+
+- **`p=reject`** manda o servidor de destino recusar o que falhar. É o mais
+  duro, e aqui é seguro porque o DKIM do Resend assina exatamente o domínio que
+  aparece no remetente — o alinhamento é perfeito, e nada legítimo falha. Se a
+  Cloudflare já tiver criado esse registro sozinha ao abrir a zona (ela faz
+  isso), mantenha o `p=reject` que veio.
+- **`rua=`** é o endereço que recebe os relatórios. Sem ele, `p=reject` rejeita
+  **em silêncio**: se um dia algo sair desalinhado, as mensagens somem e ninguém
+  descobre. Esse endereço é o que transforma a política em algo observável.
+
+Os relatórios começam a chegar em 1 a 3 dias, um por dia, como XML zipado. São
+ilegíveis a olho nu e não precisam ser lidos — existem para o dia em que o
+e-mail parar de chegar e você precisar saber por quê.
+
+**Confira que só existe um `_dmarc`.** Dois valores no mesmo nome invalidam os
+dois: o DNS não escolhe, ele desiste.
 
 ## 4. Pegar a chave de envio
 
@@ -121,11 +171,15 @@ No painel do projeto: **Authentication → Emails → SMTP Settings**, e ligue
 | Port | `465` |
 | Username | `resend` |
 | Password | a chave do passo 4 |
-| Sender email | `nao-responda@seudominio.com.br` |
+| Sender email | `nao-responda@mail.conexao.qidominios.com.br` |
 | Sender name | `CONEXÃO` |
 
-O remetente **precisa ser do domínio que você verificou**. Se for de outro, o
-Resend recusa o envio.
+O **Username é literalmente a palavra `resend`**, igual para todo mundo — não é
+o seu e-mail nem o nome da chave. É o tropeço mais comum deste passo.
+
+O remetente **precisa ser do domínio que você verificou** — com o `mail.` na
+frente. Um remetente `@qidominios.com.br` seria recusado pelo Resend: a raiz não
+está verificada, e não deve estar.
 
 `nao-responda@` não precisa existir como caixa de entrada — ninguém vai
 responder para ele. Se preferir um endereço que receba respostas, use um que
@@ -162,7 +216,24 @@ contato.
 Em **Authentication → Emails → Templates**, troque o conteúdo. Abaixo, prontos
 para colar.
 
-### Confirm signup
+A lista de modelos é longa, mas **o app só dispara dois deles hoje**:
+
+| modelo no painel | quem dispara | traduzir? |
+|---|---|---|
+| **Confirm sign up** | `signUp()`, em `services/auth.ts` | **sim** |
+| **Reset password** | `pedirRedefinicao()`, em `services/auth.ts` | **sim** |
+| Invite user | ninguém — o app não convida | não |
+| Magic link or OTP | ninguém — o login é só por senha | não |
+| Change email address | ninguém ainda; o app não deixa trocar e-mail | quando deixar |
+| Reauthentication | ninguém | não |
+| Os da seção *Security* | avisos de segurança do próprio Supabase, se ligados | opcional |
+
+Os da seção **Security** (senha alterada, e-mail alterado, método de login
+adicionado) são avisos que o Supabase manda sozinho quando a conta muda. Não
+dependem de código nenhum e são bons de ter — mas continuam em inglês até
+alguém traduzi-los, e nenhum cadastro depende disso.
+
+### Confirm sign up
 
 Assunto:
 
@@ -267,8 +338,7 @@ Corpo:
 </table>
 ```
 
-Os outros modelos (Invite, Magic Link, Change Email, Reauthentication) podem
-ficar como estão: o app não usa nenhum deles hoje.
+Os outros modelos podem ficar como estão — ver a tabela no começo desta seção.
 
 ---
 
