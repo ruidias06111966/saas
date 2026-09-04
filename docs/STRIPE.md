@@ -10,6 +10,24 @@ Escrito para ser seguido de cima para baixo, sem pular.
 
 ---
 
+## Antes: o painel em português
+
+O Stripe tem interface em português. Vale ligar antes de começar — errar de
+botão num painel de cobrança custa caro.
+
+No [dashboard.stripe.com](https://dashboard.stripe.com), canto superior
+direito, clique no seu nome → **Profile** (Perfil) → seção **Language**
+(Idioma) → **Português (Brasil)**.
+
+Neste documento cada rótulo aparece nas duas línguas — **Português (English)** —
+porque a tradução do Stripe muda de tempos em tempos, e o nome em inglês é o
+que não muda.
+
+**O Supabase não tem português.** O painel dele só existe em inglês e não há
+opção de troca; aqui os rótulos vão em inglês com a tradução ao lado.
+
+---
+
 ## O que muda, e o que não muda
 
 Modo de teste e modo de produção são **duas contas paralelas** dentro do mesmo
@@ -45,25 +63,28 @@ da chave. Detectável antes de qualquer pagamento.
 
 ## 1. Ativar a conta no Stripe
 
-Sem isto não existe chave `sk_live_`. No painel, **Activate payments**: dados da
-empresa ou do CPF, atividade, e a conta bancária que recebe.
+Sem isto não existe chave `sk_live_`. No painel, **Ativar pagamentos**
+(*Activate payments*): dados da empresa ou do CPF, atividade, e a conta
+bancária que recebe.
 
 A análise costuma sair no mesmo dia. Enquanto não sair, o resto deste roteiro
 não tem como ser feito.
 
 ## 2. Criar o Produto e o Preço, em produção
 
-Ligue o modo produção (o botão **Test mode** no topo do painel, desligado).
+Ligue o modo produção: o botão **Modo de teste** (*Test mode*), no topo do
+painel, tem de ficar **desligado**.
 
-Em **Product catalog → Add product**:
+Em **Catálogo de produtos → Adicionar produto**
+(*Product catalog → Add product*):
 
 | campo | valor |
 |---|---|
-| Name | `CONEXÃO Premium` |
-| Description | `Mais alcance e mais ferramentas. Segurança e direitos de LGPD seguem fora do paywall.` |
-| Price | `29,90` |
-| Currency | `BRL` |
-| Billing period | `Monthly` |
+| Nome (*Name*) | `CONEXÃO Premium` |
+| Descrição (*Description*) | `Mais alcance e mais ferramentas. Segurança e direitos de LGPD seguem fora do paywall.` |
+| Preço (*Price*) | `29,90` |
+| Moeda (*Currency*) | `BRL` |
+| Período de cobrança (*Billing period*) | `Mensal` (*Monthly*) |
 
 Guarde o **ID do Preço** (`price_…`, não o `prod_…`).
 
@@ -80,10 +101,11 @@ primeiro cliente real evita a bagunça em vez de ter que limpá-la depois.
 
 ## 3. Criar o endpoint do webhook, em produção
 
-Ainda no modo produção, em **Developers → Webhooks → Add endpoint**:
+Ainda no modo produção, em **Desenvolvedores → Webhooks → Adicionar endpoint**
+(*Developers → Webhooks → Add endpoint*):
 
 - **URL**: `https://<ref-do-projeto>.supabase.co/functions/v1/stripe-webhook`
-- **Events**, exatamente estes quatro:
+- **Eventos** (*Events*), exatamente estes quatro:
 
 | evento | para quê |
 |---|---|
@@ -92,7 +114,8 @@ Ainda no modo produção, em **Developers → Webhooks → Add endpoint**:
 | `customer.subscription.deleted` | fim da assinatura |
 | `invoice.payment_failed` | registrado de propósito sem efeito, para não punir troca de cartão |
 
-Depois de criar, clique em **Reveal** no *Signing secret* (`whsec_…`) e guarde.
+Depois de criar, clique em **Revelar** (*Reveal*) no **Segredo de assinatura**
+(*Signing secret*), que começa com `whsec_`, e guarde.
 
 > Este segredo é **diferente** do de teste, mesmo que os dois comecem com
 > `whsec_`. Nada no formato distingue um do outro — é por isso que o erro do
@@ -100,11 +123,15 @@ Depois de criar, clique em **Reveal** no *Signing secret* (`whsec_…`) e guarde
 
 ## 4. Pegar a chave secreta de produção
 
-**Developers → API keys → Secret key → Reveal**. Começa com `sk_live_`.
+**Desenvolvedores → Chaves de API → Chave secreta → Revelar**
+(*Developers → API keys → Secret key → Reveal*). Começa com `sk_live_`.
 
 ## 5. Trocar os três segredos no Supabase
 
-Painel do projeto → **Edge Functions → Secrets**. Três valores mudam:
+O painel do Supabase é só em inglês. O caminho é
+**Edge Functions** (Funções de Borda) **→ Secrets** (Segredos).
+
+Três valores mudam:
 
 | segredo | novo valor |
 |---|---|
@@ -150,7 +177,8 @@ publicado, e confira:
 1. O checkout abre em português e mostra **R$ 29,90/mês**.
 2. O pagamento passa e a tela volta para o app.
 3. **O plano vira premium**, com data de renovação — não nula.
-4. No Stripe, em **Webhooks → o endpoint → eventos recentes**, as entregas
+4. No Stripe, em **Webhooks → o endpoint → eventos recentes**
+   (*recent events*), as entregas
    aparecem com **200**. Se aparecer **400**, o segredo do passo 5 está errado:
    é exatamente a falha calada do item 1.
 5. O portal de cobrança abre e mostra a assinatura para cancelar.
