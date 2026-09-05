@@ -240,15 +240,48 @@ Deno.serve(async (req: Request) => {
     // Stripe — reimplementar aqui seria assumir responsabilidade sobre dados de
     // cartão sem necessidade nenhuma.
     if (body.acao === 'gerenciar') {
-      const { data: assinaturas } = await comoUsuario.rpc('minha_assinatura');
-      const linha = Array.isArray(assinaturas) ? assinaturas[0] : assinaturas;
-      if (!linha?.provedor) return responder({ erro: 'Você não tem assinatura ativa.' }, 404);
+      // O cliente do Stripe vem da PRÓPRIA assinatura, e não de uma busca por
+      // e-mail.
+      //
+      // Buscar por e-mail parecia equivalente e não é. O Stripe permite vários
+      // Customers com o mesmo endereço, e o nosso checkout cria um a cada
+      // pagamento (`customer_email`). Com `limit: 1` a escolha era arbitrária:
+      // o portal podia abrir num cliente vazio, e quem paga não encontraria a
+      // assinatura para cancelar. Pior ainda para quem trocasse de e-mail no
+      // app — a busca não acharia nada, e o único caminho de cancelamento
+      // sumiria. Cancelar é direito de quem assina, não pode depender de sorte.
+      //
+      // O id guardado em `subscriptions` responde isso sem ambiguidade. A
+      // leitura é com a chave de serviço porque `provider_id` não sai para o
+      // cliente — nem precisa.
+      const servico = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+        ?? JSON.parse(Deno.env.get('SUPABASE_SECRET_KEYS') ?? '{}').default;
+      if (!servico) return responder({ erro: 'Serviço indisponível.' }, 503);
 
-      const clientes = await stripe.customers.list({ email: email ?? undefined, limit: 1 });
-      if (!clientes.data.length) return responder({ erro: 'Assinatura não encontrada.' }, 404);
+      const db = createClient(url, servico, { auth: { persistSession: false } });
+      const { data: linha } = await db.from('subscriptions')
+        .select('provider_id').eq('user_id', uid).eq('provider', 'stripe').maybeSingle();
+      if (!linha?.provider_id) return responder({ erro: 'Você não tem assinatura ativa.' }, 404);
+
+      // Normalmente um `sub_`. Pode ser um `cs_` quando o evento de checkout
+      // chegou sem o id da assinatura — os dois sabem dizer de quem são.
+      let cliente: string | null = null;
+      try {
+        const id = linha.provider_id;
+        const obj = id.startsWith('cs_')
+          ? await stripe.checkout.sessions.retrieve(id)
+          : await stripe.subscriptions.retrieve(id);
+        cliente = typeof obj.customer === 'string' ? obj.customer : obj.customer?.id ?? null;
+      } catch (err) {
+        // Cai aqui, entre outros casos, quando a assinatura é de um modo
+        // diferente do da chave em uso: um `sub_` criado em teste não existe
+        // para uma chave de produção.
+        console.error('[assinar] o Stripe não reconhece a assinatura guardada', err);
+      }
+      if (!cliente) return responder({ erro: 'Assinatura não encontrada no Stripe.' }, 404);
 
       const portal = await stripe.billingPortal.sessions.create({
-        customer: clientes.data[0].id,
+        customer: cliente,
         return_url: voltar,
       });
       return responder({ url: portal.url });

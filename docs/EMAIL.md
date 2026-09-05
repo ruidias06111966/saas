@@ -5,6 +5,36 @@ SMTP próprio. Escrito para ser seguido de cima para baixo, sem pular.
 
 ---
 
+## O que ficou valendo neste projeto
+
+O roteiro abaixo é genérico de propósito — os outros sistemas vão repeti-lo com
+outro subdomínio. Estes são os valores que o CONEXÃO usa hoje:
+
+| coisa | valor |
+|---|---|
+| Domínio registrado | `qidominios.com.br` (DNS na Cloudflare) |
+| Domínio de envio, verificado no Resend | `mail.conexao.qidominios.com.br` (região São Paulo) |
+| Remetente | `nao-responda@mail.conexao.qidominios.com.br` |
+| DMARC | `_dmarc.qidominios.com.br` = `v=DMARC1; p=reject; rua=mailto:qidominio@gmail.com` |
+| Limite de envios | 100 por hora (Authentication → Rate Limits) |
+| Site URL | `https://ruidias06111966.github.io/saas/` |
+| Redirect URLs | o mesmo, mais `.../saas/**` e `https://conexao.qidominios.com.br/**` |
+
+**Validado de ponta a ponta em 04/09/2026**, com um cadastro real num endereço
+que não é o do dono do projeto: e-mail na caixa de entrada (não no spam) em
+segundos, remetente sem "via" nem "em nome de", e o link caindo no app.
+
+**Pendente por escolha:** os modelos continuam no texto padrão em inglês.
+Funciona; só não é o texto que o app merece. Ver a seção *Os textos dos e-mails*.
+
+**O padrão para os próximos sistemas:** cada um envia por
+`mail.<sistema>.qidominios.com.br`, verificado separadamente no Resend. A raiz
+`qidominios.com.br` nunca envia — ela tem `v=spf1 -all` e `MX 0 .`, que é o modo
+de dizer "daqui não sai e-mail nenhum". Assim a reputação de um sistema não
+contamina a dos outros, e o DMARC da raiz vale para todos sem precisar repetir.
+
+---
+
 ## Por que trocar
 
 O serviço de e-mail embutido do Supabase **não serve para gente de verdade**, e
@@ -61,15 +91,30 @@ problema para ter.
 > plano gratuito e o resto do roteiro é igual, trocando só o endereço do
 > servidor e o usuário.
 
-Dentro do Resend: **Domains → Add Domain**, e informe o domínio que você
-registrou.
+Dentro do Resend: **Domains → Add Domain**.
+
+Informe **um subdomínio de envio**, não o domínio raiz: `mail.conexao.<seu
+domínio>`. A raiz fica de fora de propósito — se um dia um sistema queimar a
+reputação, ela queima só a do próprio subdomínio.
+
+Escolha a região mais próxima de quem recebe (**São Paulo**, para o Brasil).
+Ela entra no registro MX e não dá para trocar depois sem refazer o domínio.
 
 Ele vai mostrar uma lista de registros DNS. Deixe essa tela aberta.
 
+> O Resend oferece configurar o DNS sozinho, se você conectar a conta do
+> provedor. **Recuse.** Isso dá a ele permissão de escrita na sua zona inteira,
+> para economizar três cópias e colas.
+
 ## 3. Provar que o domínio é seu
 
-Volte ao registro.br, entre no domínio e procure a área de **DNS / Editar
-Zona**. Copie para lá, um por um, os registros que o Resend mostrou.
+Vá ao provedor de DNS do domínio — neste projeto, a **Cloudflare** (o domínio é
+do registro.br, mas os servidores de nome apontam para a Cloudflare, que é onde
+a zona é editada). Em **DNS → Records**, copie para lá, um por um, os registros
+que o Resend mostrou.
+
+Na Cloudflare, deixe o **Proxy status** em `DNS only` (nuvem cinza) para todos
+eles. Registro de e-mail não passa por proxy.
 
 São três tipos, e vale entender o que cada um faz, porque é o que separa "chega
 na caixa de entrada" de "chega no spam":
@@ -89,16 +134,31 @@ antes de ver `Verified`.**
 
 ### O DMARC, que o Resend deixa opcional
 
-Vale acrescentar mesmo assim. No registro.br, um registro `TXT` com nome
-`_dmarc` e valor:
+Vale acrescentar mesmo assim: um registro `TXT` com nome `_dmarc`, **na raiz do
+domínio**. A política é herdada por todos os subdomínios, então este é o único
+lugar onde ela precisa existir — não crie um `_dmarc` para cada sistema.
 
 ```
-v=DMARC1; p=none; rua=mailto:seu-email@seudominio.com.br
+v=DMARC1; p=reject; rua=mailto:seu-email@exemplo.com
 ```
 
-`p=none` significa "só me avise, não bloqueie nada" — é o modo seguro para
-começar. Depois de algumas semanas recebendo os relatórios e vendo que está tudo
-certo, dá para endurecer para `p=quarantine`.
+Duas escolhas dentro dessa linha, e nenhuma é óbvia:
+
+- **`p=reject`** manda o servidor de destino recusar o que falhar. É o mais
+  duro, e aqui é seguro porque o DKIM do Resend assina exatamente o domínio que
+  aparece no remetente — o alinhamento é perfeito, e nada legítimo falha. Se a
+  Cloudflare já tiver criado esse registro sozinha ao abrir a zona (ela faz
+  isso), mantenha o `p=reject` que veio.
+- **`rua=`** é o endereço que recebe os relatórios. Sem ele, `p=reject` rejeita
+  **em silêncio**: se um dia algo sair desalinhado, as mensagens somem e ninguém
+  descobre. Esse endereço é o que transforma a política em algo observável.
+
+Os relatórios começam a chegar em 1 a 3 dias, um por dia, como XML zipado. São
+ilegíveis a olho nu e não precisam ser lidos — existem para o dia em que o
+e-mail parar de chegar e você precisar saber por quê.
+
+**Confira que só existe um `_dmarc`.** Dois valores no mesmo nome invalidam os
+dois: o DNS não escolhe, ele desiste.
 
 ## 4. Pegar a chave de envio
 
@@ -121,11 +181,15 @@ No painel do projeto: **Authentication → Emails → SMTP Settings**, e ligue
 | Port | `465` |
 | Username | `resend` |
 | Password | a chave do passo 4 |
-| Sender email | `nao-responda@seudominio.com.br` |
+| Sender email | `nao-responda@mail.conexao.qidominios.com.br` |
 | Sender name | `CONEXÃO` |
 
-O remetente **precisa ser do domínio que você verificou**. Se for de outro, o
-Resend recusa o envio.
+O **Username é literalmente a palavra `resend`**, igual para todo mundo — não é
+o seu e-mail nem o nome da chave. É o tropeço mais comum deste passo.
+
+O remetente **precisa ser do domínio que você verificou** — com o `mail.` na
+frente. Um remetente `@qidominios.com.br` seria recusado pelo Resend: a raiz não
+está verificada, e não deve estar.
 
 `nao-responda@` não precisa existir como caixa de entrada — ninguém vai
 responder para ele. Se preferir um endereço que receba respostas, use um que
@@ -140,16 +204,57 @@ valor baixo do serviço embutido mesmo depois de ligar o SMTP próprio. Suba par
 algo compatível com o seu plano — com o gratuito do Resend, 100 por hora é um
 teto coerente com os 100 por dia.
 
-## 7. Conferir os endereços de volta
+## 7. Autorizar os endereços de volta
+
+**Este é o passo que quebra tudo, e ele não parece perigoso.** Foi o que
+aconteceu aqui em 04/09/2026: SMTP perfeito, e-mail na caixa de entrada,
+remetente alinhado — e o link levava a pessoa para `localhost:3000`.
 
 Em **Authentication → URL Configuration**:
 
 - **Site URL**: `https://ruidias06111966.github.io/saas/`
-- **Redirect URLs**: o mesmo endereço acima.
+- **Redirect URLs**, uma por linha:
+  - `https://ruidias06111966.github.io/saas/`
+  - `https://ruidias06111966.github.io/saas/**`
+  - `https://conexao.qidominios.com.br/**` (para o dia da troca de endereço)
 
-O app manda o destino explicitamente a cada cadastro (`emailRedirectTo`, em
-`services/auth.ts`), justamente para não depender só desta tela. Mas o Supabase
-só aceita destinos que estejam nesta lista — então os dois precisam bater.
+### Por que o app mandar o destino não basta
+
+O app manda o destino explicitamente a cada envio (`emailRedirectTo`, em
+`services/auth.ts`). Seria razoável supor que isso resolve. Não resolve, e o
+motivo é o detalhe que custa caro:
+
+**Um destino fora da lista não é recusado — é substituído.** O Supabase ignora
+o que o app pediu e usa o `Site URL`, cujo padrão de fábrica é
+`http://localhost:3000`. Não há erro, log ou alerta em lugar nenhum. A pessoa
+recebe o e-mail, clica, e aterrissa num endereço que só existe na máquina de
+quem programa.
+
+Por isso a lista precisa conter o endereço **exato** que o app envia, e não só
+algo parecido.
+
+### O falso alarme que vem junto
+
+Ao cair em `localhost`, a URL costuma trazer também
+`error_code=otp_expired&error_description=Email+link+is+invalid+or+has+expired`.
+
+**Ignore esse erro — ele quase sempre é consequência, não causa.** O link de
+confirmação vale **uma única vez**; ao recarregar a página quebrada, o mesmo
+token é apresentado de novo e o Supabase recusa, corretamente. Confira em
+`auth.users`: se `email_confirmed_at` estiver preenchido, o primeiro clique
+funcionou e o único problema é o endereço.
+
+```sql
+select email, confirmation_sent_at, email_confirmed_at
+from auth.users where email = 'ENDERECO_DE_TESTE';
+```
+
+### O limite da lista é de segurança, não de burocracia
+
+Não use curinga largo (`https://**`). Essa lista é o que impede alguém de
+forjar um link de recuperação que entrega a **sessão da pessoa** num site de
+terceiros. Ela precisa ser estreita: os endereços que você realmente controla,
+e mais nenhum.
 
 ---
 
@@ -162,7 +267,24 @@ contato.
 Em **Authentication → Emails → Templates**, troque o conteúdo. Abaixo, prontos
 para colar.
 
-### Confirm signup
+A lista de modelos é longa, mas **o app só dispara dois deles hoje**:
+
+| modelo no painel | quem dispara | traduzir? |
+|---|---|---|
+| **Confirm sign up** | `signUp()`, em `services/auth.ts` | **sim** |
+| **Reset password** | `pedirRedefinicao()`, em `services/auth.ts` | **sim** |
+| Invite user | ninguém — o app não convida | não |
+| Magic link or OTP | ninguém — o login é só por senha | não |
+| Change email address | ninguém ainda; o app não deixa trocar e-mail | quando deixar |
+| Reauthentication | ninguém | não |
+| Os da seção *Security* | avisos de segurança do próprio Supabase, se ligados | opcional |
+
+Os da seção **Security** (senha alterada, e-mail alterado, método de login
+adicionado) são avisos que o Supabase manda sozinho quando a conta muda. Não
+dependem de código nenhum e são bons de ter — mas continuam em inglês até
+alguém traduzi-los, e nenhum cadastro depende disso.
+
+### Confirm sign up
 
 Assunto:
 
@@ -267,8 +389,7 @@ Corpo:
 </table>
 ```
 
-Os outros modelos (Invite, Magic Link, Change Email, Reauthentication) podem
-ficar como estão: o app não usa nenhum deles hoje.
+Os outros modelos podem ficar como estão — ver a tabela no começo desta seção.
 
 ---
 
@@ -300,8 +421,10 @@ GitHub Pages.
 Não confie no "salvou sem erro". Teste com um endereço **que não seja o dono do
 projeto** — é justamente esse caso que o serviço embutido não atendia.
 
-1. Abra o app e cadastre-se com um e-mail de outro provedor (um Gmail seu, o de
-   alguém de confiança).
+1. Abra o app e cadastre-se com um endereço que não seja o do dono. Não precisa
+   de uma segunda caixa: no Gmail, `voce+teste@gmail.com` chega na sua caixa
+   normal, mas para o Supabase é um endereço **diferente** — que é exatamente a
+   condição que se quer testar.
 2. O e-mail deve chegar em segundos, **em português**, com o remetente do seu
    domínio.
 3. Clique no botão. Você tem que cair no app, logado — não em `localhost`, não
@@ -315,6 +438,33 @@ passo 7.
 ---
 
 ## O que continua faltando depois disto
+
+### Mudar o site de endereço
+
+O código já está preparado: preencher a variável de repositório
+`DOMINIO_DO_SITE` (Settings → Secrets and variables → Actions → Variables) com,
+por exemplo, `conexao.qidominios.com.br` faz o build sair na raiz do domínio e
+o workflow escrever o `CNAME` que o GitHub Pages exige. Vazia, nada muda.
+
+**Mas a variável sozinha não basta.** Outros três lugares apontam para o
+endereço do site, e se um ficar para trás o login ou o pagamento quebra sem
+erro visível:
+
+| # | Onde |
+|---|---|
+| 1 | Supabase → Authentication → URL Configuration → **Site URL** |
+| 2 | Supabase → Authentication → URL Configuration → **Redirect URLs** |
+| 3 | Supabase → Edge Functions → Secrets → **`URLS_DO_APP`** |
+
+O log da publicação repete essa lista sempre que a variável estiver preenchida,
+e o passo "Conferir o pacote publicado" **aborta** se a base do pacote não
+bater com o destino — a falha aqui seria página em branco, com 404 em cada
+arquivo e nenhuma explicação.
+
+Do lado do DNS, um registro na Cloudflare:
+`CNAME  conexao → ruidias06111966.github.io`, com o proxy **desligado**
+("DNS only"). Com a nuvem laranja ligada o GitHub não emite o certificado e o
+site fica com aviso de não seguro.
 
 **O site continua no endereço do GitHub.** Com o domínio registrado, dá para
 apontá-lo para o GitHub Pages. Aí o `Site URL`, o `Redirect URLs` e o

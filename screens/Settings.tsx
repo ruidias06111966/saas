@@ -6,14 +6,42 @@ import { clearState } from '../services/storage';
 import { aiEnabled } from '../services/geminiService';
 import { POLICY_VERSION } from '../constants';
 import { Page } from '../components/layout/AppShell';
-import { Banner, Button, Card, Chip, Icon, Input, Modal, SectionTitle, Toggle } from '../components/ui';
+import { Banner, Button, Card, Chip, Field, Icon, Input, Modal, SectionTitle, Toggle } from '../components/ui';
 import { firstName } from '../services/utils';
+import { redefinirSenha } from '../services/auth';
+
+const MINIMO_DA_SENHA = 8;
 
 export function Settings() {
   const { me, state, dispatch, back, toast, navigate, logout, deleteAccount, mode } = useApp();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmText, setConfirmText] = useState('');
   const [dark, setDark] = useState(state.theme === 'dark');
+  const [senha, setSenha] = useState('');
+  const [senha2, setSenha2] = useState('');
+  const [erroSenha, setErroSenha] = useState('');
+  const [salvandoSenha, setSalvandoSenha] = useState(false);
+
+  const trocarSenha = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErroSenha('');
+    if (senha.length < MINIMO_DA_SENHA) {
+      return setErroSenha(`A senha precisa de pelo menos ${MINIMO_DA_SENHA} caracteres.`);
+    }
+    if (senha !== senha2) return setErroSenha('As senhas não conferem.');
+
+    setSalvandoSenha(true);
+    try {
+      await redefinirSenha(senha);
+      setSenha('');
+      setSenha2('');
+      toast('Senha alterada. Use a nova na próxima entrada.', 'ok');
+    } catch (err) {
+      setErroSenha((err as Error).message);
+    } finally {
+      setSalvandoSenha(false);
+    }
+  };
 
   if (!me) return null;
   const blocked = Array.from(blockedIdsFor(state, me.id))
@@ -31,6 +59,39 @@ export function Settings() {
             onChange={(v) => { setDark(v); dispatch({ type: 'SET_THEME', theme: v ? 'dark' : 'light' }); }}
           />
         </Card>
+
+        {/* Trocar a senha estando dentro do app.
+            Faltava, e a falta não era teórica: quem entra pelo link de
+            confirmação do cadastro fica logado sem nunca ter escolhido senha.
+            Sem esta tela, a única saída era pedir um e-mail de recuperação —
+            um caminho de fora para uma pessoa que já está dentro. */}
+        {mode === 'online' && (
+          <Card className="p-5">
+            <SectionTitle hint="Vale para a próxima vez que você entrar.">Senha</SectionTitle>
+            <form onSubmit={trocarSenha} className="space-y-3">
+              <Field label="Nova senha" required>
+                <Input
+                  type="password" value={senha} autoComplete="new-password"
+                  onChange={(e) => setSenha(e.target.value)}
+                />
+              </Field>
+              <Field label="Repita a nova senha" required error={erroSenha}>
+                <Input
+                  type="password" value={senha2} autoComplete="new-password"
+                  onChange={(e) => setSenha2(e.target.value)}
+                />
+              </Field>
+              <Button type="submit" icon="check" loading={salvandoSenha}>
+                Salvar a senha
+              </Button>
+            </form>
+            <p className="mt-3 text-xs leading-relaxed text-muted">
+              Mínimo de {MINIMO_DA_SENHA} caracteres. Sua senha não é guardada
+              aqui em texto: o servidor de autenticação guarda só um resumo
+              criptográfico dela, do qual não se volta atrás.
+            </p>
+          </Card>
+        )}
 
         <Card className="p-5">
           <SectionTitle hint="O que outras pessoas conseguem ver sobre você.">Privacidade</SectionTitle>
