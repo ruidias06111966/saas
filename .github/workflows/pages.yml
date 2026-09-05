@@ -148,6 +148,28 @@ jobs:
           fi
           echo "Base confere."
 
+          # Instalacao no celular. Sao tres arquivos, e a falta de qualquer um
+          # nao da erro nenhum: o Android simplesmente para de oferecer
+          # "Instalar aplicativo", em silencio. Como o empacotamento para a
+          # Play Store parte dai, uma publicacao sem eles quebraria a loja sem
+          # avisar. Ver docs/CELULAR.md.
+          FALTOU=""
+          for f in manifest.webmanifest sw.js \
+                   icones/icone-192.png icones/icone-512.png \
+                   icones/icone-maskable-512.png icones/icone-apple-180.png; do
+            [ -f "dist/$f" ] || FALTOU="$FALTOU $f"
+          done
+          if [ -n "$FALTOU" ]; then
+            echo "ERRO: faltam arquivos do aplicativo de celular:$FALTOU"
+            echo "Se foram apagados de public/, rode: python3 scripts/gerar-icones.py"
+            exit 1
+          fi
+          if ! grep -qF "href=\"${ESPERADO}manifest.webmanifest\"" dist/index.html; then
+            echo "ERRO: o index.html nao aponta para ${ESPERADO}manifest.webmanifest."
+            exit 1
+          fi
+          echo "Aplicativo de celular: manifest, service worker e os quatro icones no lugar."
+
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

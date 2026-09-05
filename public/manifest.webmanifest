@@ -1,0 +1,19 @@
+{
+  "id": "conexao",
+  "name": "CONEXÃO — a conversa antes da aparência",
+  "short_name": "CONEXÃO",
+  "description": "Conexões baseadas em interesses, personalidade e boas conversas.",
+  "lang": "pt-BR",
+  "dir": "ltr",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "background_color": "#FAF6F1",
+  "theme_color": "#1F1A2E",
+  "categories": ["social", "lifestyle"],
+  "icons": [
+    { "src": "icones/icone-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icones/icone-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icones/icone-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
