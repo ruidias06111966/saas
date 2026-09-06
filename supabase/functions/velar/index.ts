@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// CONEXÃO — geração do Véu no servidor.
+// QICONEXÃO — geração do Véu no servidor.
 //
 // O QUE ESTA FUNÇÃO FECHA
 // O Véu é uma pirâmide de resoluções: 12, 24, 48 e 96 pixels de largura, mais o

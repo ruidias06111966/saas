@@ -289,7 +289,7 @@ const SPECS: [Spec, number][] = [
   }, 65],
 
   [{
-    id: 'u_admin', name: 'Equipe CONEXÃO', email: 'admin@conexao.app', birthDate: '1990-01-01',
+    id: 'u_admin', name: 'Equipe QICONEXÃO', email: 'admin@conexao.app', birthDate: '1990-01-01',
     gender: 'outro', city: 'sp', profession: 'Moderação',
     bio: 'Conta administrativa. Não aparece na descoberta.',
     interests: [], personality: p(50, 50, 50, 50, 50),

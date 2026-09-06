@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// CONEXÃO — webhook do Stripe. É aqui, e só aqui, que o plano muda.
+// QICONEXÃO — webhook do Stripe. É aqui, e só aqui, que o plano muda.
 //
 // POR QUE `verify_jwt: false`
 // O Stripe não tem sessão no nosso app; ele não manda JWT nenhum. A porta

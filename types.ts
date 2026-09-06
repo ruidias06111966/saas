@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// CONEXÃO — modelo de domínio
+// QICONEXÃO — modelo de domínio
 // Estes tipos espelham 1:1 as tabelas em docs/SUPABASE.sql. Ao plugar o backend
 // real, só a camada services/storage.ts muda; telas e regras continuam iguais.
 // ---------------------------------------------------------------------------

@@ -1,5 +1,5 @@
 /*
- * Service worker do CONEXÃO.
+ * Service worker do QICONEXÃO.
  *
  * Existe por dois motivos, nesta ordem:
  *

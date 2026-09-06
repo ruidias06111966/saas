@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Gera os ícones do CONEXÃO para o celular.
+Gera os ícones do QICONEXÃO para o celular.
 
 Por que um script e não arquivos soltos: ícone é imagem binária, e imagem
 binária no repositório é uma decisão que ninguém consegue revisar depois. Aqui

@@ -1,4 +1,4 @@
-# O CONEXÃO no celular
+# O QICONEXÃO no celular
 
 Dois assuntos que parecem um só e não são: **instalar direto do navegador**
 (pronto, funcionando) e **publicar na Play Store** (depende de decisões que
@@ -23,7 +23,7 @@ custam dinheiro). O primeiro é pré-requisito do segundo.
 ## Parte 1 — instalar direto do navegador
 
 Já funciona. Não custa nada, não passa por loja nenhuma, e a pessoa fica com o
-ícone do CONEXÃO na tela do celular.
+ícone do QICONEXÃO na tela do celular.
 
 **Android (Chrome).** Abrir `https://conexao.qidominios.com.br`, tocar nos três
 pontinhos (⋮) e escolher **Instalar aplicativo**. Em alguns aparelhos aparece
@@ -114,7 +114,7 @@ se pode fazer é botão de assinatura dentro do app apontando para o Stripe.
 | Formulário de Segurança de Dados | não feito |
 
 A política de privacidade é o item mais parado: o Google exige uma **URL pública,
-que abra sem login**. Hoje o texto de privacidade do CONEXÃO só existe dentro do
+que abra sem login**. Hoje o texto de privacidade do QICONEXÃO só existe dentro do
 app, nas telas de cadastro e configurações.
 
 ### Os passos, quando a hora chegar

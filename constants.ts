@@ -1,8 +1,24 @@
 import type { AxisKey, ChatPace, Gender, Lifestyle, RelationshipGoal } from './types';
 
-export const APP_NAME = 'CONEXÃO';
+/**
+ * O nome que aparece na tela, e o único lugar onde ele mora.
+ *
+ * Estava declarado aqui desde o começo e nenhuma tela o usava — cada uma
+ * escrevia "CONEXÃO" à mão. A troca para QICONEXÃO, em 06/09/2026, custou
+ * dez arquivos por causa disso; a próxima custa esta linha.
+ */
+export const APP_NAME = 'QICONEXÃO';
 export const APP_TAGLINE = 'Antes de escolher alguém, conheça alguém.';
 export const POLICY_VERSION = '2026.1';
+
+/**
+ * ATENÇÃO: esta chave e as irmãs dela (`conexao.auth` em supabaseClient.ts,
+ * `conexao.cadastro.rascunho` em signupDraft.ts) NÃO acompanham o nome do
+ * produto. Elas nomeiam o que já está guardado no navegador de quem usa o
+ * app: mudá-las desloga todo mundo e apaga cadastros pela metade, sem erro
+ * nenhum que explique. O mesmo vale para `conexao_user_id` na metadata do
+ * Stripe e para o endereço do site.
+ */
 export const STORAGE_KEY = 'conexao.state.v1';
 export const MIN_AGE = 18;
 

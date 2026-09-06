@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// CONEXÃO — decisão de um pedido de verificação de perfil.
+// QICONEXÃO — decisão de um pedido de verificação de perfil.
 //
 // POR QUE ISTO NÃO É UMA RPC DO POSTGRES
 // A decisão tem duas metades que precisam andar juntas: gravar o veredito (e o

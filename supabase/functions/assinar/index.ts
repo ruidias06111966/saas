@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// CONEXÃO — abre o checkout da assinatura.
+// QICONEXÃO — abre o checkout da assinatura.
 //
 // O QUE ESTA FUNÇÃO NÃO FAZ: mudar o plano. Ela só devolve um link de
 // pagamento. Quem diz que o pagamento aconteceu é o Stripe, falando com o
@@ -15,7 +15,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 
 const PRECO_CENTAVOS = 2990;
 const MOEDA = 'brl';
-const NOME_DO_PLANO = 'CONEXÃO Premium';
+const NOME_DO_PLANO = 'QICONEXÃO Premium';
 
 // ---------------------------------------------------------------------------
 // DOIS MODOS DE PREÇO, e a escolha é de configuração, não de código.

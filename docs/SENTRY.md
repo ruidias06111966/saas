@@ -1,4 +1,4 @@
-# Registro de erros do CONEXÃO
+# Registro de erros do QICONEXÃO
 
 Roteiro para ligar o Sentry e, principalmente, para **limitar o que ele
 recebe**. A parte de ligar leva cinco minutos; a de limitar é a que importa.

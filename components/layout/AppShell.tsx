@@ -6,6 +6,7 @@ import { useApp } from '../../state/AppContext';
 import { connectionsOf, unreadCount } from '../../state/appState';
 import { cx, firstName } from '../../services/utils';
 import { Avatar } from '../Portrait';
+import { APP_NAME } from '../../constants';
 
 const NAV: { route: Route['name']; label: string; icon: IconName }[] = [
   { route: 'home', label: 'Início', icon: 'home' },
@@ -48,7 +49,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {/* Sidebar — desktop */}
       <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r border-line bg-surface px-4 py-6 lg:flex">
         <button type="button" onClick={() => navigate({ name: 'home' })} className="mb-8 px-2 text-left">
-          <span className="font-display text-xl font-bold tracking-tight">CONEXÃO</span>
+          <span className="font-display text-xl font-bold tracking-tight">{APP_NAME}</span>
           <span className="mt-0.5 block text-[10px] uppercase tracking-[0.18em] text-muted">conversa primeiro</span>
         </button>
 

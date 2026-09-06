@@ -1,4 +1,4 @@
-# CONEXÃO
+# QICONEXÃO
 
 **Antes de escolher alguém, conheça alguém.**
 

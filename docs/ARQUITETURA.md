@@ -1,4 +1,4 @@
-# CONEXÃO — arquitetura e decisões
+# QICONEXÃO — arquitetura e decisões
 
 ## Princípio que organiza tudo
 

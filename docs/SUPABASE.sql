@@ -1,5 +1,5 @@
 -- ===========================================================================
--- CONEXÃO — schema PostgreSQL / Supabase
+-- QICONEXÃO — schema PostgreSQL / Supabase
 -- Espelha 1:1 os tipos de types.ts. Aplique com:
 --   supabase db push          (ou cole no SQL Editor do painel)
 -- ===========================================================================

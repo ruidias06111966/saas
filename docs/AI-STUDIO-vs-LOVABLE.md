@@ -1,4 +1,4 @@
-# Google AI Studio ou Lovable para construir o CONEXÃO?
+# Google AI Studio ou Lovable para construir o QICONEXÃO?
 
 Resposta direta primeiro, justificativa depois.
 
@@ -9,17 +9,17 @@ Resposta direta primeiro, justificativa depois.
 1. **Google AI Studio** para prototipar e afinar a camada de IA (o Copiloto de Conversa,
    a moderação, a explicação de compatibilidade). É onde você testa prompt, `responseSchema`
    e temperatura em segundos, de graça, com o modelo na mão.
-2. **Lovable** para construir o CONEXÃO como sistema de verdade: banco, autenticação,
+2. **Lovable** para construir o QICONEXÃO como sistema de verdade: banco, autenticação,
    RLS, upload de foto, chat em tempo real, deploy e domínio.
 
-Se você só puder escolher **um**, escolha **Lovable**. O CONEXÃO é um app com dados
+Se você só puder escolher **um**, escolha **Lovable**. O QICONEXÃO é um app com dados
 privados por natureza — mensagens entre duas pessoas, denúncias, dados pessoais sob LGPD.
 Isso exige banco com controle de acesso por linha, e é exatamente o que o AI Studio não
 tem.
 
 ## Comparação no que importa para este projeto
 
-| Necessidade real do CONEXÃO | Google AI Studio (Build) | Lovable |
+| Necessidade real do QICONEXÃO | Google AI Studio (Build) | Lovable |
 |---|---|---|
 | Banco de dados relacional | Não tem | Supabase nativo, integrado no fluxo |
 | Autenticação de usuários | Não tem | Supabase Auth, pronto |
@@ -43,7 +43,7 @@ incidente. Isso se resolve com Row Level Security no banco, do lado do servidor.
 O AI Studio Build gera aplicações que rodam inteiras no navegador. Não há servidor onde
 essa regra possa morar. Serve muito bem para um protótipo navegável e para desenvolver a
 camada de IA — e é por isso que o código deste repositório está pronto para ele — mas não
-é onde o CONEXÃO vira SaaS.
+é onde o QICONEXÃO vira SaaS.
 
 Há ainda a questão da chave: no AI Studio a `API_KEY` do Gemini vai para o cliente. Para
 um protótipo pessoal, tudo bem. Para um app publicado, é uma chave sua na mão de qualquer
