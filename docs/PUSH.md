@@ -45,27 +45,39 @@ menos.
 
 ## 1. Gerar o par de chaves
 
-**Você gera, no seu computador.** Eu não gero por você de propósito: a chave
-privada é segredo, e segredo que passa por uma conversa é segredo que precisa
-ser trocado depois.
+**Você gera, na sua máquina.** Não é preciosismo: a chave privada é segredo, e
+segredo que passa por uma conversa, um chat ou um site de terceiro é segredo
+que precisa ser trocado depois. Gerando aí, ela nunca sai do seu computador.
 
-Abra o terminal e rode:
+### Pelo navegador (recomendado — não precisa instalar nada)
+
+Abra `https://conexao.qidominios.com.br`, aperte **F12** para abrir as
+ferramentas do desenvolvedor, vá na aba **Console** e cole isto:
+
+```js
+const par = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits']);
+const b64 = (b) => btoa(String.fromCharCode(...new Uint8Array(b))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+console.log('PUBLICA :', b64(await crypto.subtle.exportKey('raw', par.publicKey)));
+console.log('PRIVADA :', (await crypto.subtle.exportKey('jwk', par.privateKey)).d);
+```
+
+Saem duas linhas. A **pública** tem 87 caracteres e começa com `B`; a
+**privada** tem 43.
+
+> **Precisa ser numa página https.** `crypto.subtle` não existe em página
+> insegura nem em `about:blank` — o console responde
+> `Cannot read properties of undefined`.
+
+### Pelo terminal (se preferir)
 
 ```
 npx web-push generate-vapid-keys
 ```
 
-Sai algo assim:
-
-```
-=======================================
-Public Key:
-BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkT...
-
-Private Key:
-8eDyX_uCN0XRhSbCYwF1a5yAcA6mnZ...
-=======================================
-```
+Exige Node instalado. Produz exatamente o mesmo par: **conferido em
+06/09/2026** — um par gerado pelo navegador foi aceito pela biblioteca
+`web-push`, que é a mesma que a Edge Function usa, e assinou um envio de
+verdade.
 
 > **VAPID** é o padrão que prova ao Google e à Mozilla que o aviso partiu do
 > nosso servidor, e não de qualquer um que tenha descoberto o endereço do
