@@ -51,8 +51,17 @@ que precisa ser trocado depois. Gerando aí, ela nunca sai do seu computador.
 
 ### Pelo navegador (recomendado — não precisa instalar nada)
 
-Abra `https://conexao.qidominios.com.br`, aperte **F12** para abrir as
-ferramentas do desenvolvedor, vá na aba **Console** e cole isto:
+Abra `https://conexao.qidominios.com.br` e chegue ao Console assim:
+
+**Três pontinhos (⋮) → Mais ferramentas → Ferramentas do desenvolvedor →
+aba Console.**
+
+> **Pelo menu, e não por F12.** Em muitos notebooks a linha de teclas de
+> função vem configurada para as funções secundárias, e F12 abre a
+> calculadora. `Ctrl + Shift + J` abre direto no Console; `Fn + F12` faz o
+> F12 valer como F12.
+
+Cole isto e aperte Enter:
 
 ```js
 const par = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits']);
@@ -63,6 +72,11 @@ console.log('PRIVADA :', (await crypto.subtle.exportKey('jwk', par.privateKey)).
 
 Saem duas linhas. A **pública** tem 87 caracteres e começa com `B`; a
 **privada** tem 43.
+
+> **O Chrome não deixa colar de primeira.** Aparece um aviso vermelho sobre
+> não colar código que você não entende — é proteção contra golpe, e é
+> legítima. Para liberar, **digite** `allow pasting` no Console, aperte Enter,
+> e então cole. Vale só para aquela aba.
 
 > **Precisa ser numa página https.** `crypto.subtle` não existe em página
 > insegura nem em `about:blank` — o console responde
