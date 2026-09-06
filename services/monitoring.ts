@@ -1,7 +1,7 @@
 import * as Sentry from '@sentry/react';
 
 // ---------------------------------------------------------------------------
-// CONEXÃO — registro de erros.
+// QICONEXÃO — registro de erros.
 //
 // O PROBLEMA QUE ISTO RESOLVE
 // Sem isto, um erro de renderização é tela branca: a pessoa fecha a aba e
@@ -170,7 +170,7 @@ export function identificarUsuario(id: string | null): void {
  */
 export function reportarErro(erro: unknown, onde: string): void {
   if (!dsn) {
-    console.error(`[CONEXÃO] ${onde}`, erro);
+    console.error(`[QICONEXÃO] ${onde}`, erro);
     return;
   }
   Sentry.captureException(erro, { tags: { onde } });

@@ -1,7 +1,7 @@
 import { useApp } from '../state/AppContext';
 import { Button, Card, Icon, type IconName } from '../components/ui';
 import { supabaseEnabled } from '../services/supabaseClient';
-import { APP_TAGLINE } from '../constants';
+import { APP_NAME, APP_TAGLINE } from '../constants';
 
 const STEPS = [
   { n: '01', t: 'Crie seu perfil', d: 'Interesses, jeito de ser e algumas respostas suas. Leva cinco minutos.' },
@@ -31,7 +31,7 @@ export function Landing() {
     <div className="min-h-full bg-bg">
       <header className="mx-auto flex max-w-6xl items-center justify-between px-5 py-5">
         <div>
-          <span className="font-display text-xl font-bold tracking-tight">CONEXÃO</span>
+          <span className="font-display text-xl font-bold tracking-tight">{APP_NAME}</span>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="sm" onClick={() => navigate({ name: 'login' })}>Entrar</Button>
@@ -110,7 +110,7 @@ export function Landing() {
             <h2 className="font-display text-3xl font-bold tracking-tight">O que fazemos diferente</h2>
             <p className="mt-3 text-base leading-relaxed text-muted">
               Aplicativos de relacionamento otimizam para o tempo que você passa deslizando perfis.
-              O CONEXÃO otimiza para a conversa que sobra depois.
+              O {APP_NAME} otimiza para a conversa que sobra depois.
             </p>
           </div>
           <div className="mt-8 grid gap-5 lg:grid-cols-3">
@@ -164,7 +164,7 @@ export function Landing() {
       </section>
 
       <footer className="mx-auto max-w-6xl px-5 py-10 text-center">
-        <p className="font-display text-lg font-bold">CONEXÃO</p>
+        <p className="font-display text-lg font-bold">{APP_NAME}</p>
         {/* Este aviso precisa dizer a verdade sobre o modo em que o site subiu.
             Em modo online há gente real e banco real; chamar isso de "perfis
             fictícios" seria falso justamente na frase que fala de dados. */}

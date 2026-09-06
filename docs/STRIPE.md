@@ -1,4 +1,4 @@
-# Pagamento do CONEXÃO
+# Pagamento do QICONEXÃO
 
 Roteiro para tirar a cobrança do modo de teste e colocá-la em produção.
 Escrito para ser seguido de cima para baixo, sem pular.
@@ -80,7 +80,7 @@ Em **Catálogo de produtos → Adicionar produto**
 
 | campo | valor |
 |---|---|
-| Nome (*Name*) | `CONEXÃO Premium` |
+| Nome (*Name*) | `QICONEXÃO Premium` |
 | Descrição (*Description*) | `Mais alcance e mais ferramentas. Segurança e direitos de LGPD seguem fora do paywall.` |
 | Preço (*Price*) | `29,90` |
 | Moeda (*Currency*) | `BRL` |

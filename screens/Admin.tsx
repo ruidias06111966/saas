@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import type { AccountStatus, ReportStatus } from '../types';
-import { REPORT_REASON_LABEL } from '../constants';
+import { APP_NAME, REPORT_REASON_LABEL } from '../constants';
 import { CATEGORY_LABEL } from '../services/moderation';
 import { useApp } from '../state/AppContext';
 import { findUser } from '../state/appState';
@@ -111,7 +111,7 @@ export function Admin() {
           </div>
 
           <Banner tone="info" icon="chart" title="A métrica que importa aqui">
-            Em um app de relacionamento comum, a métrica de sucesso é tempo em tela. No CONEXÃO é a
+            Em um app de relacionamento comum, a métrica de sucesso é tempo em tela. No {APP_NAME} é a
             <strong> taxa de conexões que viram conversa de verdade</strong> — e a de conversas que
             chegam ao estágio "Revelado". São essas que colocamos no topo do painel de propósito.
           </Banner>

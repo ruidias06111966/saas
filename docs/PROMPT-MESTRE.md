@@ -1,4 +1,4 @@
-# PROMPT-MESTRE — CONEXÃO
+# PROMPT-MESTRE — QICONEXÃO
 ### Versão melhorada, pronta para colar no Google AI Studio (Build) ou no Lovable
 
 > Como usar: cole **tudo** o que está entre as linhas `>>>` e `<<<` como primeira
@@ -9,17 +9,17 @@
 
 >>> COMEÇA O PROMPT
 
-# CONEXÃO — aplicativo de relacionamentos em que a conversa vem antes da aparência
+# QICONEXÃO — aplicativo de relacionamentos em que a conversa vem antes da aparência
 
 Construa um aplicativo web responsivo, mobile-first, em **React + TypeScript**, chamado
-**CONEXÃO**. Não é um clone de Tinder com outra paleta. É um produto com uma tese
+**QICONEXÃO**. Não é um clone de Tinder com outra paleta. É um produto com uma tese
 própria, e o seu trabalho é implementar essa tese sem diluí-la.
 
 ## 0. A tese, e a anti-tese
 
 **Tese:** *"Antes de escolher alguém, conheça alguém."* O gargalo dos aplicativos de
 relacionamento não é a falta de perfis — é a quantidade de conexões que morrem sem
-nunca virar conversa. O CONEXÃO otimiza para **conversas que acontecem de verdade**,
+nunca virar conversa. O QICONEXÃO otimiza para **conversas que acontecem de verdade**,
 não para tempo de tela.
 
 **Anti-tese — o que este app NÃO deve ter, em nenhuma hipótese:**

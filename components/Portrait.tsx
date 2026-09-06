@@ -5,7 +5,7 @@ import { nivelDoReveal, resolveImage } from '../services/media';
 import { Icon } from './ui/Icon';
 
 // ---------------------------------------------------------------------------
-// Retrato com Véu — o componente que carrega o diferencial nº 1 do CONEXÃO.
+// Retrato com Véu — o componente que carrega o diferencial nº 1 do QICONEXÃO.
 // A foto começa velada e o desfoque só diminui conforme a conversa evolui.
 // Sem foto enviada, geramos um retrato abstrato determinístico (mesma pessoa =
 // mesma imagem, sempre), para que a descoberta nunca dependa de aparência.

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { QUOTAS } from '../constants';
+import { APP_NAME, QUOTAS } from '../constants';
 import { useApp } from '../state/AppContext';
 import { Page } from '../components/layout/AppShell';
 import { Banner, Button, Card, Icon } from '../components/ui';
@@ -78,7 +78,7 @@ export function Premium() {
   };
 
   return (
-    <Page title="CONEXÃO Premium" back={back} subtitle="Mais alcance e mais ferramentas — sem mudar as regras do jogo para quem é gratuito.">
+    <Page title={`${APP_NAME} Premium`} back={back} subtitle="Mais alcance e mais ferramentas — sem mudar as regras do jogo para quem é gratuito.">
       {!supabaseEnabled ? (
         <Banner tone="info" icon="info" title="Modo demonstração: nada é cobrado">
           Aqui o botão só troca o plano na tela. No modo online a cobrança é real, pelo Stripe.

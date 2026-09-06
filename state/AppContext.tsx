@@ -127,7 +127,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (!supabaseEnabled) return;
     backend.loadHealth(connectionId)
       .then((health) => { if (health) dispatch({ type: 'SET_HEALTH', connectionId, health }); })
-      .catch((err) => console.error('[CONEXÃO] Falha ao ler o termômetro.', err));
+      .catch((err) => console.error('[QICONEXÃO] Falha ao ler o termômetro.', err));
   }, []);
 
   const loadOlder = useCallback(async (connectionId: string) => {
@@ -154,7 +154,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (session?.user?.id) await hydrate(session.user.id, session.user.email ?? '');
       })
       .catch((err) => {
-        console.error('[CONEXÃO] Falha ao restaurar a sessão.', err);
+        console.error('[QICONEXÃO] Falha ao restaurar a sessão.', err);
         reportarErro(err, 'restaurar-sessao');
       })
       .finally(() => { if (vivo) setBooting(false); });
@@ -228,7 +228,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const persist = useCallback((acao: () => Promise<void>, oQue: string) => {
     if (!supabaseEnabled) return;
     acao().catch((err: Error) => {
-      console.error(`[CONEXÃO] ${oQue}`, err);
+      console.error(`[QICONEXÃO] ${oQue}`, err);
       setToasts((prev) => [...prev, {
         id: uid('toast'), tone: 'danger',
         // O motivo do servidor vai junto. Sem ele, "não chegou ao servidor" é
@@ -467,7 +467,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       backend.closeConversation(connectionId, gently)
         .then(({ reputation }) => dispatch({ type: 'UPDATE_USER', id: me.id, patch: { reputation } }))
         .catch((err: Error) => {
-          console.error('[CONEXÃO] Falha ao encerrar a conversa.', err);
+          console.error('[QICONEXÃO] Falha ao encerrar a conversa.', err);
           setToasts((prev) => [...prev, {
             id: uid('toast'), tone: 'danger',
             text: `Não foi possível encerrar a conversa no servidor. ${err.message}`,

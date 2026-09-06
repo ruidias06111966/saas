@@ -1,4 +1,4 @@
-# E-mail do CONEXÃO
+# E-mail do QICONEXÃO
 
 Roteiro para tirar a autenticação do e-mail interno do Supabase e colocá-la num
 SMTP próprio. Escrito para ser seguido de cima para baixo, sem pular.
@@ -8,7 +8,7 @@ SMTP próprio. Escrito para ser seguido de cima para baixo, sem pular.
 ## O que ficou valendo neste projeto
 
 O roteiro abaixo é genérico de propósito — os outros sistemas vão repeti-lo com
-outro subdomínio. Estes são os valores que o CONEXÃO usa hoje:
+outro subdomínio. Estes são os valores que o QICONEXÃO usa hoje:
 
 | coisa | valor |
 |---|---|
@@ -182,7 +182,7 @@ No painel do projeto: **Authentication → Emails → SMTP Settings**, e ligue
 | Username | `resend` |
 | Password | a chave do passo 4 |
 | Sender email | `nao-responda@mail.conexao.qidominios.com.br` |
-| Sender name | `CONEXÃO` |
+| Sender name | `QICONEXÃO` |
 
 O **Username é literalmente a palavra `resend`**, igual para todo mundo — não é
 o seu e-mail nem o nome da chave. É o tropeço mais comum deste passo.
@@ -289,7 +289,7 @@ alguém traduzi-los, e nenhum cadastro depende disso.
 Assunto:
 
 ```
-Confirme seu cadastro no CONEXÃO
+Confirme seu cadastro no QICONEXÃO
 ```
 
 Corpo:
@@ -301,7 +301,7 @@ Corpo:
       <table width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background:#ffffff;border-radius:12px;padding:32px">
         <tr>
           <td>
-            <p style="margin:0 0 4px;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:#8a7f74">CONEXÃO</p>
+            <p style="margin:0 0 4px;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:#8a7f74">QICONEXÃO</p>
             <h1 style="margin:0 0 16px;font-size:22px;line-height:1.3;color:#2b2520">Falta um clique</h1>
             <p style="margin:0 0 24px;font-size:15px;line-height:1.6;color:#4a423b">
               Confirme que este endereço é seu e seu perfil fica pronto. É o mesmo
@@ -346,7 +346,7 @@ verdade** ao ser aberto. Quem tiver o link tem a conta pelo tempo que ele durar.
 Assunto:
 
 ```
-Redefinir sua senha do CONEXÃO
+Redefinir sua senha do QICONEXÃO
 ```
 
 Corpo:
@@ -358,7 +358,7 @@ Corpo:
       <table width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background:#ffffff;border-radius:12px;padding:32px">
         <tr>
           <td>
-            <p style="margin:0 0 4px;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:#8a7f74">CONEXÃO</p>
+            <p style="margin:0 0 4px;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:#8a7f74">QICONEXÃO</p>
             <h1 style="margin:0 0 16px;font-size:22px;line-height:1.3;color:#2b2520">Vamos trocar sua senha</h1>
             <p style="margin:0 0 24px;font-size:15px;line-height:1.6;color:#4a423b">
               Você pediu para redefinir a senha. O link abaixo vale por uma hora.

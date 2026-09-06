@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import type { AxisKey, Gender, Lifestyle, RelationshipGoal, SeekingGender, User } from '../types';
 import {
-  AXES, GENDER_LABEL, GOAL_EMOJI, GOAL_LABEL, LIFESTYLE_FIELDS, MIN_AGE, PACE_LABEL, POLICY_VERSION,
+  APP_NAME, AXES, GENDER_LABEL, GOAL_EMOJI, GOAL_LABEL, LIFESTYLE_FIELDS, MIN_AGE, PACE_LABEL,
+  POLICY_VERSION,
 } from '../constants';
 import { INTEREST_CATEGORIES, INTERESTS } from '../data/interests';
 import { PROFILE_PROMPTS } from '../data/prompts';
@@ -84,7 +85,7 @@ export function Signup() {
       if (d.password.length < 8) e.password = 'Use pelo menos 8 caracteres.';
       if (d.password !== d.password2) e.password2 = 'As senhas não conferem.';
       if (!d.birthDate) e.birthDate = 'Informe sua data de nascimento.';
-      else if (userAge !== null && userAge < MIN_AGE) e.birthDate = `O CONEXÃO é exclusivo para maiores de ${MIN_AGE} anos.`;
+      else if (userAge !== null && userAge < MIN_AGE) e.birthDate = `O ${APP_NAME} é exclusivo para maiores de ${MIN_AGE} anos.`;
       else if (userAge !== null && userAge > 110) e.birthDate = 'Data inválida.';
     }
     if (step === 1) {

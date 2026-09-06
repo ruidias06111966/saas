@@ -1,4 +1,4 @@
-# CONEXÃO — prompt em 9 etapas encadeadas
+# QICONEXÃO — prompt em 9 etapas encadeadas
 
 Use este arquivo quando a ferramenta truncar o `PROMPT-MESTRE.md`, ou quando você quiser
 ver o app crescendo por partes e corrigir o rumo no meio do caminho. Envie um bloco por
@@ -11,7 +11,7 @@ Cada bloco começa com uma linha de contexto para o caso de a ferramenta perder 
 ## Etapa 1 — Fundação e identidade
 
 ```
-Crie um app web React 19 + TypeScript + Vite + Tailwind chamado CONEXÃO, um aplicativo
+Crie um app web React 19 + TypeScript + Vite + Tailwind chamado QICONEXÃO, um aplicativo
 de relacionamentos em que a conversa vem antes da aparência. Mobile-first.
 
 Nesta primeira etapa, entregue só a fundação:
@@ -37,7 +37,7 @@ Ainda não crie telas de app nem lógica. TypeScript strict, sem any.
 ## Etapa 2 — Modelo de domínio e dados fictícios
 
 ```
-Continuando o CONEXÃO. Agora o modelo de domínio.
+Continuando o QICONEXÃO. Agora o modelo de domínio.
 
 1. types.ts com: User (id, nome, e-mail, nascimento, gênero, cidade, coordenada
    APROXIMADA arredondada a 0,05°, foto, profissão, bio, interesses, personality com 5
@@ -56,7 +56,7 @@ Continuando o CONEXÃO. Agora o modelo de domínio.
 ## Etapa 3 — Índice de Compatibilidade explicável
 
 ```
-Continuando o CONEXÃO. Crie services/compatibility.ts como funções PURAS, sem React.
+Continuando o QICONEXÃO. Crie services/compatibility.ts como funções PURAS, sem React.
 
 computeCompatibility(a, b) devolve { score 0-100, dimensions[], sharedInterests[],
 confidence, headline, reasons[], distanceKm }. Cada dimensão traz score 0-1, peso e uma
@@ -80,7 +80,7 @@ E profileCompletion(user) devolvendo 0-100.
 ## Etapa 4 — Curadoria Diária e o Cartão de Essência
 
 ```
-Continuando o CONEXÃO. Agora o diferencial nº 2.
+Continuando o QICONEXÃO. Agora o diferencial nº 2.
 
 1. services/curation.ts: seleção determinística por semente hash(userId + data). Mesma
    semente = mesma lista o dia inteiro. 1 Encontro do Dia em destaque + 5 perfis no plano
@@ -100,7 +100,7 @@ Proibido: swipe, feed infinito, foto grande e nítida de desconhecido.
 ## Etapa 5 — Termômetro de Conversa
 
 ```
-Continuando o CONEXÃO. Agora o diferencial nº 3, em services/conversation.ts (funções puras).
+Continuando o QICONEXÃO. Agora o diferencial nº 3, em services/conversation.ts (funções puras).
 
 conversationHealth(connection, messages) devolve score 0-100 e as quatro métricas:
 - Reciprocidade 28%: 1 - |msgsA - msgsB| / total, exigindo pelo menos 4 mensagens.
@@ -127,7 +127,7 @@ se as DUAS pessoas marcarem).
 ## Etapa 6 — Conexões, chat e Rituais
 
 ```
-Continuando o CONEXÃO. Agora as telas de relacionamento.
+Continuando o QICONEXÃO. Agora as telas de relacionamento.
 
 1. Estado global com useReducer + Context, persistido em localStorage, isolado em
    services/storage.ts.
@@ -147,7 +147,7 @@ Continuando o CONEXÃO. Agora as telas de relacionamento.
 ## Etapa 7 — Copiloto Gemini
 
 ```
-Continuando o CONEXÃO. Agora a IA, em services/geminiService.ts.
+Continuando o QICONEXÃO. Agora a IA, em services/geminiService.ts.
 
 Use @google/genai, modelo gemini-2.5-flash, chave em process.env.API_KEY,
 responseMimeType 'application/json' e responseSchema para saída estruturada.
@@ -174,7 +174,7 @@ texto "O Copiloto nunca envia mensagem por você e nunca finge ser você".
 ## Etapa 8 — Segurança, moderação e LGPD
 
 ```
-Continuando o CONEXÃO. Agora a camada que não pode faltar.
+Continuando o QICONEXÃO. Agora a camada que não pode faltar.
 
 1. services/moderation.ts: heurística local em regex, rodando ANTES do envio, cobrindo
    pedido financeiro (Pix, transferência, cripto, código de verificação), contato externo
@@ -201,7 +201,7 @@ Continuando o CONEXÃO. Agora a camada que não pode faltar.
 ## Etapa 9 — Premium, polimento e schema do banco
 
 ```
-Continuando o CONEXÃO. Fechamento.
+Continuando o QICONEXÃO. Fechamento.
 
 1. Cotas por plano em uma única constante: gratuito 6 interesses/dia, 5 perfis na
    curadoria, 8 chamadas de IA; premium 40, 20 e 100, mais filtros avançados e ver quem

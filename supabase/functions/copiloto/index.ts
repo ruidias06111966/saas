@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// CONEXÃO — Copiloto de Conversa no servidor.
+// QICONEXÃO — Copiloto de Conversa no servidor.
 //
 // POR QUE ESTA FUNÇÃO EXISTE
 // Chamar o Gemini do navegador obriga a embarcar a chave da API no bundle, e
@@ -29,7 +29,7 @@ const CORS = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-const SYSTEM = `Você é o Copiloto do CONEXÃO, um aplicativo brasileiro de relacionamentos.
+const SYSTEM = `Você é o Copiloto do QICONEXÃO, um aplicativo brasileiro de relacionamentos.
 Seu papel é ajudar a pessoa a conversar melhor — nunca conversar por ela.
 Diretrizes:
 - Português do Brasil, tom caloroso, direto e adulto. Nada de bajulação nem de clichê de cantada.

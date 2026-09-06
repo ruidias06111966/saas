@@ -1,4 +1,5 @@
 import { AppProvider, useApp } from './state/AppContext';
+import { APP_NAME } from './constants';
 import { AppShell } from './components/layout/AppShell';
 import { Toasts } from './components/Toasts';
 import { Landing } from './screens/Landing';
@@ -47,7 +48,7 @@ function Booting() {
   return (
     <div className="grid min-h-[100dvh] place-items-center bg-bg px-6 text-center">
       <div>
-        <p className="font-display text-2xl font-bold tracking-tight">CONEXÃO</p>
+        <p className="font-display text-2xl font-bold tracking-tight">{APP_NAME}</p>
         <p className="mt-2 text-sm text-muted">Restaurando sua sessão…</p>
         <div className="mx-auto mt-5 h-1 w-32 overflow-hidden rounded-full bg-line">
           <div className="h-full w-1/3 animate-pulseSoft rounded-full bg-brand" />
