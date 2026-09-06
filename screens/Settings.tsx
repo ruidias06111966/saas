@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useApp } from '../state/AppContext';
 import { blockedIdsFor, findUser } from '../state/appState';
 import { downloadJson, exportUserData, RETENTION_NOTE } from '../services/lgpd';
@@ -9,6 +9,7 @@ import { Page } from '../components/layout/AppShell';
 import { Banner, Button, Card, Chip, Field, Icon, Input, Modal, SectionTitle, Toggle } from '../components/ui';
 import { firstName } from '../services/utils';
 import { redefinirSenha } from '../services/auth';
+import { desligarPush, estadoDoPush, ligarPush, type EstadoDoPush } from '../services/push';
 
 const MINIMO_DA_SENHA = 8;
 
@@ -21,6 +22,22 @@ export function Settings() {
   const [senha2, setSenha2] = useState('');
   const [erroSenha, setErroSenha] = useState('');
   const [salvandoSenha, setSalvandoSenha] = useState(false);
+  const [push, setPush] = useState<EstadoDoPush>('indisponivel');
+
+  // O estado real mora no navegador, não aqui: a pessoa pode ter desligado os
+  // avisos nas configurações do sistema desde a última visita.
+  useEffect(() => { void estadoDoPush().then(setPush); }, []);
+
+  const alternarPush = async (ligar: boolean) => {
+    try {
+      setPush(ligar ? await ligarPush() : await desligarPush());
+      toast(ligar ? 'Avisos ligados neste aparelho.' : 'Avisos desligados neste aparelho.', 'ok');
+    } catch (err) {
+      // Recarrega o estado de verdade: a inscrição pode ter ficado pela metade.
+      setPush(await estadoDoPush());
+      toast((err as Error).message, 'danger');
+    }
+  };
 
   const trocarSenha = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -90,6 +107,43 @@ export function Settings() {
               aqui em texto: o servidor de autenticação guarda só um resumo
               criptográfico dela, do qual não se volta atrás.
             </p>
+          </Card>
+        )}
+
+        {/* Aviso no celular.
+            O interruptor existe porque a permissão SÓ pode ser pedida a partir
+            de um toque da pessoa: pedir ao abrir o app leva ao "Bloquear", que
+            é definitivo e o app não desfaz. Some inteiro quando o navegador
+            não tem a API — mas explica quando o motivo é o iPhone. */}
+        {mode === 'online' && (
+          <Card className="p-5">
+            <SectionTitle hint="Vale só para este aparelho.">Avisos no celular</SectionTitle>
+            {push === 'indisponivel' ? (
+              <Banner tone="info" icon="info" title="Este navegador não recebe avisos">
+                No iPhone, avisos só funcionam a partir do iOS 16.4 e depois de
+                adicionar o QICONEXÃO à Tela de Início pelo Safari. No computador,
+                use Chrome, Edge ou Firefox.
+              </Banner>
+            ) : push === 'negado' ? (
+              <Banner tone="warn" icon="info" title="Avisos bloqueados">
+                Você recusou os avisos neste navegador, e só você pode desfazer:
+                toque no cadeado ao lado do endereço e permita as notificações.
+                Daqui de dentro o aplicativo não consegue perguntar de novo.
+              </Banner>
+            ) : (
+              <>
+                <Toggle
+                  checked={push === 'ligado'} label="Avisar quando chegar mensagem"
+                  description="Você recebe um toque no aparelho mesmo com o aplicativo fechado."
+                  onChange={(v) => void alternarPush(v)}
+                />
+                <p className="mt-3 text-xs leading-relaxed text-muted">
+                  O aviso diz apenas que chegou mensagem — nunca de quem, nunca o
+                  que está escrito. O conteúdo da conversa não passa pelos
+                  servidores de notificação.
+                </p>
+              </>
+            )}
           </Card>
         )}
 

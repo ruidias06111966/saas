@@ -27,9 +27,32 @@ export default defineConfig(({ mode }) => {
   const dominioProprio = env.DOMINIO_DO_SITE?.trim();
   const base = dominioProprio ? '/' : (env.GITHUB_PAGES === 'true' ? '/saas/' : '/');
 
+  // ENDEREÇO ABSOLUTO, e por que ele precisa existir.
+  //
+  // As tags Open Graph — as que fazem o link virar cartão no WhatsApp e no
+  // Instagram — exigem URL absoluta na imagem. Caminho relativo é ignorado
+  // caladamente: o robô do WhatsApp não tem "página atual" para resolver
+  // contra. Como `%BASE_URL%` só dá o caminho ("/" ou "/saas/"), a origem
+  // precisa ser montada aqui, a partir da MESMA variável que decide a base —
+  // assim as duas não podem divergir.
+  const dono = (env.GITHUB_REPOSITORY ?? '').split('/')[0].toLowerCase();
+  const origem = dominioProprio
+    ? `https://${dominioProprio}`
+    : env.GITHUB_PAGES === 'true' && dono
+      ? `https://${dono}.github.io${base.replace(/\/$/, '')}`
+      : 'http://localhost:5173';
+
   return {
     base,
-    plugins: [react()],
+    plugins: [
+      react(),
+      {
+        // O Vite troca `%BASE_URL%` sozinho, mas não conhece a origem — ela
+        // depende de variáveis que só este arquivo lê.
+        name: 'origem-absoluta-no-html',
+        transformIndexHtml: (html: string) => html.replaceAll('%ORIGEM_DO_SITE%', origem),
+      },
+    ],
     // Havia aqui um `define` que injetava a chave do Gemini como
     // `process.env.API_KEY`. Nenhum código do cliente a lia — verificado — mas
     // era uma armadilha carregada: bastava alguém reintroduzir essa leitura

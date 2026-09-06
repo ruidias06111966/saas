@@ -12,6 +12,7 @@ import * as backend from '../services/backend';
 import { onAuthChange, currentSession, signOut } from '../services/auth';
 import { subscribeToConversations } from '../services/realtime';
 import { supabaseEnabled } from '../services/supabaseClient';
+import { avisarDaMensagem } from '../services/push';
 import { identificarUsuario, reportarErro } from '../services/monitoring';
 import { computeCompatibility } from '../services/compatibility';
 import { reputationDelta } from '../services/conversation';
@@ -404,6 +405,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
     dispatch({ type: 'SEND_MESSAGE', message });
     persist(() => backend.saveMessage(message), 'Sua mensagem não chegou ao servidor.');
+    // Avisa no celular da outra pessoa. Depois de gravar, e sem esperar: se o
+    // aviso falhar, a mensagem já está lá — que é o que importa. Mensagem de
+    // sistema não acorda ninguém.
+    if (kind !== 'sistema') void avisarDaMensagem(connectionId);
     // Conversa longa: como o cliente não tem o histórico inteiro, quem sabe o
     // novo termômetro é o servidor.
     if (kind !== 'sistema' && !hasFullHistory(state, connectionId)) refreshHealth(connectionId);
