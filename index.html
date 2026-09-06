@@ -7,6 +7,28 @@
     <title>QICONEXÃO — antes de escolher alguém, conheça alguém</title>
     <meta name="description" content="Conexões baseadas em interesses, personalidade e boas conversas." />
 
+    <!-- Open Graph — o cartão que aparece quando alguém cola o endereço no
+         WhatsApp, Instagram, Facebook ou LinkedIn. Sem estas tags o link vira
+         uma caixa cinza com a URL crua, e num produto que cresce por indicação
+         esse é o primeiro contato de muita gente.
+
+         A URL da imagem TEM de ser absoluta: o robô que lê a página não tem
+         "página atual" para resolver um caminho relativo, e ignora em silêncio.
+         `%ORIGEM_DO_SITE%` é trocado no build (ver vite.config.ts) pela mesma
+         variável que decide a base, para as duas nunca divergirem. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="QICONEXÃO" />
+    <meta property="og:locale" content="pt_BR" />
+    <meta property="og:url" content="%ORIGEM_DO_SITE%/" />
+    <meta property="og:title" content="QICONEXÃO — antes de escolher alguém, conheça alguém" />
+    <meta property="og:description" content="Conexões baseadas em interesses, personalidade e boas conversas. Aqui a foto não abre a porta — ela é a recompensa de uma conversa que valeu a pena." />
+    <meta property="og:image" content="%ORIGEM_DO_SITE%/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:alt" content="Duas balas de fala sobrepostas ao lado do nome QICONEXÃO." />
+    <meta name="twitter:card" content="summary_large_image" />
+
     <!-- Instalação no celular. O manifest e os ícones são o que faz o Android
          oferecer "Instalar aplicativo"; o iOS ignora o manifest e lê o
          apple-touch-icon. Ver docs/CELULAR.md.

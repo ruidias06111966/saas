@@ -9,47 +9,20 @@ e rodar de novo — e o diff mostra o que mudou de verdade.
 
     python3 scripts/gerar-icones.py
 
-A marca são duas balas de fala se sobrepondo: a conversa antes da aparência,
-que é a tese do produto. Ela precisa ser legível a 48 pixels, que é o tamanho
-real na gaveta de aplicativos — por isso duas formas grandes e nenhum detalhe.
+O desenho da marca vive em scripts/marca.py, compartilhado com a imagem de
+compartilhamento. Ela precisa ser legível a 48 pixels, que é o tamanho real na
+gaveta de aplicativos — por isso duas formas grandes e nenhum detalhe.
 """
 
+import sys
 from pathlib import Path
+
 from PIL import Image, ImageDraw
 
-AMEIXA = (110, 76, 155, 255)   # --c-brand
-AREIA = (250, 246, 241, 255)   # --c-bg
-BRASA = (202, 106, 67, 255)    # --c-ember
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from marca import AMEIXA, RAIO, marca  # noqa: E402
 
-RAIO = 4  # supersampling: desenha 4x maior e reduz, que é o que suaviza a borda
 SAIDA = Path(__file__).resolve().parent.parent / 'public' / 'icones'
-
-
-def bala(d, x, y, m, caixa, cauda, cor, inflar=0.0):
-    """Uma bala de fala: retângulo arredondado mais o rabicho.
-
-    `caixa` e `cauda` vêm em fração do lado da marca (m), para a forma não
-    depender do tamanho em que está sendo gerada.
-    """
-    x0, y0, x1, y1 = (x + m * c for c in caixa)
-    i = m * inflar
-    d.rounded_rectangle([x0 - i, y0 - i, x1 + i, y1 + i], radius=m * 0.17 + i, fill=cor)
-    p = [(x + m * cx, y + m * cy) for cx, cy in cauda]
-    if inflar:
-        cx = sum(q[0] for q in p) / 3
-        cy = sum(q[1] for q in p) / 3
-        p = [(q[0] + (q[0] - cx) * 0.22 + (i if q[0] > cx else -i),
-              q[1] + (q[1] - cy) * 0.22 + (i if q[1] > cy else -i)) for q in p]
-    d.polygon(p, fill=cor)
-
-
-def marca(d, x, y, m):
-    """As duas balas, desenhadas na ordem em que se sobrepõem."""
-    bala(d, x, y, m, (0.00, 0.00, 0.66, 0.50), [(0.14, 0.49), (0.31, 0.49), (0.15, 0.66)], AREIA)
-    # A de trás ganha um contorno da cor do fundo antes da de frente entrar:
-    # sem isso as duas encostam e viram uma mancha só no tamanho pequeno.
-    bala(d, x, y, m, (0.34, 0.36, 1.00, 0.86), [(0.69, 0.85), (0.86, 0.85), (0.85, 1.00)], AMEIXA, inflar=0.045)
-    bala(d, x, y, m, (0.34, 0.36, 1.00, 0.86), [(0.69, 0.85), (0.86, 0.85), (0.85, 1.00)], BRASA)
 
 
 def gerar(lado, escala_da_marca, cantos):

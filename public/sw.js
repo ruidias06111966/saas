@@ -61,6 +61,48 @@ self.addEventListener('fetch', (evento) => {
   }
 });
 
+/*
+ * Aviso no aparelho.
+ *
+ * Estes dois ouvintes são o que faz a notificação existir. Sem `push` o
+ * navegador recebe a entrega e não mostra nada; sem `notificationclick` a
+ * pessoa toca no aviso e ele só some.
+ *
+ * O conteúdo da mensagem NÃO vem aqui — o servidor manda "Você tem uma
+ * mensagem nova" e nada mais. Ver supabase/functions/notificar/index.ts.
+ */
+self.addEventListener('push', (evento) => {
+  let dados = {};
+  try {
+    dados = evento.data?.json() ?? {};
+  } catch {
+    // Carga que não é JSON: mostra o aviso genérico em vez de engolir o evento.
+    // Alguns navegadores penalizam quem recebe push e não notifica nada.
+  }
+  evento.waitUntil(self.registration.showNotification(dados.titulo || 'QICONEXÃO', {
+    body: dados.corpo || 'Você tem uma mensagem nova.',
+    icon: `${CASCA}icones/icone-192.png`,
+    badge: `${CASCA}icones/icone-192.png`,
+    // Mesma `tag` empilha em vez de encher a tela com três avisos seguidos.
+    tag: dados.tag || 'qiconexao',
+    lang: 'pt-BR',
+    data: { url: CASCA },
+  }));
+});
+
+self.addEventListener('notificationclick', (evento) => {
+  evento.notification.close();
+  evento.waitUntil((async () => {
+    // Se o app já está aberto numa aba, traz aquela para a frente em vez de
+    // abrir outra — senão a pessoa acumula abas do mesmo app.
+    const janelas = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const janela of janelas) {
+      if (janela.url.startsWith(self.location.origin)) return janela.focus();
+    }
+    return self.clients.openWindow(evento.notification.data?.url || CASCA);
+  })());
+});
+
 /** Válvula de escape: o app manda desligar e o service worker se apaga. */
 self.addEventListener('message', (evento) => {
   if (evento.data !== 'DESLIGAR') return;

@@ -51,9 +51,17 @@ export function Admin() {
   if (me.role !== 'admin') {
     return (
       <Page title="Área restrita" back={back}>
+        {/* Esta tela é conveniência, não proteção. Quem protege é o RLS do
+            Postgres: sem `role = 'admin'` na própria linha, o banco devolve
+            zero em denúncias, moderação e fila de verificação — não importa o
+            que este JavaScript faça.
+            O texto não nomeia nenhuma conta de propósito: dizer qual é o
+            e-mail do administrador para quem acabou de ser barrado entrega
+            metade de um login. Antes daqui citava `admin@conexao.app`, que
+            desde 05/09/2026 nem é mais administrador. */}
         <Banner tone="danger" icon="shield" title="Acesso negado">
-          Esta área é exclusiva da equipe de moderação. Entre com a conta administrativa
-          (<code className="font-mono">admin@conexao.app</code>) para acessar.
+          Esta área é exclusiva da equipe de moderação, e sua conta não faz parte dela.
+          Se você deveria ter acesso, peça a quem administra o sistema.
         </Banner>
       </Page>
     );

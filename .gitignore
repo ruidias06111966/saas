@@ -4,3 +4,7 @@ dist
 .env.local
 .DS_Store
 *.log
+
+# Cache do Python, gerado ao rodar os scripts de imagem.
+__pycache__/
+*.pyc

@@ -170,6 +170,21 @@ jobs:
           fi
           echo "Aplicativo de celular: manifest, service worker e os quatro icones no lugar."
 
+          # Cartao de compartilhamento. Mesma classe de falha: link colado no
+          # WhatsApp vira caixa cinza, e ninguem reporta isso como bug.
+          # A URL da imagem TEM de ser absoluta — caminho relativo e ignorado
+          # em silencio pelo robo que le a pagina.
+          if [ ! -f dist/og.png ]; then
+            echo "ERRO: falta dist/og.png. Rode: python3 scripts/gerar-og.py"
+            exit 1
+          fi
+          if ! grep -qE 'property="og:image" content="https?://' dist/index.html; then
+            echo "ERRO: og:image nao esta absoluta no index.html."
+            echo "Sem isso o link compartilhado nao mostra imagem nenhuma."
+            exit 1
+          fi
+          echo "Cartao de compartilhamento: og.png e og:image absoluta no lugar."
+
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
