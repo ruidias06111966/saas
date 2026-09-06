@@ -37,6 +37,7 @@ jobs:
           VAR_URL: ${{ vars.VITE_SUPABASE_URL }}
           VAR_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
           VAR_DSN: ${{ vars.VITE_SENTRY_DSN }}
+          VAR_VAPID: ${{ vars.VITE_VAPID_PUBLIC_KEY }}
           # Lidos só para detectar o engano mais comum: guardar em Secrets, que
           # é a aba vizinha. O site não lê daqui — o Build usa `vars.`.
           SEC_URL: ${{ secrets.VITE_SUPABASE_URL }}
@@ -47,6 +48,7 @@ jobs:
           diz VITE_SUPABASE_URL             "$VAR_URL"
           diz VITE_SUPABASE_PUBLISHABLE_KEY "$VAR_KEY"
           diz VITE_SENTRY_DSN               "$VAR_DSN"
+          diz VITE_VAPID_PUBLIC_KEY         "$VAR_VAPID"
           echo "Em Secrets (o site NAO le daqui):"
           diz VITE_SUPABASE_URL             "$SEC_URL"
           diz VITE_SUPABASE_PUBLISHABLE_KEY "$SEC_KEY"
@@ -54,6 +56,15 @@ jobs:
             echo "=> Registro de erros LIGADO."
           else
             echo "=> Registro de erros desligado (o app funciona igual)."
+          fi
+          # A chave publica VAPID e o que faz o app OFERECER o aviso no celular.
+          # Sem ela o cartao em Configuracoes some, sem erro nenhum — mesma
+          # classe de falha do resto. Ver docs/PUSH.md.
+          if [ -n "$VAR_VAPID" ]; then
+            echo "=> Aviso no celular LIGADO (falta so a chave privada estar nos segredos do Supabase)."
+          else
+            echo "=> Aviso no celular desligado: o app nao vai oferecer o interruptor."
+            echo "   A chave publica vai em Variables, com o nome VITE_VAPID_PUBLIC_KEY."
           fi
           if [ -n "$VAR_URL" ] && [ -n "$VAR_KEY" ]; then
             echo "=> Vai subir em MODO ONLINE."
@@ -81,6 +92,10 @@ jobs:
           # e quem protege o projeto no Sentry é a lista de domínios permitidos
           # configurada lá. Por isso fica em Variables, como as de cima.
           VITE_SENTRY_DSN: ${{ vars.VITE_SENTRY_DSN }}
+          # Chave PUBLICA do par VAPID. Publica mesmo: vai dentro do pacote que
+          # o navegador baixa, e e assim que o padrao funciona. A privada mora
+          # nos segredos do Supabase e so a Edge Function `notificar` a enxerga.
+          VITE_VAPID_PUBLIC_KEY: ${{ vars.VITE_VAPID_PUBLIC_KEY }}
           # Vazia: o site fica em github.io/saas/. Preenchida (por exemplo
           # `conexao.qidominios.com.br`): passa para a raiz do domínio próprio.
           # Ver o comentário em vite.config.ts — e o passo logo abaixo, que
