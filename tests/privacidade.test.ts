@@ -96,8 +96,9 @@ describe('a descoberta continua funcionando sem esses campos', () => {
     expect(isEligible(eu, { ...terceiro, age: 30, distanceKm: 5 }, semBloqueio)).toBe(true);
     // Menor de idade continua barrado — a regra sobrevive à troca de campo.
     expect(isEligible(eu, { ...terceiro, age: 17 }, semBloqueio)).toBe(false);
-    // Distância acima do limite continua barrando.
-    expect(isEligible(eu, { ...terceiro, age: 30, distanceKm: 9999 }, semBloqueio)).toBe(false);
+    // Distância NÃO barra mais: preferência ordena, não exclui. Ver o comentário
+    // de isEligible em services/compatibility.ts.
+    expect(isEligible(eu, { ...terceiro, age: 30, distanceKm: 9999 }, semBloqueio)).toBe(true);
   });
 
   it('bloqueio e conta inativa continuam valendo', () => {

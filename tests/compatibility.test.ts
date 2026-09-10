@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { WEIGHTS, computeCompatibility, isEligible } from '../services/compatibility';
+import type { User } from '../types';
+import { WEIGHTS, atendeAPreferencia, computeCompatibility, isEligible } from '../services/compatibility';
 import { SEED_USERS } from '../data/seed';
 
 const [primeira, segunda] = SEED_USERS;
@@ -60,5 +61,69 @@ describe('elegibilidade', () => {
 
   it('bloqueio corta nos dois sentidos', () => {
     expect(isEligible(primeira, segunda, new Set([segunda.id]))).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Preferência ordena, não exclui.
+//
+// Estes testes existem por causa de uma falha medida em produção: nas quatro
+// primeiras contas reais do app, todas na mesma cidade, os filtros duros
+// deixavam ZERO pares. Ninguém via ninguém, e a tela vazia não tinha como
+// explicar porquê — o motivo estava numa preferência escolhida noutro ecrã.
+// ---------------------------------------------------------------------------
+describe('preferência não exclui ninguém do funil', () => {
+  // As quatro contas reais, como estavam no dia em que o problema apareceu.
+  const conta = (over: Partial<User> & { prefs: Partial<User['preferences']> }): User => {
+    const { prefs, ...resto } = over;
+    return {
+      ...primeira,
+      ...resto,
+      preferences: { ...primeira.preferences, seeking: ['todos'], ageMin: 18, ageMax: 99, maxDistanceKm: 50, goals: [], minCompatibility: 0, ...prefs },
+    } as User;
+  };
+
+  const dani = conta({ id: 'dani', name: 'DANIELY', gender: 'mulher', age: 42, role: 'user', prefs: { seeking: ['homem'], ageMin: 35, ageMax: 50 } });
+  const paulo = conta({ id: 'paulo', name: 'Paulo', gender: 'homem', age: 59, role: 'user', prefs: { seeking: ['mulher'], ageMin: 45, ageMax: 65 } });
+  const celia = conta({ id: 'celia', name: 'Célia', gender: 'homem', age: 48, role: 'user', prefs: { seeking: ['homem'], ageMin: 47, ageMax: 56 } });
+
+  it('idade fora da faixa dos dois lados já não exclui', () => {
+    // Antes: bloqueado nos DOIS sentidos (59 fora de 35-50; 42 fora de 45-65).
+    expect(isEligible(dani, paulo, semBloqueio)).toBe(true);
+    expect(isEligible(paulo, dani, semBloqueio)).toBe(true);
+  });
+
+  it('gênero procurado já não exclui', () => {
+    // Célia procura homem; DANIELY é mulher. Antes, bloqueado.
+    expect(isEligible(celia, dani, semBloqueio)).toBe(true);
+    expect(isEligible(paulo, celia, semBloqueio)).toBe(true);
+  });
+
+  it('distância acima do limite já não exclui', () => {
+    const longe = { ...paulo, distanceKm: 4000 } as User;
+    expect(isEligible(dani, longe, semBloqueio)).toBe(true);
+  });
+
+  it('as barreiras de segurança continuam de pé', () => {
+    expect(isEligible(dani, dani, semBloqueio)).toBe(false);
+    expect(isEligible(dani, { ...paulo, age: 17 } as User, semBloqueio)).toBe(false);
+    expect(isEligible(dani, { ...paulo, status: 'banido' } as User, semBloqueio)).toBe(false);
+    expect(isEligible(dani, { ...paulo, role: 'admin' } as User, semBloqueio)).toBe(false);
+    expect(isEligible(dani, paulo, new Set([paulo.id]))).toBe(false);
+  });
+
+  it('a preferência declarada continua a valer — para ordenar', () => {
+    // DANIELY procura homem, e Paulo procura mulher: reciprocidade completa.
+    expect(atendeAPreferencia(dani, paulo)).toBe(true);
+    // Célia procura homem e DANIELY é mulher: aparece, mas depois.
+    expect(atendeAPreferencia(celia, dani)).toBe(false);
+  });
+
+  it('nenhuma das quatro contas reais fica sem ver ninguém', () => {
+    const todos = [dani, paulo, celia];
+    for (const eu of todos) {
+      const vejo = todos.filter((o) => isEligible(eu, o, semBloqueio));
+      expect(vejo.length, `${eu.name} não enxerga ninguém`).toBeGreaterThan(0);
+    }
   });
 });
