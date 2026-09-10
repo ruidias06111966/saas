@@ -198,6 +198,17 @@ jobs:
             echo "Sem isso o link compartilhado nao mostra imagem nenhuma."
             exit 1
           fi
+          # Absoluta nao basta: o endereco de reserva do vite.config.ts e
+          # http://localhost:5173, que passa no teste acima e nao existe para
+          # ninguem de fora. Se DOMINIO_DO_SITE sumir das Variables, o site
+          # publicaria um cartao apontando para a maquina de quem construiu —
+          # sem erro em lugar nenhum, so o cartao vazio no WhatsApp.
+          if grep -qE 'property="og:(image|url)" content="https?://(localhost|127\.0\.0\.1)' dist/index.html; then
+            echo "ERRO: as tags Open Graph apontam para localhost."
+            echo "Quer dizer que a variavel DOMINIO_DO_SITE chegou vazia ao build."
+            echo "Confira em Settings > Secrets and variables > Actions > Variables."
+            exit 1
+          fi
           echo "Cartao de compartilhamento: og.png e og:image absoluta no lugar."
 
       - uses: actions/configure-pages@v5

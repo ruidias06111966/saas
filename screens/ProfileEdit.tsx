@@ -9,7 +9,9 @@ import { useApp } from '../state/AppContext';
 import { Page } from '../components/layout/AppShell';
 import { Button, Card, Chip, Field, Icon, Input, SectionTitle, Select, Slider, Textarea } from '../components/ui';
 import { Portrait } from '../components/Portrait';
+import { blurCoord } from '../services/utils';
 import { uploadProfilePhoto } from '../services/media';
+import { NOMES_DE_CIDADE, UFS, coordenadasDe } from '../services/localizacao';
 
 export function ProfileEdit() {
   const { me, saveProfile, back, toast } = useApp();
@@ -28,7 +30,12 @@ export function ProfileEdit() {
   const save = async () => {
     setSalvando(true);
     try {
-      await saveProfile(d);
+      // A coordenada é DEDUZIDA da cidade, e mudar de cidade tem de mudá-la.
+      // Antes ela era calculada só no cadastro: quem se mudava trocava o nome
+      // na tela e continuava sendo oferecido a quem estava perto do endereço
+      // antigo, para sempre e sem meio de corrigir.
+      const [lat, lng] = coordenadasDe(d.city, d.state);
+      await saveProfile({ ...d, approxLat: blurCoord(lat), approxLng: blurCoord(lng) });
       toast('Perfil atualizado.', 'ok');
       back();
     } catch (err) {
@@ -70,7 +77,15 @@ export function ProfileEdit() {
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Nome"><Input value={d.name} onChange={(e) => set('name', e.target.value)} /></Field>
             <Field label="Profissão"><Input value={d.profession} onChange={(e) => set('profession', e.target.value)} /></Field>
-            <Field label="Cidade"><Input value={d.city} onChange={(e) => set('city', e.target.value)} /></Field>
+            <Field label="Cidade" hint="Mostramos só a cidade, nunca o endereço.">
+              <Input value={d.city} onChange={(e) => set('city', e.target.value)} list="cidades-perfil" />
+              <datalist id="cidades-perfil">{NOMES_DE_CIDADE.map((c) => <option key={c} value={c} />)}</datalist>
+            </Field>
+            <Field label="Estado">
+              <Select value={d.state} onChange={(e) => set('state', e.target.value)}>
+                {UFS.map((uf) => <option key={uf} value={uf}>{uf}</option>)}
+              </Select>
+            </Field>
             <Field label="Como você se identifica">
               <Select value={d.gender} onChange={(e) => set('gender', e.target.value as User['gender'])}>
                 {Object.entries(GENDER_LABEL).map(([v, l]) => <option key={v} value={v}>{l}</option>)}

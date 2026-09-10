@@ -4,6 +4,7 @@ import {
   APP_NAME, AXES, GENDER_LABEL, GOAL_EMOJI, GOAL_LABEL, LIFESTYLE_FIELDS, MIN_AGE, PACE_LABEL,
   POLICY_VERSION,
 } from '../constants';
+import { NOMES_DE_CIDADE, UFS, coordenadasDe } from '../services/localizacao';
 import { INTEREST_CATEGORIES, INTERESTS } from '../data/interests';
 import { PROFILE_PROMPTS } from '../data/prompts';
 import { useApp } from '../state/AppContext';
@@ -21,16 +22,6 @@ import { age, blurCoord, cx, isEmail, sha256, uid } from '../services/utils';
 
 // Em produção isto seria geocodificação no servidor; a coordenada é sempre
 // arredondada antes de sair do cliente, para nunca guardarmos posição exata.
-const CITY_COORDS: Record<string, [number, number]> = {
-  'são paulo': [-23.55, -46.63], 'campinas': [-22.90, -47.06], 'santo andré': [-23.66, -46.53],
-  'guarulhos': [-23.45, -46.53], 'osasco': [-23.53, -46.79], 'são bernardo do campo': [-23.69, -46.56],
-  'sorocaba': [-23.50, -47.45], 'rio de janeiro': [-22.91, -43.17], 'belo horizonte': [-19.92, -43.94],
-  'curitiba': [-25.43, -49.27], 'porto alegre': [-30.03, -51.23], 'salvador': [-12.97, -38.50],
-  'recife': [-8.05, -34.88], 'fortaleza': [-3.73, -38.52], 'brasília': [-15.79, -47.88],
-};
-
-const UF = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
-
 const STEPS = ['Conta', 'Você', 'Objetivo', 'Interesses', 'Jeito de ser', 'Suas palavras', 'Foto e termos'];
 
 interface Draft {
@@ -116,8 +107,9 @@ export function Signup() {
 
   /** Monta o objeto de domínio a partir do formulário. */
   const montarUsuario = async (dados: Draft, id: string, foto?: string): Promise<User> => {
-    const key = dados.city.trim().toLowerCase();
-    const [lat, lng] = CITY_COORDS[key] ?? CITY_COORDS['são paulo'];
+    // Cidade reconhecida devolve a própria coordenada; desconhecida cai na
+    // capital da UF. Ver services/localizacao.ts para o porquê.
+    const [lat, lng] = coordenadasDe(dados.city, dados.state);
     const now = new Date().toISOString();
     return {
       id, name: dados.name.trim(), email: dados.email.trim().toLowerCase(),
@@ -370,11 +362,11 @@ export function Signup() {
             <div className="grid gap-4 sm:grid-cols-[2fr_1fr]">
               <Field label="Cidade" required error={errors.city} hint="Mostramos só a cidade, nunca o endereço.">
                 <Input value={d.city} onChange={(e) => set('city', e.target.value)} placeholder="São Paulo" list="cidades" />
-                <datalist id="cidades">{Object.keys(CITY_COORDS).map((c) => <option key={c} value={c.replace(/\b\w/g, (m) => m.toUpperCase())} />)}</datalist>
+                <datalist id="cidades">{NOMES_DE_CIDADE.map((c) => <option key={c} value={c} />)}</datalist>
               </Field>
               <Field label="Estado" required>
                 <Select value={d.state} onChange={(e) => set('state', e.target.value)}>
-                  {UF.map((s) => <option key={s} value={s}>{s}</option>)}
+                  {UFS.map((s) => <option key={s} value={s}>{s}</option>)}
                 </Select>
               </Field>
             </div>
