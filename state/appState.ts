@@ -95,13 +95,23 @@ export function reducer(state: AppState, action: Action): AppState {
     // pessoa. Nada do modo demo sobrevive: os perfis fictícios sairiam
     // misturados com gente real, e isso seria mentira na tela.
     case 'HYDRATE_REMOTE':
+    {
+      // `subscription` sai do espalhamento de propósito: ela é singular no
+      // snapshot e plural no estado, e deixá-la vazar acrescentaria ao estado
+      // uma chave que ninguém lê e que duplicaria a mesma informação.
+      const { subscription, ...resto } = action.snapshot;
       return {
         ...state,
-        ...action.snapshot,
-        subscriptions: [],
+        ...resto,
+        // No máximo UMA assinatura, a de quem está logado — é tudo o que o RLS
+        // deixa ler, e é tudo de que a tela precisa. Esta lista era zerada
+        // porque nada a preenchia; agora guarda a cortesia de lançamento, que
+        // a tela usa para dizer até quando vale.
+        subscriptions: subscription ? [subscription] : [],
         sessionUserId: action.sessionUserId,
         mode: 'online',
       };
+    }
 
     case 'RESET_DEMO':
       return { ...initialState(), theme: state.theme };

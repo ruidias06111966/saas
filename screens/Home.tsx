@@ -7,6 +7,7 @@ import { suggestProfileImprovements } from '../services/geminiService';
 import { SAFETY_TIPS } from '../services/moderation';
 import { Page } from '../components/layout/AppShell';
 import { Banner, Button, Card, Empty, Icon, Ring, SectionTitle } from '../components/ui';
+import { AvisoDeCortesia } from '../components/AvisoDeCortesia';
 import { EssenceCard } from '../components/EssenceCard';
 import { CopilotPanel } from '../components/Copilot';
 import { Avatar } from '../components/Portrait';
@@ -88,6 +89,8 @@ export function Home() {
           <Ring value={data.completion} size={72} sublabel="perfil" />
         </button>
       </header>
+
+      <div className="mb-6"><AvisoDeCortesia /></div>
 
       <div className="mb-6 flex gap-3">
         <Stat icon="sparkle" value={data.curation.others.length + (data.curation.highlight ? 1 : 0)} label="pessoas na sua curadoria de hoje" onClick={() => navigate({ name: 'discover' })} />

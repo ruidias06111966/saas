@@ -1,6 +1,6 @@
 import type {
   AppNotification, Block, Connection, Consent, DailyUsage, Lifestyle, Message,
-  ModerationItem, Personality, Preferences, Report, User,
+  ModerationItem, Personality, Preferences, Report, Subscription, User,
 } from '../types';
 import type { HealthMetrics } from './conversation';
 import { requireSupabase, supabaseEnabled } from './supabaseClient';
@@ -272,6 +272,14 @@ export interface RemoteSnapshot {
   healths: Record<string, HealthMetrics>;
   /** Conexões cujo histórico completo já está no cliente. */
   fullyLoaded: string[];
+  /**
+   * A assinatura da própria pessoa, quando existe. O RLS já limita a leitura
+   * ao dono — a política "dono lê assinatura" existe desde o começo e nunca
+   * tinha sido usada. Passou a ser porque a cortesia de lançamento precisa de
+   * uma data para mostrar na tela: dizer "você é premium" sem dizer até
+   * quando seria a mesma coisa que não dizer nada.
+   */
+  subscription?: Subscription;
 }
 
 /**
@@ -286,7 +294,7 @@ export interface RemoteSnapshot {
 export async function loadSnapshot(meId: string): Promise<RemoteSnapshot> {
   const db = requireSupabase();
 
-  const [eu, outros, connections, notifications, blocks, reports, moderation, usage, mensagens, termometros] =
+  const [eu, outros, connections, notifications, blocks, reports, moderation, usage, mensagens, termometros, assinatura] =
     await Promise.all([
       // Duas leituras em vez de uma. O próprio registro vem completo de
       // `users`; todo o resto vem da view, que não carrega dado de contato nem
@@ -301,9 +309,15 @@ export async function loadSnapshot(meId: string): Promise<RemoteSnapshot> {
       db.from('daily_usage').select('*').eq('user_id', meId).eq('day', dateKey()),
       db.rpc('mensagens_recentes', { por_conversa: PAGINA_MENSAGENS }),
       db.rpc('termometros'),
+      // `maybeSingle` e não `single`: quem está no plano gratuito não tem
+      // linha nenhuma, e isso é o normal, não um erro.
+      db.from('subscriptions').select('*')
+        .eq('user_id', meId).eq('status', 'ativa')
+        .order('expires_at', { ascending: false, nullsFirst: false })
+        .limit(1).maybeSingle(),
     ]);
 
-  const firstError = [eu, outros, connections, notifications, blocks, reports, moderation, usage, mensagens, termometros]
+  const firstError = [eu, outros, connections, notifications, blocks, reports, moderation, usage, mensagens, termometros, assinatura]
     .find((r) => r.error)?.error;
   if (firstError) throw new Error(`Falha ao carregar dados: ${firstError.message}`);
 
@@ -359,6 +373,17 @@ export async function loadSnapshot(meId: string): Promise<RemoteSnapshot> {
     usage: (usage.data ?? []).map((u) => ({
       userId: u.user_id, date: u.day, interests: u.interests, aiCalls: u.ai_calls,
     })),
+    subscription: assinatura.data
+      ? {
+        id: assinatura.data.id,
+        userId: assinatura.data.user_id,
+        plan: assinatura.data.plan,
+        status: assinatura.data.status,
+        provider: assinatura.data.provider ?? undefined,
+        startedAt: assinatura.data.started_at,
+        expiresAt: assinatura.data.expires_at ?? undefined,
+      }
+      : undefined,
   };
 }
 

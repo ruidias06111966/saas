@@ -8,6 +8,11 @@ import type { Connection, Message } from '../types';
 // um teste daqui quebrar depois de mexer em services/conversation.ts, a função
 // do banco também precisa mudar — senão o véu passa a abrir em medidas
 // diferentes conforme quem calculou.
+//
+// Reconferido em 10/09/2026, depois da recalibração da migração 006: a
+// conversa foi inserida no banco de produção dentro de uma transação
+// desfeita de propósito, e `private.termometro()` devolveu exatamente os
+// números abaixo.
 // ---------------------------------------------------------------------------
 
 export const A = '22222222-2222-2222-2222-222222222222';
@@ -54,6 +59,6 @@ export const CONEXAO: Connection = {
 
 /** O que o Postgres devolveu para esta mesma conversa. */
 export const DO_SERVIDOR = {
-  score: 58, reciprocity: 100, depth: 77,
-  consistency: 94, openness: 40, messages: 14, days: 6,
+  score: 82, reciprocity: 100, depth: 100,
+  consistency: 94, openness: 60, messages: 14, days: 6,
 };
