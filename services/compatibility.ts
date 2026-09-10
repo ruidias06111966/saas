@@ -283,25 +283,58 @@ export function computeCompatibility(a: User, b: User): CompatibilityResult {
 const genderMatches = (seeking: User['preferences']['seeking'], g: User['gender']) =>
   seeking.includes('todos') || seeking.includes(g);
 
-/** Filtros duros. Se qualquer um falhar, a pessoa nem entra no funil. */
+/**
+ * A preferência declarada bate? Serve para ORDENAR, nunca para excluir.
+ *
+ * Continua a valer nos dois sentidos: alguém que você procura e que também
+ * procura alguém como você vem antes de alguém em quem só um dos lados
+ * demonstrou interesse.
+ */
+export function atendeAPreferencia(me: User, other: User): boolean {
+  return genderMatches(me.preferences.seeking, other.gender)
+    && genderMatches(other.preferences.seeking, me.gender);
+}
+
+/**
+ * Quem PODE aparecer. Só barreiras de segurança e de sanidade — nada de
+ * preferência.
+ *
+ * POR QUE ISTO É TÃO CURTO
+ *
+ * Já foi longo: exigia que o gênero batesse dos dois lados, que a idade de
+ * cada um coubesse na faixa do outro, que a distância coubesse no limite, e
+ * que o objetivo estivesse na lista. Parece razoável escrito assim, e é
+ * devastador na prática — porque cada regra vale nos DOIS sentidos, e basta um
+ * lado falhar para o par morrer.
+ *
+ * Medido nas quatro primeiras contas reais do app, todas na mesma cidade:
+ * ZERO pares sobreviviam. Ninguém via ninguém. E o app não tinha como
+ * explicar isso a quem abria a tela vazia, porque o motivo estava numa
+ * preferência escolhida meses antes, noutro ecrã.
+ *
+ * A tese do produto é a conversa antes da aparência. Um funil que decide,
+ * antes de qualquer conversa existir, que duas pessoas não têm nada a dizer
+ * uma à outra — por causa de dezessete anos de diferença — contradiz a tese.
+ *
+ * Então: as preferências deixaram de excluir e passaram a ORDENAR. Quem a
+ * pessoa pediu aparece primeiro; o resto continua alcançável. Quem quiser
+ * estreitar tem os filtros da tela de Descobrir, que são escolha do momento e
+ * ficam visíveis enquanto valem — ao contrário de uma preferência esquecida.
+ *
+ * O que continua barrando, e por quê:
+ *   • a própria pessoa — não faz sentido;
+ *   • conta suspensa ou banida — decisão de moderação;
+ *   • administração — o painel não se mistura com o namoro;
+ *   • quem foi bloqueado — decisão explícita de alguém;
+ *   • menor de idade — exigência legal, e não negociável.
+ */
 export function isEligible(me: User, other: User, blockedIds: Set<string>): boolean {
   if (me.id === other.id) return false;
   if (other.status !== 'ativo') return false;
-  // Administração não entra no funil. No modo online a view nem devolve essas
-  // linhas — este teste sobrou para o modo demo, onde `role` existe em todo
-  // perfil fictício.
+  // No modo online a view nem devolve administradores — este teste sobrou para
+  // o modo demo, onde `role` existe em todo perfil fictício.
   if (other.role === 'admin') return false;
   if (blockedIds.has(other.id)) return false;
   if (other.age < 18 || me.age < 18) return false;
-  if (!genderMatches(me.preferences.seeking, other.gender)) return false;
-  if (!genderMatches(other.preferences.seeking, me.gender)) return false;
-
-  if (other.age < me.preferences.ageMin || other.age > me.preferences.ageMax) return false;
-  if (me.age < other.preferences.ageMin || me.age > other.preferences.ageMax) return false;
-
-  const km = distanciaEntre(me, other);
-  if (km > Math.max(me.preferences.maxDistanceKm, 10)) return false;
-
-  if (me.preferences.goals.length && !me.preferences.goals.includes(other.goal)) return false;
   return true;
 }

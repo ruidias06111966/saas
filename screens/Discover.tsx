@@ -20,10 +20,18 @@ export function Discover() {
   const [openFilters, setOpenFilters] = useState(false);
   const [f, setF] = useState<Filters | null>(null);
 
+  // A TELA COMEÇA ABERTA, e é de propósito.
+  //
+  // Estes filtros já nasciam preenchidos com as preferências guardadas no
+  // cadastro — e por isso continuavam a excluir mesmo depois de as preferências
+  // terem deixado de excluir no funil. A pessoa via a tela vazia, sem nada na
+  // interface que indicasse que havia um filtro ligado, porque ela nunca o
+  // tinha ligado: veio assim.
+  //
+  // Agora abre mostrando todo mundo. Quem quiser estreitar usa o botão
+  // Filtros, e aí o filtro é escolha do momento — visível enquanto vale.
   const filters: Filters = f ?? {
-    ageMin: me?.preferences.ageMin ?? 25,
-    ageMax: me?.preferences.ageMax ?? 40,
-    maxDistanceKm: me?.preferences.maxDistanceKm ?? 50,
+    ageMin: 18, ageMax: 99, maxDistanceKm: 300,
     city: '', goals: [], interests: [], minCompatibility: 0,
   };
 
@@ -106,11 +114,14 @@ export function Discover() {
         </div>
       ) : (
         <Empty
-          icon="compass" title="Nada por aqui com esses filtros"
+          icon="compass"
+          title={result.totalBefore > 0 ? 'Nada por aqui com esses filtros' : 'Por enquanto, não há mais ninguém'}
           body={result.totalBefore > 0
-            ? `Existem ${result.totalBefore} pessoa(s) compatíveis, mas nenhuma passa nos filtros atuais.`
-            : 'Você já viu todo mundo que combina com suas preferências. Amplie a distância ou a faixa de idade.'}
-          action={<Button size="sm" variant="outline" onClick={() => setF(null)}>Limpar filtros</Button>}
+            ? `Há ${result.totalBefore} pessoa(s) disponíveis, mas nenhuma passa nos filtros que você ligou. Limpar os filtros traz todas de volta.`
+            : 'Você já viu todo mundo que está por aqui hoje. Não é filtro nem preferência sua — é que o app ainda é novo. Volte amanhã: quem chegar depois aparece para você.'}
+          action={result.totalBefore > 0
+            ? <Button size="sm" variant="outline" onClick={() => setF(null)}>Limpar filtros</Button>
+            : undefined}
         />
       )}
 

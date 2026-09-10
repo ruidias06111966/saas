@@ -1,5 +1,5 @@
 import type { Connection, User } from '../types';
-import { computeCompatibility, isEligible } from './compatibility';
+import { atendeAPreferencia, computeCompatibility, isEligible } from './compatibility';
 import { dateKey, seededRandom, shuffle } from './utils';
 
 export interface Candidate {
@@ -36,8 +36,16 @@ export function buildCandidates(
         distanceKm: c.distanceKm,
       };
     })
-    .filter((c) => c.score >= me.preferences.minCompatibility)
-    .sort((a, b) => b.score - a.score);
+    // A preferência declarada ORDENA, não exclui: quem a pessoa pediu vem
+    // primeiro, e quem não pediu continua alcançável logo abaixo. Antes havia
+    // aqui um corte por compatibilidade mínima; ele foi embora pelo mesmo
+    // motivo que os filtros duros — descartava em silêncio, sem a pessoa
+    // sequer saber que existia alguém.
+    .sort((a, b) => {
+      const pa = atendeAPreferencia(me, a.user) ? 1 : 0;
+      const pb = atendeAPreferencia(me, b.user) ? 1 : 0;
+      return pb - pa || b.score - a.score;
+    });
 }
 
 export interface DailyCuration {
