@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { APP_NAME, QUOTAS } from '../constants';
+import { AvisoDeCortesia } from '../components/AvisoDeCortesia';
 import { useApp } from '../state/AppContext';
 import { Page } from '../components/layout/AppShell';
 import { Banner, Button, Card, Icon } from '../components/ui';
@@ -79,6 +80,12 @@ export function Premium() {
 
   return (
     <Page title={`${APP_NAME} Premium`} back={back} subtitle="Mais alcance e mais ferramentas — sem mudar as regras do jogo para quem é gratuito.">
+      {/* Antes de qualquer coisa sobre pagar: quem já tem de graça precisa
+          saber disso primeiro. Oferecer assinatura a quem está no meio da
+          cortesia é o caminho mais curto para a pessoa achar que foi cobrada
+          duas vezes. */}
+      <AvisoDeCortesia compacto />
+
       {!supabaseEnabled ? (
         <Banner tone="info" icon="info" title="Modo demonstração: nada é cobrado">
           Aqui o botão só troca o plano na tela. No modo online a cobrança é real, pelo Stripe.

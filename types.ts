@@ -231,6 +231,13 @@ export interface Subscription {
   userId: string;
   plan: Plan;
   status: 'ativa' | 'cancelada' | 'expirada';
+  /**
+   * Quem concedeu. `'stripe'` é assinatura paga; `'cortesia'` é a promoção de
+   * lançamento, que ninguém pagou e que expira sozinha. A tela precisa saber a
+   * diferença: oferecer "gerenciar cobrança" a quem ganhou de graça manda a
+   * pessoa para um portal do Stripe que não conhece a assinatura dela.
+   */
+  provider?: string;
   startedAt: string;
   expiresAt?: string;
 }

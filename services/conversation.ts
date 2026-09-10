@@ -6,6 +6,12 @@ import { clamp } from './utils';
 // Termômetro de Conversa
 // Mede a QUALIDADE da troca, não o volume. É o motor que abre o véu da foto,
 // alimenta a reputação e dispara o fluxo anti-ghosting.
+//
+// AS CONSTANTES DAQUI SÃO AS MESMAS DE `private.termometro()`, no Postgres.
+// Os dois calculam a mesma coisa por caminhos diferentes — o cliente quando
+// tem a conversa inteira em mãos, o servidor quando ela é longa demais para
+// isso. Divergir seria a foto abrir num lugar e não no outro. Mudou aqui,
+// muda lá, na mesma migração.
 // ---------------------------------------------------------------------------
 
 const HOUR = 3600_000;
@@ -116,7 +122,7 @@ export function healthMetrics(
   // 2. Profundidade — tamanho médio + proporção de perguntas feitas ao outro.
   const avgWords = total ? real.reduce((s, m) => s + wordCount(m.text), 0) / total : 0;
   const questionRatio = total ? real.filter((m) => hasQuestion(m.text)).length / total : 0;
-  const depth = clamp(clamp(avgWords / 22) * 0.65 + clamp(questionRatio / 0.3) * 0.35);
+  const depth = clamp(clamp(avgWords / 14) * 0.65 + clamp(questionRatio / 0.22) * 0.35);
 
   // 3. Constância — mediana do intervalo entre turnos alternados.
   const gaps: number[] = [];
@@ -131,17 +137,19 @@ export function healthMetrics(
   // 4. Abertura — rituais respondidos (a Escada de Intimidade).
   const rituals = real.filter((m) => m.kind === 'ritual');
   const maxLevel = rituals.reduce((mx, m) => Math.max(mx, m.ritualLevel ?? 0), 0);
-  const openness = clamp(rituals.length / 6) * 0.6 + clamp(maxLevel / 4) * 0.4;
+  const openness = clamp(rituals.length / 3) * 0.6 + clamp(maxLevel / 4) * 0.4;
 
-  // Fator de substância: conversas curtas não podem atingir nota alta.
-  const volume = clamp(Math.log2(1 + total) / Math.log2(1 + 40));
+  // Fator de substância: conversas curtas não podem atingir nota alta. Vinte
+  // mensagens já são uma conversa; quarenta eram uma exigência que quase
+  // nenhuma dupla alcançava antes de desistir.
+  const volume = clamp(Math.log2(1 + total) / Math.log2(1 + 20));
 
   const firstTs = real.length ? new Date(real[0].createdAt).getTime() : now;
   const days = Math.max(1, Math.round((now - firstTs) / DAY) || 1);
-  const spread = clamp(days / 5) * 0.35 + 0.65;
+  const spread = clamp(days / 3) * 0.22 + 0.78;
 
   const rawScore =
-    (reciprocity * 0.28 + depth * 0.28 + consistency * 0.22 + openness * 0.22) * volume * spread;
+    (reciprocity * 0.30 + depth * 0.32 + consistency * 0.22 + openness * 0.16) * volume * spread;
 
   return {
     score: Math.round(clamp(rawScore) * 100),

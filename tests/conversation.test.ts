@@ -14,10 +14,13 @@ describe('termômetro — paridade com o Postgres', () => {
     expect(m).toEqual(DO_SERVIDOR);
   });
 
-  it('coloca a conversa no estágio 2 e revela 71% do retrato', () => {
+  // Antes da migração 006 esta mesma conversa parava no estágio 2, com 71% do
+  // retrato aberto — catorze mensagens boas, seis dias, e o rosto ainda pela
+  // metade. Era o sintoma que motivou a recalibração.
+  it('coloca a conversa no estágio 4 e revela o retrato por completo', () => {
     const h = conversationHealth(CONEXAO, MENSAGENS, AGORA);
-    expect(h.stage).toBe(2);
-    expect(Math.round(h.reveal * 100)).toBe(71);
+    expect(h.stage).toBe(4);
+    expect(Math.round(h.reveal * 100)).toBe(100);
   });
 });
 
