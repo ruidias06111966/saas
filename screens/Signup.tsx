@@ -3,6 +3,7 @@ import type { AxisKey, Gender, Lifestyle, RelationshipGoal, SeekingGender, User 
 import {
   APP_NAME, AXES, GENDER_LABEL, GOAL_EMOJI, GOAL_LABEL, LIFESTYLE_FIELDS, MIN_AGE, PACE_LABEL,
   POLICY_VERSION,
+  URL_PRIVACIDADE,
 } from '../constants';
 import { NOMES_DE_CIDADE, UFS, coordenadasDe } from '../services/localizacao';
 import { INTEREST_CATEGORIES, INTERESTS } from '../data/interests';
@@ -601,7 +602,7 @@ export function Signup() {
                 Li e aceito os <strong className="text-ink">Termos de Uso</strong>.
               </Checkbox>
               <Checkbox checked={d.acceptPrivacy} onChange={(v) => set('acceptPrivacy', v)}>
-                Li a <strong className="text-ink">Política de Privacidade</strong> e concordo com o tratamento
+                Li a <a href={URL_PRIVACIDADE} target="_blank" rel="noopener noreferrer" className="font-semibold text-ink underline underline-offset-2">Política de Privacidade</a> e concordo com o tratamento
                 dos meus dados conforme a LGPD. Posso exportar ou apagar tudo a qualquer momento.
               </Checkbox>
               <Checkbox checked={d.acceptGuidelines} onChange={(v) => set('acceptGuidelines', v)}>

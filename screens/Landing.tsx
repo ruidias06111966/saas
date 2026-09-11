@@ -1,7 +1,7 @@
 import { useApp } from '../state/AppContext';
 import { Button, Card, Icon, type IconName } from '../components/ui';
 import { supabaseEnabled } from '../services/supabaseClient';
-import { APP_NAME, APP_TAGLINE } from '../constants';
+import { APP_NAME, APP_TAGLINE, URL_PRIVACIDADE } from '../constants';
 
 const STEPS = [
   { n: '01', t: 'Crie seu perfil', d: 'Interesses, jeito de ser e algumas respostas suas. Leva cinco minutos.' },
@@ -172,7 +172,7 @@ export function Landing() {
           {supabaseEnabled
             ? 'Conectado a um banco real, com Row Level Security. '
             : 'Projeto de demonstração. Perfis fictícios, sem pessoas reais. '}
-          Termos de Uso · Política de Privacidade · Diretrizes da Comunidade
+          Termos de Uso · <a href={URL_PRIVACIDADE} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-ink">Política de Privacidade</a> · Diretrizes da Comunidade
         </p>
       </footer>
     </div>
