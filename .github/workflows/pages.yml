@@ -211,22 +211,24 @@ jobs:
           fi
           echo "Cartao de compartilhamento: og.png e og:image absoluta no lugar."
 
-          # Politica de privacidade. O Google Play EXIGE um endereco publico
-          # que abra sem login; sem este arquivo a ficha da loja e recusada, e
-          # o app continuaria funcionando normalmente — ninguem reportaria.
-          # Alem disso o cadastro pede que a pessoa aceite este documento: um
-          # link quebrado ali e consentimento sem leitura.
-          if [ ! -f dist/privacidade.html ]; then
-            echo "ERRO: falta dist/privacidade.html."
-            echo "O arquivo vive em public/privacidade.html e e copiado no build."
-            exit 1
-          fi
-          if ! grep -qF 'privacidade.html' dist/assets/*.js; then
-            echo "ERRO: nenhuma tela do app aponta para a politica de privacidade."
-            echo "Ver URL_PRIVACIDADE em constants.ts."
-            exit 1
-          fi
-          echo "Politica de privacidade: pagina publicada e ligada no app."
+          # Os tres documentos publicos. O Google Play EXIGE endereco publico
+          # para a politica de privacidade; sem o arquivo a ficha da loja e
+          # recusada e o app continua funcionando — ninguem reportaria. E o
+          # cadastro pede que a pessoa aceite os tres: link quebrado ali e
+          # consentimento sem leitura.
+          for doc in privacidade termos diretrizes; do
+            if [ ! -f "dist/$doc.html" ]; then
+              echo "ERRO: falta dist/$doc.html."
+              echo "O arquivo vive em public/$doc.html e e copiado no build."
+              exit 1
+            fi
+            if ! grep -qF "$doc.html" dist/assets/*.js; then
+              echo "ERRO: nenhuma tela do app aponta para $doc.html."
+              echo "Ver as constantes URL_* em constants.ts."
+              exit 1
+            fi
+          done
+          echo "Documentos publicos: privacidade, termos e diretrizes no ar e ligados no app."
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

@@ -33,6 +33,8 @@ export const MIN_AGE = 18;
 // Sempre aberta em aba nova: quem clica no meio do cadastro não pode perder
 // o que já preencheu por ler aquilo que está aceitando.
 export const URL_PRIVACIDADE = '/privacidade.html';
+export const URL_TERMOS = '/termos.html';
+export const URL_DIRETRIZES = '/diretrizes.html';
 
 export const GENDER_LABEL: Record<Gender, string> = {
   mulher: 'Mulher',

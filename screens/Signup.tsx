@@ -3,7 +3,9 @@ import type { AxisKey, Gender, Lifestyle, RelationshipGoal, SeekingGender, User 
 import {
   APP_NAME, AXES, GENDER_LABEL, GOAL_EMOJI, GOAL_LABEL, LIFESTYLE_FIELDS, MIN_AGE, PACE_LABEL,
   POLICY_VERSION,
+  URL_DIRETRIZES,
   URL_PRIVACIDADE,
+  URL_TERMOS,
 } from '../constants';
 import { NOMES_DE_CIDADE, UFS, coordenadasDe } from '../services/localizacao';
 import { INTEREST_CATEGORIES, INTERESTS } from '../data/interests';
@@ -599,14 +601,14 @@ export function Signup() {
 
             <div className="rounded-2xl bg-bg p-4">
               <Checkbox checked={d.acceptTerms} onChange={(v) => set('acceptTerms', v)}>
-                Li e aceito os <strong className="text-ink">Termos de Uso</strong>.
+                Li e aceito os <a href={URL_TERMOS} target="_blank" rel="noopener noreferrer" className="font-semibold text-ink underline underline-offset-2">Termos de Uso</a>.
               </Checkbox>
               <Checkbox checked={d.acceptPrivacy} onChange={(v) => set('acceptPrivacy', v)}>
                 Li a <a href={URL_PRIVACIDADE} target="_blank" rel="noopener noreferrer" className="font-semibold text-ink underline underline-offset-2">Política de Privacidade</a> e concordo com o tratamento
                 dos meus dados conforme a LGPD. Posso exportar ou apagar tudo a qualquer momento.
               </Checkbox>
               <Checkbox checked={d.acceptGuidelines} onChange={(v) => set('acceptGuidelines', v)}>
-                Concordo com as <strong className="text-ink">Diretrizes da Comunidade</strong> e confirmo que
+                Concordo com as <a href={URL_DIRETRIZES} target="_blank" rel="noopener noreferrer" className="font-semibold text-ink underline underline-offset-2">Diretrizes da Comunidade</a> e confirmo que
                 tenho {MIN_AGE} anos ou mais.
               </Checkbox>
               {errors.consent && <p className="mt-2 text-xs font-medium text-danger">{errors.consent}</p>}
