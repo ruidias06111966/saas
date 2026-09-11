@@ -211,6 +211,23 @@ jobs:
           fi
           echo "Cartao de compartilhamento: og.png e og:image absoluta no lugar."
 
+          # Politica de privacidade. O Google Play EXIGE um endereco publico
+          # que abra sem login; sem este arquivo a ficha da loja e recusada, e
+          # o app continuaria funcionando normalmente — ninguem reportaria.
+          # Alem disso o cadastro pede que a pessoa aceite este documento: um
+          # link quebrado ali e consentimento sem leitura.
+          if [ ! -f dist/privacidade.html ]; then
+            echo "ERRO: falta dist/privacidade.html."
+            echo "O arquivo vive em public/privacidade.html e e copiado no build."
+            exit 1
+          fi
+          if ! grep -qF 'privacidade.html' dist/assets/*.js; then
+            echo "ERRO: nenhuma tela do app aponta para a politica de privacidade."
+            echo "Ver URL_PRIVACIDADE em constants.ts."
+            exit 1
+          fi
+          echo "Politica de privacidade: pagina publicada e ligada no app."
+
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

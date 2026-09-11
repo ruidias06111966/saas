@@ -114,15 +114,32 @@ self.addEventListener('message', (evento) => {
 });
 
 /** Estando online, o que vale é o que veio do servidor. Offline, a casca. */
+/**
+ * A casca é o app; qualquer outra navegação é uma página própria.
+ *
+ * Enquanto existiu uma única página navegável, esta distinção não fazia falta.
+ * Passou a fazer quando nasceu /privacidade.html, que o Google Play exige como
+ * endereço público e separado.
+ */
+function ehACasca(pedido) {
+  const caminho = new URL(pedido.url).pathname;
+  return caminho === CASCA || caminho === `${CASCA}index.html`;
+}
+
 async function redePrimeiro(pedido) {
   const cache = await caches.open(CACHE);
+  // A resposta era guardada SEMPRE sob a chave da casca. Com uma página só,
+  // isso era inofensivo. Com duas, abrir a política de privacidade passava a
+  // sobrescrever a casca do app — e a próxima abertura sem rede mostraria a
+  // política no lugar do aplicativo, sem nada que explicasse o porquê.
+  const chave = ehACasca(pedido) ? CASCA : pedido;
   try {
     const resposta = await fetch(pedido);
-    if (resposta.ok) await cache.put(CASCA, resposta.clone());
+    if (resposta.ok) await cache.put(chave, resposta.clone());
     return resposta;
   } catch {
-    const guardada = await cache.match(CASCA);
-    return guardada ?? Response.error();
+    // Sem rede: primeiro a própria página, depois a casca como último recurso.
+    return (await cache.match(chave)) ?? (await cache.match(CASCA)) ?? Response.error();
   }
 }
 

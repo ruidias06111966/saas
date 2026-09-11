@@ -22,6 +22,18 @@ export const POLICY_VERSION = '2026.1';
 export const STORAGE_KEY = 'conexao.state.v1';
 export const MIN_AGE = 18;
 
+// A Política de Privacidade é uma PÁGINA ESTÁTICA, e não uma tela do app.
+//
+// Tem de ser assim: o Google Play exige um endereço público, que abra sem
+// login e sem instalar nada — e este app é uma única tela controlada por
+// estado, sem rotas. `public/privacidade.html` vai para a raiz do site no
+// build, então o endereço existe para qualquer pessoa, inclusive para o
+// robô que revisa a loja.
+//
+// Sempre aberta em aba nova: quem clica no meio do cadastro não pode perder
+// o que já preencheu por ler aquilo que está aceitando.
+export const URL_PRIVACIDADE = '/privacidade.html';
+
 export const GENDER_LABEL: Record<Gender, string> = {
   mulher: 'Mulher',
   homem: 'Homem',
