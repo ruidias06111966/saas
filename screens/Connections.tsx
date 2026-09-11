@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useApp } from '../state/AppContext';
-import { connectionsOf, findUser, healthOf, messagesOf, otherId } from '../state/appState';
+import { connectionWith, connectionsOf, findUser, healthOf, messagesOf, otherId } from '../state/appState';
 import { Page } from '../components/layout/AppShell';
 import { Button, Card, Chip, Empty, Icon, Tabs } from '../components/ui';
 import { CompatBadge } from '../components/EssenceCard';
@@ -12,7 +12,10 @@ type Tab = 'novas' | 'conversando' | 'favoritos' | 'solicitacoes' | 'encerradas'
 
 export function Connections() {
   const { me, state, navigate, expressInterest, passOn, toggleFavorite, toast } = useApp();
-  const [tab, setTab] = useState<Tab>('novas');
+  // `null` = a pessoa ainda não escolheu aba. Nesse caso a tela abre onde há
+  // algo esperando por ela: um pedido para responder vale mais do que uma lista
+  // vazia de conexões novas. Depois do primeiro clique, manda a escolha dela.
+  const [tab, setTab] = useState<Tab | null>(null);
 
   const groups = useMemo(() => {
     if (!me) return null;
@@ -35,14 +38,26 @@ export function Connections() {
     };
   }, [me, state]);
 
+  const aceitar = (outroId: string) => {
+    const r = expressInterest(outroId);
+    if (!r.ok) { toast(r.reason ?? 'Não foi possível aceitar.', 'warn'); return; }
+    // Aceitar é demonstrar interesse de volta: o outro lado já tinha gostado,
+    // então isto fecha a reciprocidade e a conexão nasce na hora.
+    toast('Conexão feita. A conversa já pode começar.', 'ok');
+    const conn = connectionWith(state, me!.id, outroId);
+    if (conn) navigate({ name: 'chat', id: conn.id });
+  };
+
   if (!me || !groups) return null;
 
-  const list = tab === 'solicitacoes' ? groups.solicitacoes : groups[tab];
+  const tabAtiva: Tab = tab ?? (groups.solicitacoes.length > 0 ? 'solicitacoes' : 'novas');
+
+  const list = groups[tabAtiva];
 
   return (
     <Page title="Minhas conexões" subtitle="Interesse dos dois lados vira conexão. Conexão sem conversa não vira nada.">
       <Tabs<Tab>
-        value={tab} onChange={setTab}
+        value={tabAtiva} onChange={setTab}
         tabs={[
           { id: 'novas', label: 'Novas', count: groups.novas.length },
           { id: 'conversando', label: 'Conversando', count: groups.conversando.length },
@@ -139,8 +154,26 @@ export function Connections() {
                           {c.favorite[me.id] ? 'Favorito' : 'Favoritar'}
                         </Button>
                       </>
+                    ) : c.status === 'pendente' && !c.likes[me.id] ? (
+                      /* O PEDIDO É DE QUEM ESTÁ DO OUTRO LADO, E ATÉ AGORA NÃO
+                         HAVIA COMO ACEITÁ-LO.
+                         Esta aba já listava as solicitações recebidas, mas
+                         mostrava o mesmo rótulo morto "Aguardando resposta" que
+                         aparecia para quem tinha ENVIADO. Não existia botão de
+                         aceitar em lugar nenhum do aplicativo — e, como o
+                         Descobrir escondia quem já tinha conexão, também não
+                         havia como retribuir por lá. Todo pedido virava um beco
+                         sem saída. */
+                      <>
+                        <Button size="sm" icon="heart" onClick={() => aceitar(user.id)}>
+                          Aceitar e conversar
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => navigate({ name: 'person', id: user.id })}>
+                          Ver perfil
+                        </Button>
+                      </>
                     ) : c.status === 'pendente' ? (
-                      <Chip size="sm">Aguardando resposta</Chip>
+                      <Chip size="sm">Pedido enviado · aguardando resposta</Chip>
                     ) : (
                       <Button size="sm" variant="outline" onClick={() => navigate({ name: 'person', id: user.id })}>Ver perfil</Button>
                     )}

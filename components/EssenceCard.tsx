@@ -21,12 +21,23 @@ export function CompatBadge({ score, size = 'md' }: { score: number; size?: 'sm'
   );
 }
 
+/**
+ * Em que pé está a relação com esta pessoa.
+ *
+ * Existe porque o Descobrir deixou de esconder quem já tem conexão: agora a
+ * pessoa aparece sempre, e o cartão precisa dizer a verdade sobre ela — senão
+ * quem já pediu para conversar veria um "Tenho interesse" que não faz nada de
+ * novo, e quem RECEBEU um pedido não saberia que basta um toque para aceitar.
+ */
+export type Relacao = 'nenhuma' | 'pedido-enviado' | 'pedido-recebido' | 'conectada';
+
 export function EssenceCard({
   user, score, shared, headline, distanceKm, onInterest, onPass, onOpen, highlight, compact,
+  relacao = 'nenhuma',
 }: {
   user: User; score: number; shared: string[]; headline: string; distanceKm: number;
   onInterest?: () => void; onPass?: () => void; onOpen?: () => void;
-  highlight?: boolean; compact?: boolean;
+  highlight?: boolean; compact?: boolean; relacao?: Relacao;
 }) {
   const answer = user.answers.find((a) => a.answer.trim().length > 30) ?? user.answers[0];
   const prompt = answer ? PROFILE_PROMPT_MAP[answer.promptId] : undefined;
@@ -102,12 +113,28 @@ export function EssenceCard({
           </>
         )}
 
-        <div className="mt-5 flex items-center gap-2">
-          {onPass && <Button variant="ghost" size="sm" onClick={onPass}>Passar</Button>}
+        <div className="mt-5 flex flex-wrap items-center gap-2">
+          {onPass && relacao === 'nenhuma' && (
+            <Button variant="ghost" size="sm" onClick={onPass}>Passar</Button>
+          )}
           {onOpen && <Button variant="outline" size="sm" onClick={onOpen}>Ver perfil</Button>}
-          {onInterest && (
+
+          {/* Quem já pediu não pede de novo — e o cartão diz por quê, em vez
+              de repetir um botão que não mudaria nada. */}
+          {relacao === 'pedido-enviado' && (
+            <span className="ml-auto"><Chip size="sm">Pedido enviado · aguardando</Chip></span>
+          )}
+          {relacao === 'conectada' && (
+            <span className="ml-auto"><Chip size="sm" tone="sage">Vocês já estão conectados</Chip></span>
+          )}
+          {onInterest && relacao === 'pedido-recebido' && (
             <Button size="sm" icon="heart" className="ml-auto" onClick={onInterest}>
-              Tenho interesse
+              Aceitar e conversar
+            </Button>
+          )}
+          {onInterest && relacao === 'nenhuma' && (
+            <Button size="sm" icon="heart" className="ml-auto" onClick={onInterest}>
+              Quero conversar
             </Button>
           )}
         </div>

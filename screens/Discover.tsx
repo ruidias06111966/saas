@@ -7,7 +7,7 @@ import { blockedIdsFor, connectionsOf, otherId } from '../state/appState';
 import { buildCandidates, dailyCuration } from '../services/curation';
 import { Page } from '../components/layout/AppShell';
 import { Banner, Button, Chip, Empty, Field, Icon, Input, Modal, Select } from '../components/ui';
-import { EssenceCard } from '../components/EssenceCard';
+import { EssenceCard, type Relacao } from '../components/EssenceCard';
 import { dateKey } from '../services/utils';
 
 interface Filters {
@@ -38,9 +38,36 @@ export function Discover() {
   const result = useMemo(() => {
     if (!me) return null;
     const conns = connectionsOf(state, me.id);
-    const seen = new Set(conns.map((c) => otherId(c, me.id)));
+
+    // O DESCOBRIR DEIXOU DE CONSUMIR AS PESSOAS.
+    //
+    // Antes, QUALQUER conexão — inclusive um pedido de conversa que ninguém
+    // tinha respondido — apagava a pessoa daqui. Dos dois lados. Medido nas
+    // quatro contas reais: seis conexões, todas `pendente`, e seis é o número
+    // máximo de pares que quatro pessoas conseguem formar. Todo mundo tinha
+    // pedido para falar com todo mundo, e o app tinha ficado vazio para todos
+    // ao mesmo tempo, sem uma linha na tela que explicasse o que aconteceu.
+    //
+    // Agora só some daqui quem a própria pessoa dispensou ou bloqueou. Ter um
+    // pedido em aberto, ou já estar conectado, não esconde ninguém — o cartão
+    // mostra em que pé está a relação.
+    const ocultos = new Set(
+      conns
+        .filter((c) => c.status === 'recusada' || c.status === 'bloqueada')
+        .map((c) => otherId(c, me.id)),
+    );
     const blocked = blockedIdsFor(state, me.id);
-    const base = buildCandidates(me, state.users, blocked, seen);
+    const base = buildCandidates(me, state.users, blocked, ocultos);
+
+    // Em que pé está cada relação, para o cartão poder dizer a verdade.
+    const relacaoCom = new Map<string, Relacao>();
+    for (const c of conns) {
+      const outro = otherId(c, me.id);
+      if (c.status === 'conectada') relacaoCom.set(outro, 'conectada');
+      else if (c.status === 'pendente') {
+        relacaoCom.set(outro, c.likes[me.id] ? 'pedido-enviado' : 'pedido-recebido');
+      }
+    }
 
     const filtered = base.filter((c) => {
       const a = c.user.age;
@@ -56,12 +83,12 @@ export function Discover() {
     const usage = state.usage.find((u) => u.userId === me.id && u.date === dateKey());
     return {
       curation: dailyCuration(me, filtered, quota.discoverCards, quota.dailyInterests - (usage?.interests ?? 0)),
-      totalBefore: base.length, totalAfter: filtered.length,
+      totalBefore: base.length, totalAfter: filtered.length, relacaoCom,
     };
   }, [me, state, filters, quota]);
 
   if (!me || !result) return null;
-  const { curation } = result;
+  const { curation, relacaoCom } = result;
   const advanced = quota.advancedFilters;
 
   const act = (id: string, kind: 'like' | 'pass') => {
@@ -98,6 +125,7 @@ export function Discover() {
             highlight user={curation.highlight.user} score={curation.highlight.score}
             shared={curation.highlight.shared} headline={curation.highlight.headline}
             distanceKm={curation.highlight.distanceKm}
+            relacao={relacaoCom.get(curation.highlight.user.id) ?? 'nenhuma'}
             onOpen={() => navigate({ name: 'person', id: curation.highlight!.user.id })}
             onPass={() => act(curation.highlight!.user.id, 'pass')}
             onInterest={() => act(curation.highlight!.user.id, 'like')}
@@ -106,6 +134,7 @@ export function Discover() {
             <EssenceCard
               key={c.user.id} user={c.user} score={c.score} shared={c.shared}
               headline={c.headline} distanceKm={c.distanceKm}
+              relacao={relacaoCom.get(c.user.id) ?? 'nenhuma'}
               onOpen={() => navigate({ name: 'person', id: c.user.id })}
               onPass={() => act(c.user.id, 'pass')}
               onInterest={() => act(c.user.id, 'like')}
