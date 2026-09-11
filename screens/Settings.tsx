@@ -4,7 +4,7 @@ import { blockedIdsFor, findUser } from '../state/appState';
 import { downloadJson, exportUserData, RETENTION_NOTE } from '../services/lgpd';
 import { clearState } from '../services/storage';
 import { aiEnabled } from '../services/geminiService';
-import { POLICY_VERSION, URL_PRIVACIDADE } from '../constants';
+import { POLICY_VERSION, URL_DIRETRIZES, URL_PRIVACIDADE, URL_TERMOS } from '../constants';
 import { Page } from '../components/layout/AppShell';
 import { Banner, Button, Card, Chip, Field, Icon, Input, Modal, SectionTitle, Toggle } from '../components/ui';
 import { firstName } from '../services/utils';
@@ -198,9 +198,11 @@ export function Settings() {
             </div>
             <p className="mt-2 text-[11px] text-muted">
               Versão vigente das políticas: {POLICY_VERSION} ·{' '}
-              <a href={URL_PRIVACIDADE} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-ink">
-                Ler a Política de Privacidade
-              </a>
+              <a href={URL_TERMOS} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-ink">Termos</a>
+              {' · '}
+              <a href={URL_PRIVACIDADE} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-ink">Privacidade</a>
+              {' · '}
+              <a href={URL_DIRETRIZES} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-ink">Diretrizes</a>
             </p>
           </div>
         </Card>
