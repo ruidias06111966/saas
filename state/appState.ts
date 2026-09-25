@@ -79,7 +79,7 @@ export type Action =
   | { type: 'READ_NOTIFICATIONS'; userId: string }
   | { type: 'BLOCK'; blockerId: string; blockedId: string }
   | { type: 'UNBLOCK'; blockerId: string; blockedId: string }
-  | { type: 'BUMP_USAGE'; userId: string; field: 'interests' | 'aiCalls' }
+  | { type: 'BUMP_USAGE'; userId: string; field: 'contatos' | 'aiCalls' }
   | { type: 'SET_SUBSCRIPTION'; subscription: Subscription }
   | { type: 'DELETE_ACCOUNT'; userId: string };
 
@@ -253,7 +253,7 @@ export function reducer(state: AppState, action: Action): AppState {
         ? state.usage.map((u) =>
             u === found ? { ...u, [action.field]: u[action.field] + 1 } : u,
           )
-        : [...state.usage, { userId: action.userId, date: today, interests: 0, aiCalls: 0, [action.field]: 1 } as DailyUsage];
+        : [...state.usage, { userId: action.userId, date: today, contatos: 0, aiCalls: 0, [action.field]: 1 } as DailyUsage];
       return { ...state, usage };
     }
 
@@ -345,7 +345,7 @@ export const blockedIdsFor = (s: AppState, me: string): Set<string> =>
 
 export const usageToday = (s: AppState, me: string): DailyUsage =>
   s.usage.find((u) => u.userId === me && u.date === dateKey()) ??
-  { userId: me, date: dateKey(), interests: 0, aiCalls: 0 };
+  { userId: me, date: dateKey(), contatos: 0, aiCalls: 0 };
 
 export const unreadCount = (s: AppState, me: string): number =>
   s.notifications.filter((n) => n.userId === me && !n.read).length;

@@ -1,6 +1,5 @@
 import { requireSupabase, supabaseEnabled } from './supabaseClient';
 import { readImageAsDataUrl } from './storage';
-import { clamp } from './utils';
 
 // ---------------------------------------------------------------------------
 // Imagens e o Véu.
@@ -30,15 +29,11 @@ const URL_TTL_SEGUNDOS = 60 * 60;
 /** O nível 4 é o original; 0..3 são os velados que o servidor gera. */
 export const NIVEL_ORIGINAL = 4;
 
-/** Qual nível da pirâmide corresponde a um `reveal` de 0..1. */
-export function nivelDoReveal(reveal: number): number {
-  const r = clamp(reveal);
-  if (r >= 0.999) return NIVEL_ORIGINAL;
-  if (r >= 0.756) return 3;
-  if (r >= 0.488) return 2;
-  if (r >= 0.244) return 1;
-  return 0;
-}
+// A pirâmide de níveis desfocados continua sendo GERADA no envio, e por um
+// motivo só: as fotos que já estão no bucket foram salvas assim, e o caminho
+// guardado em `users.photo_url` não tem extensão — quem resolve o arquivo é
+// esta camada. Parar de gerar agora deixaria as antigas resolvendo e as novas
+// não. O que mudou é a LEITURA: ninguém mais pede um nível velado.
 
 const sufixo = (nivel: number) => (nivel >= NIVEL_ORIGINAL ? 'orig' : String(nivel));
 
@@ -138,11 +133,14 @@ async function assinar(caminho: string): Promise<string | undefined> {
 }
 
 /**
- * Resolve a imagem exibível. Para foto de perfil pede o nível correspondente ao
- * `reveal` e, se o servidor recusar, desce um degrau — o portão é do banco, e o
- * cliente apenas obedece ao que ele devolve.
+ * Resolve a imagem exibível.
+ *
+ * Desde o pivô pede sempre o ORIGINAL — não há mais véu. A descida pelos
+ * níveis continua como rede de segurança para as fotos antigas, cujo original
+ * pode não existir no bucket; o portão continua sendo do banco, e o cliente
+ * apenas obedece ao que ele devolve.
  */
-export async function resolveImage(caminho?: string, reveal = 1): Promise<string | undefined> {
+export async function resolveImage(caminho?: string): Promise<string | undefined> {
   if (!caminho) return undefined;
   if (caminho.startsWith('data:') || caminho.startsWith('http')) return caminho;
   if (!supabaseEnabled) return caminho;
@@ -150,7 +148,7 @@ export async function resolveImage(caminho?: string, reveal = 1): Promise<string
   // Caminho completo (imagem de conversa) já tem extensão.
   if (caminho.endsWith('.jpg')) return assinar(caminho);
 
-  for (let nivel = nivelDoReveal(reveal); nivel >= 0; nivel--) {
+  for (let nivel = NIVEL_ORIGINAL; nivel >= 0; nivel--) {
     const url = await assinar(`${caminho}-${sufixo(nivel)}.jpg`);
     if (url) return url;
   }

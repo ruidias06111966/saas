@@ -4,24 +4,24 @@ import { supabaseEnabled } from '../services/supabaseClient';
 import { APP_NAME, APP_TAGLINE, URL_DIRETRIZES, URL_PRIVACIDADE, URL_TERMOS } from '../constants';
 
 const STEPS = [
-  { n: '01', t: 'Crie seu perfil', d: 'Interesses, jeito de ser e algumas respostas suas. Leva cinco minutos.' },
-  { n: '02', t: 'Receba sua curadoria do dia', d: 'Poucas pessoas, escolhidas por afinidade real. Sem rolagem infinita.' },
-  { n: '03', t: 'Comece pela conversa', d: 'A foto entra velada. O que aparece primeiro é o que a pessoa pensa.' },
-  { n: '04', t: 'Deixe a conexão se revelar', d: 'Conforme a conversa avança de verdade, a imagem se revela.' },
+  { n: '01', t: 'Diga o que você faz', d: 'Profissão, áreas de atuação e um resumo honesto. Leva cinco minutos.' },
+  { n: '02', t: 'Publique ou procure', d: 'Precisa de alguém? Publique. Quer trabalho? Procure no quadro.' },
+  { n: '03', t: 'Receba propostas', d: 'Quem sabe fazer responde com valor e prazo. Você compara e escolhe.' },
+  { n: '04', t: 'Feche o combinado', d: 'Proposta aceita, os telefones dos dois lados são liberados.' },
 ];
 
 const PILLARS: { icon: IconName; t: string; d: string }[] = [
   {
-    icon: 'lock', t: 'Revelação progressiva',
-    d: 'A foto começa velada e só se revela conforme a conversa evolui — ou quando os dois concordam em revelar antes.',
+    icon: 'search', t: 'Você procura, ninguém te empurra',
+    d: 'Busca de verdade — por área, cidade e palavra. E que ignora acento: quem digita "construcao" acha "construção".',
   },
   {
-    icon: 'compass', t: 'Curadoria diária',
-    d: 'Um Encontro do Dia e poucas sugestões, todo dia. Escassez proposital: aqui você conversa, não coleciona.',
+    icon: 'lock', t: 'Telefone só depois do acordo',
+    d: 'Ninguém vê o seu contato enquanto você não aceitar uma proposta. É o que impede o app de virar uma lista de telefones.',
   },
   {
-    icon: 'thermometer', t: 'Termômetro de conversa',
-    d: 'Medimos reciprocidade, profundidade e constância. Quem conversa bem alcança mais gente. Quem some, menos.',
+    icon: 'handshake', t: 'Proposta é sigilosa',
+    d: 'Cada profissional vê apenas a própria proposta. Quem publicou vê todas. Preço à vista faz todo mundo copiar quem chegou primeiro.',
   },
 ];
 
@@ -47,12 +47,13 @@ export function Landing() {
               <Icon name="sparkle" size={13} filled /> {APP_TAGLINE}
             </p>
             <h1 className="font-display text-4xl font-bold leading-[1.08] tracking-tight sm:text-5xl lg:text-6xl">
-              Encontre alguém que<br />
-              <span className="bg-gradient-to-r from-brand to-ember bg-clip-text text-transparent">combine com você.</span>
+              Quem sabe fazer,<br />
+              <span className="bg-gradient-to-r from-brand to-ember bg-clip-text text-transparent">e quem precisa.</span>
             </h1>
             <p className="mt-5 max-w-lg text-base leading-relaxed text-muted sm:text-lg">
-              Conexões baseadas em interesses, personalidade e boas conversas.
-              Aqui a foto não abre a porta — ela é a recompensa de uma conversa que valeu a pena.
+              Contador, engenheiro, advogado, quem cuida de alvará, quem faz site. Publique o que
+              você precisa e receba propostas de gente da sua região — ou ofereça o que você sabe
+              fazer para quem já está procurando.
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <Button size="lg" onClick={() => navigate({ name: 'signup' })}>Criar minha conta</Button>
@@ -63,24 +64,29 @@ export function Landing() {
             </p>
           </div>
 
-          {/* Ilustração do véu */}
+          {/* Um anúncio como ele aparece no quadro. */}
           <div className="relative mx-auto w-full max-w-sm">
-            <div className="grain relative aspect-[4/5] overflow-hidden rounded-xl4 bg-gradient-to-br from-brand via-brand/70 to-ember shadow-lift">
-              <div className="absolute inset-0 grid grid-cols-2">
-                <div className="backdrop-blur-2xl" />
-                <div className="backdrop-blur-[2px]" />
-              </div>
-              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-ink/80 to-transparent p-6 text-white">
-                <p className="text-[11px] font-bold uppercase tracking-[0.16em] opacity-80">Estágio 3 de 5</p>
-                <p className="mt-1 font-display text-2xl font-semibold">A imagem se revela</p>
-                <p className="mt-1 text-[13px] opacity-90">à medida que vocês se conhecem.</p>
+            <div className="grain relative overflow-hidden rounded-xl4 bg-gradient-to-br from-brand via-brand/70 to-ember p-6 shadow-lift">
+              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-white/80">Anúncio aberto</p>
+              <p className="mt-2 font-display text-2xl font-semibold leading-snug text-white">
+                Contador para abertura de empresa
+              </p>
+              <p className="mt-2 text-[13px] leading-relaxed text-white/90">
+                Prestação de serviço, dois sócios, Goiânia. Precisa estar pronto em outubro.
+              </p>
+              <div className="mt-4 flex flex-wrap gap-1.5">
+                {['Contabilidade', 'Goiânia, GO', 'R$ 1.200'].map((t) => (
+                  <span key={t} className="rounded-full bg-white/20 px-2.5 py-1 text-[11px] font-medium text-white">
+                    {t}
+                  </span>
+                ))}
               </div>
             </div>
-            <Card className="absolute -left-6 top-8 hidden w-56 p-4 shadow-lift sm:block">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">Compatibilidade</p>
-              <p className="font-display text-3xl font-bold text-brand">87%</p>
+            <Card className="absolute -left-6 top-40 hidden w-56 p-4 shadow-lift sm:block">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">Propostas recebidas</p>
+              <p className="font-display text-3xl font-bold text-brand">7</p>
               <p className="mt-1 text-[11px] leading-relaxed text-muted">
-                Objetivo, ritmo de conversa e 4 interesses em comum.
+                Só quem publicou enxerga os valores. Cada profissional vê apenas a própria.
               </p>
             </Card>
           </div>
@@ -109,8 +115,9 @@ export function Landing() {
           <div className="max-w-2xl">
             <h2 className="font-display text-3xl font-bold tracking-tight">O que fazemos diferente</h2>
             <p className="mt-3 text-base leading-relaxed text-muted">
-              Aplicativos de relacionamento otimizam para o tempo que você passa deslizando perfis.
-              O {APP_NAME} otimiza para a conversa que sobra depois.
+              Os sites de freelancer grandes otimizam para o volume: milhares de propostas de
+              qualquer lugar do mundo, e o preço mais baixo ganha. O {APP_NAME} é do tamanho da sua
+              região, e quem ganha é quem entrega.
             </p>
           </div>
           <div className="mt-8 grid gap-5 lg:grid-cols-3">
@@ -127,11 +134,13 @@ export function Landing() {
 
           <blockquote className="mt-10 rounded-xl4 bg-ink p-8 text-bg sm:p-12">
             <p className="font-display text-2xl font-semibold leading-snug sm:text-3xl">
-              “Aqui, uma boa conversa pode ser o começo de uma grande história.”
+              “Quem faz o serviço mora perto de quem precisa dele. Faltava um lugar para os dois
+              se acharem.”
             </p>
             <p className="mt-4 max-w-xl text-sm leading-relaxed opacity-70">
-              Não prometemos que o algoritmo vai encontrar seu par. Prometemos colocar você na frente
-              de menos gente, melhor escolhida, e tornar mais fácil começar a falar.
+              Não prometemos milhares de oportunidades. Prometemos as da sua região, com nome,
+              rosto e reputação de quem está do outro lado — e um jeito de fechar o combinado sem
+              intermediário cobrando comissão.
             </p>
           </blockquote>
         </div>
@@ -143,17 +152,17 @@ export function Landing() {
           <div>
             <h2 className="font-display text-3xl font-bold tracking-tight">Segurança não é recurso premium</h2>
             <p className="mt-3 text-sm leading-relaxed text-muted">
-              Verificação de perfil, moderação assistida por IA com revisão humana, bloqueio e denúncia
-              em um toque. Seu endereço exato nunca aparece — só a cidade e uma faixa de distância.
-              Você pode exportar ou apagar seus dados quando quiser, como manda a LGPD.
+              Verificação de perfil, moderação assistida por IA com revisão humana, bloqueio e
+              denúncia em um toque. Seu endereço exato nunca aparece — só a cidade. Você pode
+              exportar ou apagar seus dados quando quiser, como manda a LGPD.
             </p>
           </div>
           <ul className="space-y-3">
             {[
               'Nenhuma conta é banida por decisão automática: toda suspensão passa por análise humana.',
-              'Mensagens com pedido de dinheiro, ameaça ou conteúdo sexual não solicitado são bloqueadas antes do envio.',
+              'Mensagens com pedido de taxa antecipada, ameaça ou conteúdo impróprio são bloqueadas antes do envio.',
               'Você exporta todos os seus dados em JSON e apaga sua conta sem precisar falar com ninguém.',
-              'E-mail e telefone nunca aparecem no seu perfil público.',
+              'E-mail nunca aparece. O telefone só é mostrado ao outro lado quando uma proposta é aceita.',
             ].map((t) => (
               <li key={t} className="flex items-start gap-3 rounded-2xl border border-line bg-bg p-4 text-[13px] leading-relaxed">
                 <Icon name="check" size={16} className="mt-0.5 shrink-0 text-sage" />{t}

@@ -8,7 +8,7 @@ import { Signup } from './screens/Signup';
 import { RecuperarSenha } from './screens/RecuperarSenha';
 import { RedefinirSenha } from './screens/RedefinirSenha';
 import { Home } from './screens/Home';
-import { Discover } from './screens/Discover';
+import { Profissionais } from './screens/Profissionais';
 import { Anuncios } from './screens/Anuncios';
 import { Anuncio } from './screens/Anuncio';
 import { PublicarAnuncio } from './screens/PublicarAnuncio';
@@ -34,7 +34,7 @@ function Router() {
     case 'recuperarSenha': return <RecuperarSenha />;
     case 'redefinirSenha': return <RedefinirSenha />;
     case 'home': return <Home />;
-    case 'discover': return <Discover />;
+    case 'profissionais': return <Profissionais />;
     // ---------------------------- o mercado ------------------------------
     case 'anuncios': return <Anuncios />;
     case 'anuncio': return <Anuncio id={route.id} />;

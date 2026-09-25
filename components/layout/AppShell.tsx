@@ -12,13 +12,21 @@ import { APP_NAME } from '../../constants';
 // ofereci — ficam lado a lado de propósito: são os dois papéis que a mesma
 // pessoa exerce aqui, e quem contrata hoje é quem se oferece amanhã.
 //
-// Descobrir e Conexões saíram daqui, não do app: continuam acessíveis pela
-// Início enquanto a Fase 2 não refaz aquela tela.
-const NAV: { route: Route['name']; label: string; icon: IconName }[] = [
+// Conexões saiu daqui, não do app: fica na barra lateral, com o aviso de
+// pedidos esperando resposta.
+//
+// SETE ITENS NÃO CABEM NA BARRA DE BAIXO DE UM CELULAR. Num aparelho de 360px
+// cada um ficaria com 51px, e "Conversas" a 10px já ocupa quase isso — os
+// rótulos quebrariam ou seriam cortados. Por isso "Quem faz" é marcada como
+// `soDesktop`: aparece na lateral, onde há espaço, e no celular se chega a ela
+// pela Início. É a única da lista que não precisa estar a um toque, porque
+// quem procura profissional no celular normalmente chegou por um anúncio.
+const NAV: { route: Route['name']; label: string; icon: IconName; soDesktop?: true }[] = [
   { route: 'home', label: 'Início', icon: 'home' },
   { route: 'anuncios', label: 'Trabalhos', icon: 'search' },
   { route: 'meusAnuncios', label: 'Publiquei', icon: 'edit' },
   { route: 'minhasPropostas', label: 'Propostas', icon: 'send' },
+  { route: 'profissionais', label: 'Quem faz', icon: 'users', soDesktop: true },
   { route: 'chats', label: 'Conversas', icon: 'chat' },
   { route: 'profile', label: 'Perfil', icon: 'user' },
 ];
@@ -49,6 +57,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     (name === 'chats' && route.name === 'chat') ||
     (name === 'anuncios' && route.name === 'anuncio') ||
     (name === 'meusAnuncios' && route.name === 'publicar') ||
+    (name === 'profissionais' && route.name === 'person') ||
     (name === 'profile' && route.name === 'profileEdit');
 
   // O chat ocupa a tela inteira no celular: sem menu inferior competindo com
@@ -152,7 +161,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           fullscreen && 'hidden',
         )}>
           <div className="mx-auto flex max-w-lg">
-            {NAV.map((item) => {
+            {NAV.filter((item) => !item.soDesktop).map((item) => {
               const badge = badgeFor(item.route);
               const active = isActive(item.route);
               return (

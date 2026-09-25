@@ -53,8 +53,8 @@ export const MENSAGENS: Message[] = TEXTOS.map((text, i) => ({
 
 export const CONEXAO: Connection = {
   id: 'c1', userA: A, userB: B, status: 'conectada',
-  likes: { [A]: true, [B]: true }, favorite: {}, revealConsent: {},
-  compatibility: 80, createdAt: MENSAGENS[0].createdAt,
+  likes: { [A]: true, [B]: true }, favorite: {},
+  createdAt: MENSAGENS[0].createdAt,
 };
 
 /** O que o Postgres devolveu para esta mesma conversa. */

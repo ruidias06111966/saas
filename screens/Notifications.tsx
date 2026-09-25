@@ -6,7 +6,7 @@ import { Card, Empty, Icon, type IconName } from '../components/ui';
 import { cx, timeAgo } from '../services/utils';
 
 const KIND_ICON: Record<AppNotification['kind'], IconName> = {
-  conexao: 'heart', mensagem: 'chat', curadoria: 'sparkle',
+  conexao: 'handshake', mensagem: 'chat', curadoria: 'search',
   solicitacao: 'bell', sistema: 'info', seguranca: 'shield',
 };
 
@@ -26,7 +26,7 @@ export function Notifications() {
   return (
     <Page title="Notificações" back={back}>
       {items.length === 0 ? (
-        <Empty icon="bell" title="Nada por aqui" body="Conexões, mensagens e curadorias novas aparecem nesta tela." />
+        <Empty icon="bell" title="Nada por aqui" body="Propostas, mensagens e respostas aos seus anúncios aparecem nesta tela." />
       ) : (
         <Card className="divide-y divide-line overflow-hidden">
           {items.map((n) => (

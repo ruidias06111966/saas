@@ -14,7 +14,6 @@ import { subscribeToConversations } from '../services/realtime';
 import { supabaseEnabled } from '../services/supabaseClient';
 import { avisarDaMensagem } from '../services/push';
 import { identificarUsuario, reportarErro } from '../services/monitoring';
-import { computeCompatibility } from '../services/compatibility';
 import { reputationDelta } from '../services/conversation';
 import { moderateText } from '../services/moderation';
 import { dateKey, firstName, newId, uid } from '../services/utils';
@@ -43,7 +42,6 @@ interface Ctx {
   closeConnection: (connectionId: string, gently: boolean, farewell?: string) => void;
   blockUser: (targetId: string) => void;
   reportUser: (targetId: string, reason: ReportReason, description: string) => void;
-  setRevealConsent: (connectionId: string, value: boolean) => void;
   markRead: (connectionId: string) => void;
   /** Salva o perfil localmente e no servidor. Lança se o servidor recusar. */
   saveProfile: (user: User) => Promise<void>;
@@ -288,7 +286,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const quota = QUOTAS[me?.plan ?? 'free'];
-  const usage = me ? usageToday(state, me.id) : { interests: 0, aiCalls: 0, userId: '', date: dateKey() };
+  const usage = me ? usageToday(state, me.id) : { contatos: 0, aiCalls: 0, userId: '', date: dateKey() };
   const canUseAi = usage.aiCalls < quota.dailyAiCalls;
 
   const spendAi = useCallback(() => {
@@ -297,22 +295,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     persist(() => backend.bumpUsage(me.id, 'aiCalls'), 'Não foi possível atualizar sua cota de IA.');
   }, [me, persist]);
 
-  // ---------------------------- interesse ----------------------------------
+  // ------------------------- pedido de conversa -----------------------------
 
   const expressInterest = useCallback((targetId: string) => {
     if (!me) return { ok: false, connected: false, reason: 'Sessão expirada.' };
-    if (usage.interests >= quota.dailyInterests) {
+    if (usage.contatos >= quota.dailyContatos) {
       return {
         ok: false, connected: false,
-        reason: `Você usou seus ${quota.dailyInterests} interesses de hoje. O limite existe de propósito: aqui a ideia é conversar, não colecionar.`,
+        reason: `Você já abordou ${quota.dailyContatos} pessoas hoje. O limite existe de propósito: quem dispara mensagem para todo mundo não fecha negócio com ninguém.`,
       };
     }
     const target = state.users.find((u) => u.id === targetId);
     if (!target) return { ok: false, connected: false, reason: 'Perfil indisponível.' };
 
     const existing = connectionWith(state, me.id, targetId);
-    const compatibility = computeCompatibility(me, target).score;
-    dispatch({ type: 'BUMP_USAGE', userId: me.id, field: 'interests' });
+    dispatch({ type: 'BUMP_USAGE', userId: me.id, field: 'contatos' });
 
     if (existing) {
       const likes = { ...existing.likes, [me.id]: true };
@@ -321,15 +318,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         likes,
         status: (mutual ? 'conectada' : 'pendente') as Connection['status'],
         connectedAt: mutual ? new Date().toISOString() : existing.connectedAt,
-        compatibility,
       };
       dispatch({ type: 'SET_CONNECTION', id: existing.id, patch });
       persist(() => backend.saveConnection({ ...existing, ...patch }), 'Não foi possível registrar seu interesse.');
-      persist(() => backend.bumpUsage(me.id, 'interests'), 'Não foi possível atualizar sua cota diária.');
+      persist(() => backend.bumpUsage(me.id, 'contatos'), 'Não foi possível atualizar sua cota diária.');
       if (mutual) {
         notify({
-          userId: me.id, kind: 'conexao', title: `Conexão com ${firstName(target.name)} ❤️`,
-          body: 'Vocês demonstraram interesse um pelo outro. Comece a conversa.',
+          userId: me.id, kind: 'conexao', title: `Você e ${firstName(target.name)} podem conversar`,
+          body: 'Os dois lados aceitaram. A conversa está aberta.',
           link: { name: 'chat', id: existing.id },
         });
       }
@@ -338,14 +334,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     const conn: Connection = {
       id: newId(), userA: me.id, userB: targetId, status: 'pendente',
-      likes: { [me.id]: true }, favorite: {}, revealConsent: {},
-      compatibility, createdAt: new Date().toISOString(), curatedOn: dateKey(),
+      likes: { [me.id]: true }, favorite: {},
+      createdAt: new Date().toISOString(),
     };
     dispatch({ type: 'UPSERT_CONNECTION', connection: conn });
     persist(() => backend.saveConnection(conn), 'Não foi possível registrar seu interesse.');
-    persist(() => backend.bumpUsage(me.id, 'interests'), 'Não foi possível atualizar sua cota diária.');
+    persist(() => backend.bumpUsage(me.id, 'contatos'), 'Não foi possível atualizar sua cota diária.');
     return { ok: true, connected: false };
-  }, [me, state, usage.interests, quota.dailyInterests, notify, persist]);
+  }, [me, state, usage.contatos, quota.dailyContatos, notify, persist]);
 
   const passOn = useCallback((targetId: string) => {
     if (!me) return;
@@ -357,8 +353,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
     const conn: Connection = {
       id: newId(), userA: me.id, userB: targetId, status: 'recusada',
-      likes: {}, favorite: {}, revealConsent: {}, compatibility: 0,
-      createdAt: new Date().toISOString(), curatedOn: dateKey(),
+      likes: {}, favorite: {},
+      createdAt: new Date().toISOString(),
     };
     dispatch({ type: 'UPSERT_CONNECTION', connection: conn });
     persist(() => backend.saveConnection(conn), 'Não foi possível registrar sua escolha.');
@@ -372,20 +368,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'SET_CONNECTION', id: connectionId, patch: { favorite } });
     persist(() => backend.saveConnection({ ...c, favorite }), 'Não foi possível salvar o favorito.');
   }, [me, state.connections, persist]);
-
-  const setRevealConsent = useCallback((connectionId: string, value: boolean) => {
-    if (!me) return;
-    const c = state.connections.find((x) => x.id === connectionId);
-    if (!c) return;
-    const revealConsent = { ...c.revealConsent, [me.id]: value };
-    dispatch({ type: 'SET_CONNECTION', id: connectionId, patch: { revealConsent } });
-    persist(() => backend.saveConnection({ ...c, revealConsent }), 'Não foi possível salvar o pedido de revelação.');
-    if (revealConsent[c.userA] && revealConsent[c.userB]) {
-      toast('Vocês dois concordaram. As fotos foram reveladas.', 'ok');
-    } else if (value) {
-      toast('Pedido enviado. A foto só é revelada se a outra pessoa também aceitar.', 'info');
-    }
-  }, [me, state.connections, toast, persist]);
 
   // ---------------------------- mensagens ----------------------------------
 
@@ -517,7 +499,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const saveProfile = useCallback(async (u: User) => {
     dispatch({ type: 'UPDATE_USER', id: u.id, patch: u });
-    if (supabaseEnabled) await backend.saveUser(u);
+    if (!supabaseEnabled) return;
+    // Duas escritas, em duas tabelas, e nesta ordem: o perfil primeiro, as
+    // áreas depois. Se a segunda falhar, a pessoa vê o erro com o resto já
+    // salvo — que é melhor do que perder tudo por causa de uma lista.
+    await backend.saveUser(u);
+    await backend.salvarEspecialidades(u.id, u.especialidades);
   }, []);
 
   const logout = useCallback(async () => {
@@ -541,7 +528,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     state, dispatch, me, route, navigate, back,
     toasts, toast, dismissToast,
     expressInterest, passOn, toggleFavorite, sendMessage, closeConnection,
-    blockUser, reportUser, setRevealConsent, markRead,
+    blockUser, reportUser, markRead,
     saveProfile, logout, deleteAccount,
     quota, canUseAi, spendAi,
     mode: state.mode, booting, refresh, loadOlder, hasOlder, pendingAccount,

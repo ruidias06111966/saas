@@ -1,21 +1,41 @@
+import { useEffect, useMemo, useState } from 'react';
 import { useApp } from '../state/AppContext';
-import { profileCompletion } from '../services/compatibility';
+import { profileCompletion, oQueFalta } from '../services/perfil';
 import { connectionsOf, messagesOf } from '../state/appState';
-import { AXES, GOAL_EMOJI, GOAL_LABEL, LIFESTYLE_FIELDS, PACE_LABEL } from '../constants';
-import { INTEREST_MAP } from '../data/interests';
-import { PROFILE_PROMPT_MAP } from '../data/prompts';
 import { Page } from '../components/layout/AppShell';
 import { VerificacaoCard } from '../components/Verificacao';
-import { Bar, Banner, Button, Card, Chip, Icon, Ring, SectionTitle } from '../components/ui';
+import { Banner, Button, Card, Chip, Icon, Ring, SectionTitle } from '../components/ui';
 import { Portrait } from '../components/Portrait';
-import { EssenceCard } from '../components/EssenceCard';
 import { firstName } from '../services/utils';
+import { type Categoria, listarCategorias } from '../services/mercado';
+
+// ---------------------------------------------------------------------------
+// Seu perfil — o crachá profissional.
+//
+// Mudou de assunto por inteiro. Saíram idade, objetivo de relacionamento,
+// bússola de personalidade, estilo de vida, interesses, respostas de prompt e a
+// prévia do Cartão de Essência. Entraram profissão, áreas de atuação, anos de
+// experiência e o telefone que ninguém vê.
+//
+// O aviso sobre a foto velada saiu com o véu: aqui a foto é nítida para todo
+// mundo desde o primeiro segundo.
+// ---------------------------------------------------------------------------
 
 export function Profile() {
   const { me, state, navigate, logout } = useApp();
+  const [categorias, setCategorias] = useState<Categoria[]>([]);
+
+  useEffect(() => { listarCategorias().then(setCategorias).catch(() => {}); }, []);
+
+  const nomeDaCategoria = useMemo(
+    () => new Map(categorias.map((c) => [c.id, c.nome])),
+    [categorias],
+  );
+
   if (!me) return null;
 
   const completion = profileCompletion(me);
+  const falta = oQueFalta(me);
   const conns = connectionsOf(state, me.id);
   const active = conns.filter((c) => c.status === 'conectada');
   const talking = active.filter((c) => messagesOf(state, c.id).length > 0);
@@ -23,23 +43,25 @@ export function Profile() {
   return (
     <Page
       title="Seu perfil"
-      subtitle="É assim que você aparece — mas lembre: para quem ainda não conversou com você, a foto entra velada."
+      subtitle="É assim que você aparece para quem procura um profissional."
       action={<Button size="sm" icon="edit" onClick={() => navigate({ name: 'profileEdit' })}>Editar</Button>}
     >
       <Card className="p-5 sm:p-6">
         <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
-          <Portrait seed={me.id} photo={me.photo} name={me.name} reveal={1} className="h-32 w-32 shrink-0" />
+          <Portrait seed={me.id} photo={me.photo} name={me.name} className="h-32 w-32 shrink-0" />
           <div className="min-w-0 flex-1">
             <h2 className="font-display text-2xl font-bold">
-              {me.name}, {me.age}
+              {me.name}
               {me.verified && <Icon name="check" size={16} className="ml-2 inline text-sage" />}
             </h2>
             <p className="mt-1 text-sm text-muted">
-              {me.profession && `${me.profession} · `}{me.city}, {me.state}
+              {me.profession || 'Sem profissão informada'} · {me.city}, {me.state}
             </p>
             <div className="mt-3 flex flex-wrap gap-1.5">
-              <Chip size="sm" tone="brand">{GOAL_EMOJI[me.goal]} {GOAL_LABEL[me.goal]}</Chip>
-              <Chip size="sm">{PACE_LABEL[me.chatPace]}</Chip>
+              {typeof me.anosExperiencia === 'number' && (
+                <Chip size="sm" tone="brand">{me.anosExperiencia} anos de experiência</Chip>
+              )}
+              <Chip size="sm">{me.atendeRemoto ? 'Atende a distância' : 'Só presencial'}</Chip>
               <Chip size="sm" tone={me.plan === 'premium' ? 'ember' : 'neutral'}>
                 {me.plan === 'premium' ? '👑 Premium' : 'Plano gratuito'}
               </Chip>
@@ -50,14 +72,16 @@ export function Profile() {
           </div>
         </div>
 
-        {completion < 85 && (
+        {falta.length > 0 && (
           <div className="mt-5">
             <Banner
-              tone="info" icon="sparkle" title="Complete seu perfil"
+              tone="info" icon="edit" title="Seu perfil ainda não está pronto para ser escolhido"
               action={<Button size="sm" variant="secondary" onClick={() => navigate({ name: 'profileEdit' })}>Completar</Button>}
             >
-              Perfis completos aparecem em mais curadorias e recebem uma leitura de compatibilidade
-              com confiança maior.
+              Falta {falta.slice(0, 2).join(' e ')}
+              {falta.length > 2 && `, entre outras ${falta.length - 2} coisa(s)`}. Quem publica um
+              anúncio lê o perfil antes de responder uma proposta — um perfil pela metade é
+              descartado antes mesmo do preço.
             </Banner>
           </div>
         )}
@@ -65,9 +89,9 @@ export function Profile() {
 
       <div className="mt-5 grid grid-cols-3 gap-3">
         {[
-          { label: 'conexões', value: active.length },
+          { label: 'contatos', value: active.length },
           { label: 'conversas ativas', value: talking.length },
-          { label: 'reputação de conversa', value: me.reputation },
+          { label: 'reputação', value: me.reputation },
         ].map((s) => (
           <Card key={s.label} className="p-4 text-center">
             <p className="font-display text-2xl font-bold">{s.value}</p>
@@ -76,75 +100,56 @@ export function Profile() {
         ))}
       </div>
 
-      <section className="mt-7">
-        <SectionTitle hint="Assim ela aparece na curadoria de outras pessoas">Prévia do seu Cartão de Essência</SectionTitle>
-        <EssenceCard
-          user={me} score={100} shared={me.interests.slice(0, 3)} distanceKm={3}
-          headline="As pessoas veem suas palavras antes da sua foto." compact
-        />
-      </section>
-
-      {me.bio && (
-        <Card className="mt-6 p-5">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">Bio</p>
-          <p className="mt-1.5 font-display text-[15px] leading-relaxed">{me.bio}</p>
-        </Card>
-      )}
-
       <section className="mt-6">
-        <SectionTitle>Suas respostas</SectionTitle>
-        <div className="space-y-3">
-          {me.answers.filter((a) => a.answer.trim()).map((a) => (
-            <Card key={a.promptId} className="p-4">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-brand">
-                {PROFILE_PROMPT_MAP[a.promptId]?.label ?? a.promptId}
-              </p>
-              <p className="mt-1.5 font-display text-[15px] leading-relaxed">“{a.answer}”</p>
-            </Card>
-          ))}
-          {me.answers.filter((a) => a.answer.trim()).length === 0 && (
-            <Card className="p-5 text-center text-sm text-muted">
-              Você ainda não respondeu nenhuma pergunta.{' '}
-              <button type="button" className="font-semibold text-brand hover:underline" onClick={() => navigate({ name: 'profileEdit' })}>
-                Responder agora
+        <SectionTitle hint="É por aqui que alguém te encontra ao procurar por área.">
+          Em que você atua
+        </SectionTitle>
+        <Card className="p-5">
+          {me.especialidades.length === 0 ? (
+            <p className="text-sm text-muted">
+              Você ainda não escolheu nenhuma área.{' '}
+              <button
+                type="button" className="font-semibold text-brand hover:underline"
+                onClick={() => navigate({ name: 'profileEdit' })}
+              >
+                Escolher agora
               </button>
-            </Card>
+            </p>
+          ) : (
+            <div className="flex flex-wrap gap-1.5">
+              {me.especialidades.map((id) => (
+                <Chip key={id} size="sm" tone="brand">{nomeDaCategoria.get(id) ?? id}</Chip>
+              ))}
+            </div>
           )}
-        </div>
-      </section>
-
-      <section className="mt-6">
-        <SectionTitle>Interesses</SectionTitle>
-        <Card className="p-5">
-          <div className="flex flex-wrap gap-1.5">
-            {me.interests.map((i) => (
-              <Chip key={i} size="sm">{INTEREST_MAP[i]?.emoji} {INTEREST_MAP[i]?.label ?? i}</Chip>
-            ))}
-          </div>
         </Card>
       </section>
 
       <section className="mt-6">
-        <SectionTitle>Bússola e estilo de vida</SectionTitle>
+        <SectionTitle>O que você faz</SectionTitle>
         <Card className="p-5">
-          <div className="space-y-3">
-            {AXES.map((ax) => (
-              <div key={ax.key}>
-                <div className="flex justify-between text-[11px] text-muted">
-                  <span>{ax.left}</span><span className="font-semibold text-ink">{ax.label}</span><span>{ax.right}</span>
-                </div>
-                <Bar value={me.personality[ax.key]} className="mt-1" />
-              </div>
-            ))}
-          </div>
-          <div className="mt-5 grid gap-x-6 gap-y-2 border-t border-line pt-4 sm:grid-cols-2">
-            {LIFESTYLE_FIELDS.map((f) => (
-              <div key={f.key} className="flex justify-between gap-3 text-[13px]">
-                <span className="text-muted">{f.label}</span>
-                <span className="font-medium">{f.options.find((o) => o.value === me.lifestyle[f.key])?.label}</span>
-              </div>
-            ))}
-          </div>
+          {me.bio ? (
+            <p className="whitespace-pre-wrap font-display text-[15px] leading-relaxed">{me.bio}</p>
+          ) : (
+            <p className="text-sm text-muted">
+              Você ainda não escreveu o seu resumo. Diga o que faz, para quem, e o que já entregou
+              parecido — é o texto que decide se alguém te chama.
+            </p>
+          )}
+        </Card>
+      </section>
+
+      <section className="mt-6">
+        <SectionTitle hint="Ninguém vê este número. Ele só aparece para o outro lado quando uma proposta é aceita.">
+          Telefone de contato
+        </SectionTitle>
+        <Card className="p-5">
+          <p className="flex items-center gap-2 text-sm">
+            <Icon name="lock" size={15} className="text-muted" />
+            {me.telefone
+              ? <span className="font-semibold">{me.telefone}</span>
+              : <span className="text-muted">Nenhum telefone cadastrado.</span>}
+          </p>
         </Card>
       </section>
 

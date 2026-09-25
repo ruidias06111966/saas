@@ -3,7 +3,6 @@ import { useApp } from '../state/AppContext';
 import { connectionWith, connectionsOf, findUser, healthOf, messagesOf, otherId } from '../state/appState';
 import { Page } from '../components/layout/AppShell';
 import { Button, Card, Chip, Empty, Icon, Tabs } from '../components/ui';
-import { CompatBadge } from '../components/EssenceCard';
 import { ConversationThermometer } from '../components/ConversationThermometer';
 import { Avatar } from '../components/Portrait';
 import { firstName, timeAgo } from '../services/utils';
@@ -87,10 +86,10 @@ export function Connections() {
             }
             body={
               tab === 'solicitacoes'
-                ? 'Quando alguém demonstrar interesse em você, aparece aqui para você decidir.'
-                : 'Comece pela aba Descobrir: a curadoria de hoje já está pronta.'
+                ? 'Quando alguém pedir para conversar com você, aparece aqui para você decidir.'
+                : 'Procure quem faz o que você precisa, ou publique um anúncio e deixe virem até você.'
             }
-            action={<Button size="sm" variant="outline" onClick={() => navigate({ name: 'discover' })}>Ir para Descobrir</Button>}
+            action={<Button size="sm" variant="outline" onClick={() => navigate({ name: 'profissionais' })}>Ver profissionais</Button>}
           />
         )}
 
@@ -102,21 +101,20 @@ export function Connections() {
             <Card key={c.id} className="p-4">
               <div className="flex items-start gap-3.5">
                 <button type="button" onClick={() => navigate({ name: 'person', id: user.id })}>
-                  <Avatar seed={user.id} photo={user.photo} name={user.name} reveal={c.status === 'conectada' ? health.reveal : 0.14} size={56} />
+                  <Avatar seed={user.id} photo={user.photo} name={user.name} size={56} />
                 </button>
 
                 <div className="min-w-0 flex-1">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="truncate font-display text-base font-semibold">
-                        {firstName(user.name)}, {user.age}
+                        {firstName(user.name)}
                         {user.verified && <Icon name="check" size={12} className="ml-1.5 inline text-sage" />}
                       </p>
                       <p className="truncate text-[12px] text-muted">
-                        {user.city} · {closed ? 'encerrada' : `conectados ${timeAgo(c.connectedAt ?? c.createdAt)} atrás`}
+                        {user.profession || user.city} · {closed ? 'encerrada' : `falando desde ${timeAgo(c.connectedAt ?? c.createdAt)} atrás`}
                       </p>
                     </div>
-                    <CompatBadge score={c.compatibility} size="sm" />
                   </div>
 
                   {c.status === 'conectada' && msgs.length > 0 && (
@@ -131,11 +129,11 @@ export function Connections() {
                     {isRequest ? (
                       <>
                         <Button
-                          size="sm" icon="heart"
+                          size="sm" icon="check"
                           onClick={() => {
                             const r = expressInterest(user.id);
                             if (!r.ok) return toast(r.reason ?? 'Não foi possível.', 'warn');
-                            toast('Conexão criada. Comece a conversa.', 'ok');
+                            toast('Conversa aberta. Pode começar.', 'ok');
                           }}
                         >
                           Também tenho interesse

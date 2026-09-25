@@ -1,18 +1,12 @@
-import { useEffect, useState } from 'react';
-import type { AxisKey, Gender, Lifestyle, RelationshipGoal, SeekingGender, User } from '../types';
+import { useEffect, useMemo, useState } from 'react';
+import type { User } from '../types';
 import {
-  APP_NAME, AXES, GENDER_LABEL, GOAL_EMOJI, GOAL_LABEL, LIFESTYLE_FIELDS, MIN_AGE, PACE_LABEL,
-  POLICY_VERSION,
-  URL_DIRETRIZES,
-  URL_PRIVACIDADE,
-  URL_TERMOS,
+  MIN_AGE, POLICY_VERSION, URL_DIRETRIZES, URL_PRIVACIDADE, URL_TERMOS,
 } from '../constants';
 import { NOMES_DE_CIDADE, UFS, coordenadasDe } from '../services/localizacao';
-import { INTEREST_CATEGORIES, INTERESTS } from '../data/interests';
-import { PROFILE_PROMPTS } from '../data/prompts';
 import { useApp } from '../state/AppContext';
 import {
-  Bar, Banner, Button, Card, Checkbox, Chip, Field, Icon, Input, Select, Slider, Textarea,
+  Bar, Banner, Button, Card, Checkbox, Chip, Field, Icon, Input, Select, Textarea, Toggle,
 } from '../components/ui';
 import { Portrait } from '../components/Portrait';
 import { readImageAsDataUrl } from '../services/storage';
@@ -21,31 +15,48 @@ import { resendConfirmation, signUp } from '../services/auth';
 import { supabaseEnabled } from '../services/supabaseClient';
 import { clearDraft, loadDraft, saveDraft } from '../services/signupDraft';
 import * as backend from '../services/backend';
-import { age, blurCoord, cx, isEmail, sha256, uid } from '../services/utils';
+import { type Categoria, listarCategorias } from '../services/mercado';
+import { blurCoord, isEmail, sha256, uid } from '../services/utils';
 
-// Em produção isto seria geocodificação no servidor; a coordenada é sempre
-// arredondada antes de sair do cliente, para nunca guardarmos posição exata.
-const STEPS = ['Conta', 'Você', 'Objetivo', 'Interesses', 'Jeito de ser', 'Suas palavras', 'Foto e termos'];
+// ---------------------------------------------------------------------------
+// Cadastro.
+//
+// Eram SETE etapas: conta, você, objetivo de relacionamento, interesses, jeito
+// de ser (a bússola), suas palavras (as perguntas de perfil) e foto/termos.
+// Agora são QUATRO, e o corte não foi por pressa — foi porque cada pergunta a
+// mais é gente que desiste no meio, e nenhuma daquelas ajudava alguém a ser
+// contratado.
+//
+// A DATA DE NASCIMENTO SAIU. Os Termos continuam valendo só para maiores de
+// 18, e o registro disso continua existindo: é o consentimento `maioridade`,
+// marcado na última etapa. O que não existe mais é a coleta de uma data que o
+// app não usava para nada além de mostrar a idade ao lado do nome — e mostrar
+// idade num perfil profissional é convite para discriminação etária.
+//
+// O máximo de 5 áreas é cobrado no BANCO (gatilho no_maximo_cinco_especialidades).
+// Aqui só impedimos de chegar lá.
+// ---------------------------------------------------------------------------
+
+const STEPS = ['Conta', 'Seu trabalho', 'Suas áreas', 'Foto e termos'];
+const MAX_AREAS = 5;
 
 interface Draft {
-  name: string; email: string; password: string; password2: string; birthDate: string;
-  gender: Gender | ''; city: string; state: string;
-  seeking: SeekingGender[]; ageMin: number; ageMax: number; maxDistanceKm: number;
-  goal: RelationshipGoal | ''; chatPace: User['chatPace'];
-  interests: string[]; personality: Record<AxisKey, number>; lifestyle: Lifestyle;
-  profession: string; bio: string; answers: Record<string, string>;
+  name: string; email: string; password: string; password2: string;
+  city: string; state: string;
+  profession: string; bio: string;
+  especialidades: string[];
+  anosExperiencia: string;
+  atendeRemoto: boolean;
+  telefone: string;
   photo?: string; photoFile?: File; verified: boolean;
   acceptTerms: boolean; acceptPrivacy: boolean; acceptGuidelines: boolean;
 }
 
 const EMPTY: Draft = {
-  name: '', email: '', password: '', password2: '', birthDate: '',
-  gender: '', city: '', state: 'SP',
-  seeking: [], ageMin: 25, ageMax: 40, maxDistanceKm: 50,
-  goal: '', chatPace: 'equilibrado',
-  interests: [], personality: { energia: 50, ritmo: 50, planejamento: 50, afeto: 50, novidade: 50 },
-  lifestyle: { bebida: 'socialmente', fumo: 'nao', exercicio: 'as_vezes', filhos: 'indeciso', animais: 'gosto', religiosidade: 'pouco' },
-  profession: '', bio: '', answers: {},
+  name: '', email: '', password: '', password2: '',
+  city: '', state: 'GO',
+  profession: '', bio: '',
+  especialidades: [], anosExperiencia: '', atendeRemoto: true, telefone: '',
   verified: false, acceptTerms: false, acceptPrivacy: false, acceptGuidelines: false,
 };
 
@@ -66,7 +77,25 @@ export function Signup() {
 
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) => setD((prev) => ({ ...prev, [key]: value }));
 
-  const userAge = d.birthDate ? age(d.birthDate) : null;
+  const [categorias, setCategorias] = useState<Categoria[]>([]);
+  useEffect(() => { listarCategorias().then(setCategorias).catch(() => {}); }, []);
+
+  const grupos = useMemo(() => {
+    const m = new Map<string, Categoria[]>();
+    for (const c of categorias) m.set(c.grupo, [...(m.get(c.grupo) ?? []), c]);
+    return [...m.entries()];
+  }, [categorias]);
+
+  const alternarArea = (id: string) => {
+    const tem = d.especialidades.includes(id);
+    if (!tem && d.especialidades.length >= MAX_AREAS) {
+      toast(`No máximo ${MAX_AREAS} áreas. Quem diz que faz tudo não é procurado para nada.`, 'info');
+      return;
+    }
+    set('especialidades', tem
+      ? d.especialidades.filter((x) => x !== id)
+      : [...d.especialidades, id]);
+  };
 
   const validate = (): boolean => {
     const e: Record<string, string> = {};
@@ -78,25 +107,22 @@ export function Signup() {
       }
       if (d.password.length < 8) e.password = 'Use pelo menos 8 caracteres.';
       if (d.password !== d.password2) e.password2 = 'As senhas não conferem.';
-      if (!d.birthDate) e.birthDate = 'Informe sua data de nascimento.';
-      else if (userAge !== null && userAge < MIN_AGE) e.birthDate = `O ${APP_NAME} é exclusivo para maiores de ${MIN_AGE} anos.`;
-      else if (userAge !== null && userAge > 110) e.birthDate = 'Data inválida.';
     }
     if (step === 1) {
-      if (!d.gender) e.gender = 'Escolha uma opção.';
+      if (!d.profession.trim()) e.profession = 'Diga como você se apresenta profissionalmente.';
       if (!d.city.trim()) e.city = 'Informe sua cidade.';
-      if (!d.seeking.length) e.seeking = 'Escolha quem você quer conhecer.';
-      if (d.ageMin > d.ageMax) e.ageMin = 'A idade mínima não pode ser maior que a máxima.';
+      if (d.bio.trim().length < 60) e.bio = 'Escreva ao menos 60 caracteres. É o texto que decide se te chamam.';
+      if (d.anosExperiencia && (Number(d.anosExperiencia) < 0 || Number(d.anosExperiencia) > 70)) {
+        e.anosExperiencia = 'Informe um número entre 0 e 70.';
+      }
     }
-    if (step === 2 && !d.goal) e.goal = 'Escolha o que você procura agora.';
-    if (step === 3 && d.interests.length < 5) e.interests = 'Escolha pelo menos 5 interesses.';
-    if (step === 5) {
-      const filled = Object.values(d.answers).filter((v) => v.trim().length >= 20).length;
-      if (filled < 3) e.answers = 'Responda pelo menos 3 perguntas com 20 caracteres ou mais.';
-      if (d.bio.trim().length < 40) e.bio = 'Escreva ao menos 40 caracteres na bio.';
+    if (step === 2 && d.especialidades.length === 0) {
+      e.especialidades = 'Escolha pelo menos uma área. Sem isso ninguém te encontra na busca.';
     }
-    if (step === 6) {
-      if (!d.acceptTerms || !d.acceptPrivacy || !d.acceptGuidelines) e.consent = 'É necessário aceitar os três documentos para criar a conta.';
+    if (step === 3) {
+      if (!d.acceptTerms || !d.acceptPrivacy || !d.acceptGuidelines) {
+        e.consent = 'É necessário aceitar os três documentos para criar a conta.';
+      }
     }
     setErrors(e);
     return Object.keys(e).length === 0;
@@ -117,23 +143,21 @@ export function Signup() {
     return {
       id, name: dados.name.trim(), email: dados.email.trim().toLowerCase(),
       passwordHash: supabaseEnabled ? '' : await sha256(dados.password),
-      birthDate: dados.birthDate, age: age(dados.birthDate), gender: dados.gender as Gender,
       city: dados.city.trim(), state: dados.state,
       approxLat: blurCoord(lat), approxLng: blurCoord(lng),
-      photo: foto, extraPhotos: [], profession: dados.profession.trim(), bio: dados.bio.trim(),
-      interests: dados.interests, personality: dados.personality, lifestyle: dados.lifestyle,
-      chatPace: dados.chatPace, goal: dados.goal as RelationshipGoal,
-      answers: Object.entries(dados.answers).filter(([, v]) => v.trim())
-        .map(([promptId, answer]) => ({ promptId, answer: answer.trim() })),
-      preferences: {
-        seeking: dados.seeking, ageMin: dados.ageMin, ageMax: dados.ageMax,
-        maxDistanceKm: dados.maxDistanceKm, goals: [], minCompatibility: 0,
-      },
+      photo: foto, extraPhotos: [],
+      profession: dados.profession.trim(), bio: dados.bio.trim(),
+      especialidades: dados.especialidades,
+      atendeRemoto: dados.atendeRemoto,
+      anosExperiencia: dados.anosExperiencia ? Number(dados.anosExperiencia) : undefined,
+      telefone: dados.telefone.trim() || undefined,
       verified: false, reputation: 70, plan: 'free', role: 'user', status: 'ativo',
       consents: [
         { kind: 'termos', version: POLICY_VERSION, acceptedAt: now },
         { kind: 'privacidade', version: POLICY_VERSION, acceptedAt: now },
         { kind: 'diretrizes', version: POLICY_VERSION, acceptedAt: now },
+        // O registro de maioridade continua existindo mesmo sem data de
+        // nascimento guardada: é ele que sustenta a exigência dos Termos.
         { kind: 'maioridade', version: POLICY_VERSION, acceptedAt: now },
       ],
       createdAt: now, lastActiveAt: now,
@@ -166,6 +190,7 @@ export function Signup() {
     }
     const user = await montarUsuario(dados, id, foto);
     await backend.saveUser(user);
+    await backend.salvarEspecialidades(user.id, user.especialidades);
     await backend.saveConsents(user.id, user.consents);
     clearDraft();
     await refresh();
@@ -195,7 +220,7 @@ export function Signup() {
     if (pendingAccount) {
       try {
         await gravarPerfil(d, pendingAccount.id);
-        toast('Cadastro concluído. Sua primeira curadoria já está esperando.', 'ok');
+        toast('Cadastro concluído. Seu perfil já pode receber trabalho.', 'ok');
       } catch (err) {
         toast(`Não foi possível salvar o perfil: ${(err as Error).message}`, 'danger');
       }
@@ -207,7 +232,7 @@ export function Signup() {
       const user = await montarUsuario(d, uid('u'), d.photo);
       dispatch({ type: 'REGISTER', user });
       setBusy(false);
-      toast('Conta criada. Sua primeira curadoria já está esperando.', 'ok');
+      toast('Conta criada. Seu perfil já pode receber trabalho.', 'ok');
       return;
     }
 
@@ -237,7 +262,7 @@ export function Signup() {
 
     try {
       await gravarPerfil(d, novoId);
-      toast('Conta criada. Sua primeira curadoria já está esperando.', 'ok');
+      toast('Conta criada. Seu perfil já pode receber trabalho.', 'ok');
     } catch (err) {
       toast(`Conta criada, mas o perfil não foi salvo: ${(err as Error).message}`, 'danger');
     }
@@ -327,7 +352,7 @@ export function Signup() {
         {step === 0 && (
           <div className="space-y-4">
             <h1 className="font-display text-2xl font-bold">Vamos começar</h1>
-            <p className="-mt-2 text-sm text-muted">Só o essencial. O perfil bonito vem nas próximas etapas.</p>
+            <p className="-mt-2 text-sm text-muted">Só o essencial. O perfil vem nas próximas etapas.</p>
             <Field label="Nome completo" required error={errors.name}>
               <Input value={d.name} onChange={(e) => set('name', e.target.value)} placeholder="Como você quer ser chamado" autoComplete="name" />
             </Field>
@@ -342,212 +367,125 @@ export function Signup() {
                 <Input type="password" value={d.password2} onChange={(e) => set('password2', e.target.value)} autoComplete="new-password" />
               </Field>
             </div>
-            <Field
-              label="Data de nascimento" required error={errors.birthDate}
-              hint={userAge !== null && userAge >= MIN_AGE ? `Você tem ${userAge} anos.` : `Exclusivo para maiores de ${MIN_AGE} anos.`}
-            >
-              <Input type="date" value={d.birthDate} onChange={(e) => set('birthDate', e.target.value)} max={new Date().toISOString().slice(0, 10)} />
-            </Field>
           </div>
         )}
 
         {step === 1 && (
           <div className="space-y-5">
-            <h1 className="font-display text-2xl font-bold">Sobre você</h1>
-            <Field label="Como você se identifica" required error={errors.gender}>
-              <div className="mt-1 flex flex-wrap gap-2">
-                {(Object.keys(GENDER_LABEL) as Gender[]).map((g) => (
-                  <Chip key={g} active={d.gender === g} onClick={() => set('gender', g)}>{GENDER_LABEL[g]}</Chip>
-                ))}
-              </div>
+            <div>
+              <h1 className="font-display text-2xl font-bold">Seu trabalho</h1>
+              <p className="mt-1 text-sm text-muted">
+                É o que aparece para quem procura alguém. Escreva pensando em quem vai te contratar.
+              </p>
+            </div>
+
+            <Field label="Profissão" required error={errors.profession} hint='Como você se apresenta: "Contadora", "Engenheiro civil", "Consultor de licitações".'>
+              <Input value={d.profession} onChange={(e) => set('profession', e.target.value)} placeholder="Contadora" />
             </Field>
 
             <div className="grid gap-4 sm:grid-cols-[2fr_1fr]">
               <Field label="Cidade" required error={errors.city} hint="Mostramos só a cidade, nunca o endereço.">
-                <Input value={d.city} onChange={(e) => set('city', e.target.value)} placeholder="São Paulo" list="cidades" />
+                <Input value={d.city} onChange={(e) => set('city', e.target.value)} placeholder="Goiânia" list="cidades" />
                 <datalist id="cidades">{NOMES_DE_CIDADE.map((c) => <option key={c} value={c} />)}</datalist>
               </Field>
               <Field label="Estado" required>
                 <Select value={d.state} onChange={(e) => set('state', e.target.value)}>
-                  {UFS.map((s) => <option key={s} value={s}>{s}</option>)}
+                  {UFS.map((uf) => <option key={uf} value={uf}>{uf}</option>)}
                 </Select>
               </Field>
             </div>
 
-            <Field label="Quem você quer conhecer" required error={errors.seeking}>
-              <div className="mt-1 flex flex-wrap gap-2">
-                {(['mulher', 'homem', 'nao_binario', 'todos'] as SeekingGender[]).map((g) => (
-                  <Chip
-                    key={g} active={d.seeking.includes(g)}
-                    onClick={() => set('seeking', d.seeking.includes(g) ? d.seeking.filter((x) => x !== g) : [...d.seeking, g])}
-                  >
-                    {g === 'todos' ? 'Todas as pessoas' : GENDER_LABEL[g as Gender]}
-                  </Chip>
-                ))}
-              </div>
+            <Field label="Anos de experiência" error={errors.anosExperiencia} hint="Opcional.">
+              <Input
+                type="number" min={0} max={70} value={d.anosExperiencia}
+                onChange={(e) => set('anosExperiencia', e.target.value)} placeholder="12"
+              />
             </Field>
 
-            <div className="grid gap-4 sm:grid-cols-3">
-              <Field label="Idade mínima" error={errors.ageMin}>
-                <Input type="number" min={18} max={99} value={d.ageMin} onChange={(e) => set('ageMin', Number(e.target.value))} />
-              </Field>
-              <Field label="Idade máxima">
-                <Input type="number" min={18} max={99} value={d.ageMax} onChange={(e) => set('ageMax', Number(e.target.value))} />
-              </Field>
-              <Field label="Distância máxima" hint={`${d.maxDistanceKm} km`}>
-                <Input type="range" min={5} max={300} step={5} value={d.maxDistanceKm} onChange={(e) => set('maxDistanceKm', Number(e.target.value))} className="!border-0 !bg-transparent !px-0 accent-[rgb(var(--c-brand))]" />
-              </Field>
-            </div>
+            <Toggle
+              checked={d.atendeRemoto}
+              onChange={(v) => set('atendeRemoto', v)}
+              label="Atendo a distância"
+              description="Deixe ligado se você consegue trabalhar por vídeo, telefone e documento assinado digitalmente. Isso te coloca em anúncios remotos de todo o país."
+            />
+
+            <Field
+              label="O que você faz"
+              required
+              error={errors.bio}
+              hint={`${d.bio.trim().length}/600 — diga o que faz, para quem, e algo parecido que já entregou.`}
+            >
+              <Textarea
+                rows={6} value={d.bio} maxLength={600}
+                onChange={(e) => set('bio', e.target.value)}
+                placeholder="Contabilidade para pequenas empresas e MEI. Abertura, regularização e acompanhamento mensal. Atendo Goiânia e região há 12 anos."
+              />
+            </Field>
           </div>
         )}
 
         {step === 2 && (
           <div className="space-y-5">
-            <h1 className="font-display text-2xl font-bold">O que você procura agora?</h1>
-            <p className="-mt-3 text-sm text-muted">Pode mudar depois. Ninguém é obrigado a saber o resto da vida.</p>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {(Object.keys(GOAL_LABEL) as RelationshipGoal[]).map((g) => (
-                <button
-                  key={g} type="button" onClick={() => set('goal', g)}
-                  className={cx(
-                    'rounded-2xl border p-4 text-left transition-all',
-                    d.goal === g ? 'border-brand bg-brandSoft shadow-soft' : 'border-line hover:border-brand/40',
-                  )}
-                >
-                  <span className="text-2xl">{GOAL_EMOJI[g]}</span>
-                  <p className="mt-1.5 font-display text-base font-semibold">{GOAL_LABEL[g]}</p>
-                </button>
-              ))}
+            <div>
+              <h1 className="font-display text-2xl font-bold">Em que você atua</h1>
+              <p className="mt-1 text-sm text-muted">
+                Escolha até {MAX_AREAS}. É por aqui que alguém te encontra ao procurar por área — e
+                por onde os anúncios da sua área chegam até você.
+              </p>
             </div>
-            {errors.goal && <p className="text-xs font-medium text-danger">{errors.goal}</p>}
 
-            <Field label="Seu ritmo de conversa" hint="Isso entra no cálculo de compatibilidade — ritmos muito diferentes desgastam.">
-              <div className="mt-1 space-y-2">
-                {(Object.keys(PACE_LABEL) as (keyof typeof PACE_LABEL)[]).map((p) => (
-                  <button
-                    key={p} type="button" onClick={() => set('chatPace', p)}
-                    className={cx(
-                      'w-full rounded-2xl border p-3.5 text-left text-sm transition-colors',
-                      d.chatPace === p ? 'border-brand bg-brandSoft text-brand' : 'border-line hover:bg-bg',
-                    )}
-                  >
-                    {PACE_LABEL[p]}
-                  </button>
+            {errors.especialidades && (
+              <p className="text-xs font-medium text-danger">{errors.especialidades}</p>
+            )}
+
+            <p className="text-[13px] font-semibold text-brand">
+              {d.especialidades.length} de {MAX_AREAS} escolhidas
+            </p>
+
+            {grupos.length === 0 ? (
+              <p className="text-sm text-muted">Carregando as áreas…</p>
+            ) : (
+              <div className="space-y-4">
+                {grupos.map(([grupo, itens]) => (
+                  <div key={grupo}>
+                    <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted">{grupo}</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {itens.map((c) => (
+                        <Chip
+                          key={c.id} size="sm"
+                          active={d.especialidades.includes(c.id)}
+                          onClick={() => alternarArea(c.id)}
+                        >
+                          {c.nome}
+                        </Chip>
+                      ))}
+                    </div>
+                  </div>
                 ))}
               </div>
+            )}
+
+            <Field label="Telefone com DDD" hint="Opcional. Ninguém vê este número — ele só é mostrado quando uma proposta é aceita.">
+              <Input
+                type="tel" value={d.telefone} placeholder="(62) 99999-0000"
+                onChange={(e) => set('telefone', e.target.value)}
+              />
             </Field>
           </div>
         )}
 
         {step === 3 && (
-          <div>
-            <h1 className="font-display text-2xl font-bold">Seus interesses</h1>
-            <p className="mt-1 text-sm text-muted">
-              Escolha pelo menos 5. Interesses mais específicos pesam mais quando batem com os de alguém.
-            </p>
-            <p className={cx('mt-3 text-[13px] font-semibold', d.interests.length >= 5 ? 'text-sage' : 'text-muted')}>
-              {d.interests.length} selecionado(s)
-            </p>
-            {errors.interests && <p className="mt-1 text-xs font-medium text-danger">{errors.interests}</p>}
-            <div className="mt-4 space-y-5">
-              {INTEREST_CATEGORIES.map((cat) => (
-                <div key={cat}>
-                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted">{cat}</p>
-                  <div className="flex flex-wrap gap-2">
-                    {INTERESTS.filter((i) => i.category === cat).map((i) => (
-                      <Chip
-                        key={i.id} active={d.interests.includes(i.id)}
-                        onClick={() => set('interests', d.interests.includes(i.id) ? d.interests.filter((x) => x !== i.id) : [...d.interests, i.id])}
-                      >
-                        {i.emoji} {i.label}
-                      </Chip>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {step === 4 && (
-          <div className="space-y-6">
-            <div>
-              <h1 className="font-display text-2xl font-bold">Bússola de Conexão</h1>
-              <p className="mt-1 text-sm text-muted">
-                Cinco eixos, sem resposta certa. Alguns pesam por semelhança, outros aceitam bem o contrário.
-              </p>
-            </div>
-            <div className="space-y-1">
-              {AXES.map((ax) => (
-                <Slider
-                  key={ax.key} label={ax.label} left={ax.left} right={ax.right} hint={ax.hint}
-                  value={d.personality[ax.key]}
-                  onChange={(v) => set('personality', { ...d.personality, [ax.key]: v })}
-                />
-              ))}
-            </div>
-            <div className="border-t border-line pt-5">
-              <p className="mb-3 font-display text-lg font-semibold">Estilo de vida</p>
-              <div className="grid gap-4 sm:grid-cols-2">
-                {LIFESTYLE_FIELDS.map((f) => (
-                  <Field key={f.key} label={f.label}>
-                    <Select
-                      value={d.lifestyle[f.key]}
-                      onChange={(e) => set('lifestyle', { ...d.lifestyle, [f.key]: e.target.value } as Lifestyle)}
-                    >
-                      {f.options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                    </Select>
-                  </Field>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {step === 5 && (
-          <div className="space-y-5">
-            <div>
-              <h1 className="font-display text-2xl font-bold">Suas palavras</h1>
-              <p className="mt-1 text-sm text-muted">
-                É isto que aparece primeiro no seu Cartão de Essência — antes da sua foto.
-              </p>
-            </div>
-            <Field label="Profissão">
-              <Input value={d.profession} onChange={(e) => set('profession', e.target.value)} placeholder="O que você faz" />
-            </Field>
-            <Field label="Bio" required error={errors.bio} hint={`${d.bio.length}/400`}>
-              <Textarea value={d.bio} onChange={(e) => set('bio', e.target.value)} maxLength={400} placeholder="Duas ou três frases sobre você. O que você faz num sábado costuma dizer mais do que adjetivos." />
-            </Field>
-            <div>
-              <p className="mb-2 text-[13px] font-semibold">Responda pelo menos 3</p>
-              {errors.answers && <p className="mb-2 text-xs font-medium text-danger">{errors.answers}</p>}
-              <div className="space-y-3">
-                {PROFILE_PROMPTS.slice(0, 6).map((p) => (
-                  <div key={p.id}>
-                    <label className="mb-1 block text-[13px] font-medium text-brand">{p.label}</label>
-                    <Textarea
-                      value={d.answers[p.id] ?? ''} maxLength={p.maxLength} placeholder={p.placeholder}
-                      onChange={(e) => set('answers', { ...d.answers, [p.id]: e.target.value })}
-                      className="min-h-[70px]"
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {step === 6 && (
           <div className="space-y-5">
             <div>
               <h1 className="font-display text-2xl font-bold">Foto e termos</h1>
               <p className="mt-1 text-sm text-muted">
-                Sua foto entra velada na descoberta e se revela conforme suas conversas evoluem.
+                Sua foto aparece nítida para todo mundo. Pode ser seu rosto ou o logotipo da sua
+                empresa — o que representar melhor você no trabalho.
               </p>
             </div>
 
             <div className="flex items-center gap-5">
-              <Portrait seed={d.email || 'novo'} photo={d.photo} name={d.name || 'Você'} reveal={0.2} className="h-28 w-28" />
+              <Portrait seed={d.email || 'novo'} photo={d.photo} name={d.name || 'Você'} className="h-28 w-28" />
               <div className="flex-1">
                 <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-line px-4 py-2 text-[13px] font-semibold transition-colors hover:bg-bg">
                   <Icon name="image" size={16} />
@@ -565,38 +503,22 @@ export function Signup() {
                   />
                 </label>
                 <p className="mt-2 text-xs leading-relaxed text-muted">
-                  Opcional. Sem foto, geramos um retrato abstrato só seu.
+                  Opcional, mas perfil sem foto recebe muito menos resposta.
                 </p>
               </div>
             </div>
 
-            {/* O selo não é mais gravável pelo cliente: o servidor congela a
-                coluna `verified` (gatilho campos_privilegiados). No modo online
-                o botão de simular seria uma promessa que o banco recusa. */}
+            {/* O selo não é gravável pelo cliente: o servidor congela a coluna
+                `verified` (gatilho campos_privilegiados). */}
             <div className="rounded-2xl border border-line p-4">
               <p className="flex items-center gap-2 text-[13px] font-semibold">
                 <Icon name="shield" size={16} className="text-sage" /> Verificação de perfil
               </p>
-              {supabaseEnabled ? (
-                <p className="mt-1 text-xs leading-relaxed text-muted">
-                  Depois de entrar, você pode pedir a verificação no seu perfil: uma selfie
-                  reproduzindo uma pose sorteada, analisada por uma pessoa da equipe. O selo é
-                  concedido pelo servidor — nunca pelo aplicativo no seu aparelho.
-                </p>
-              ) : (
-                <>
-                  <p className="mt-1 text-xs leading-relaxed text-muted">
-                    Esta é a demonstração local, então o selo aqui é só enfeite. No modo online ele
-                    depende de uma selfie analisada por uma pessoa da equipe.
-                  </p>
-                  <Button
-                    size="sm" variant={d.verified ? 'secondary' : 'outline'} className="mt-3"
-                    icon={d.verified ? 'check' : 'shield'} onClick={() => set('verified', !d.verified)}
-                  >
-                    {d.verified ? 'Verificado (simulado)' : 'Simular verificação agora'}
-                  </Button>
-                </>
-              )}
+              <p className="mt-1 text-xs leading-relaxed text-muted">
+                Depois de entrar, você pode pedir a verificação no seu perfil. O selo é concedido
+                pelo servidor — nunca pelo aplicativo no seu aparelho — e pesa muito na hora de
+                alguém escolher entre duas propostas parecidas.
+              </p>
             </div>
 
             <div className="rounded-2xl bg-bg p-4">
@@ -615,8 +537,8 @@ export function Signup() {
             </div>
 
             <Banner tone="info" icon="lock">
-              Guardamos apenas a cidade e uma coordenada arredondada para calcular faixas de distância.
-              Sua posição exata nunca sai do seu dispositivo.
+              Guardamos apenas a cidade e uma coordenada arredondada. Sua posição exata nunca sai do
+              seu aparelho, e o seu telefone não aparece para ninguém até uma proposta ser aceita.
             </Banner>
           </div>
         )}

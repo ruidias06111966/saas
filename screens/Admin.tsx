@@ -119,9 +119,9 @@ export function Admin() {
           </div>
 
           <Banner tone="info" icon="chart" title="A métrica que importa aqui">
-            Em um app de relacionamento comum, a métrica de sucesso é tempo em tela. No {APP_NAME} é a
-            <strong> taxa de conexões que viram conversa de verdade</strong> — e a de conversas que
-            chegam ao estágio "Revelado". São essas que colocamos no topo do painel de propósito.
+            Num site de anúncios comum, a métrica de sucesso é volume de cadastros. No {APP_NAME} é a
+            <strong> taxa de conversas que viram negócio fechado</strong> — e a de anúncios que
+            recebem pelo menos uma proposta. São essas que colocamos no topo do painel de propósito.
           </Banner>
         </div>
       )}
@@ -135,10 +135,12 @@ export function Admin() {
                 <Avatar seed={u.id} photo={u.photo} name={u.name} size={44} />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-semibold">
-                    {u.name}, {u.age}
+                    {u.name}
                     {u.verified && <Icon name="check" size={12} className="ml-1.5 inline text-sage" />}
                   </p>
-                  <p className="truncate text-[12px] text-muted">{u.email} · {u.city} · reputação {u.reputation}</p>
+                  <p className="truncate text-[12px] text-muted">
+                    {u.profession || 'sem profissão'} · {u.email} · {u.city} · reputação {u.reputation}
+                  </p>
                 </div>
                 <Chip size="sm" tone={u.status === 'ativo' ? 'sage' : u.status === 'suspenso' ? 'warn' : 'danger'}>{u.status}</Chip>
                 {u.status === 'ativo' ? (

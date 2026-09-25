@@ -4,33 +4,33 @@ import { useApp } from '../state/AppContext';
 import { findUser, healthOf, messagesOf, otherId } from '../state/appState';
 import { nextRitualLevel } from '../services/conversation';
 import { blocksSending, CATEGORY_LABEL, moderateText, SAFETY_TIPS } from '../services/moderation';
-import { suggestGentleGoodbye, suggestNextQuestion, summarizeAffinities } from '../services/geminiService';
-import { LADDER } from '../data/prompts';
+import { suggestGentleGoodbye, suggestNextQuestion } from '../services/geminiService';
+import { LADDER } from '../data/perguntas';
 import { Page } from '../components/layout/AppShell';
 import { Banner, Button, Card, Chip, Icon, IconButton, Modal, Textarea } from '../components/ui';
-import { ConversationThermometer, VeilProgress } from '../components/ConversationThermometer';
+import { ConversationThermometer, EtapasDaConversa } from '../components/ConversationThermometer';
 import { CopilotPanel } from '../components/Copilot';
 import { ReportDialog } from '../components/ReportDialog';
-import { Avatar, ImagemDaMensagem, Portrait } from '../components/Portrait';
+import { Avatar, ImagemDaMensagem } from '../components/Portrait';
 import { uploadChatImage } from '../services/media';
 import { ouvirDigitacao } from '../services/realtime';
 import { clockTime, cx, dayLabel, firstName, seededRandom, shuffle } from '../services/utils';
 
-// Respostas simuladas: este é um MVP sem backend, e a simulação existe para
-// que dê para ver o Termômetro e o Véu evoluindo. Fica claramente rotulada.
+// Respostas simuladas: no modo demo não há backend, e a simulação existe para
+// que dê para ver o Termômetro evoluindo. Fica claramente rotulada.
 const SIMULATED = [
-  'Boa pergunta. Deixa eu pensar direito antes de responder qualquer bobagem.',
-  'Concordo em quase tudo, menos numa parte — e é justamente a parte interessante.',
-  'Isso me lembrou de uma coisa que aconteceu ano passado. Você tem paciência para história longa?',
-  'Nunca tinha parado para pensar assim. E você, chegou nessa conclusão como?',
-  'Gostei da sua resposta. Me conta uma coisa: isso sempre foi assim ou mudou em algum momento?',
-  'Também sou assim. Achei que fosse só eu, sinceramente.',
+  'Boa pergunta. Deixa eu conferir a agenda antes de te dar um prazo furado.',
+  'Consigo sim, mas nesse prazo o valor muda um pouco. Posso te explicar?',
+  'Já peguei um caso parecido ano passado. Levou mais tempo do que parecia, por causa da documentação.',
+  'Antes de fechar, preciso ver dois documentos. Você consegue me mandar?',
+  'Fechado. Te mando a proposta por escrito ainda hoje.',
+  'Esse escopo eu faço. O que está fora é a parte de execução — para isso eu indico alguém.',
 ];
 
 export function Chat({ id }: { id: string }) {
   const {
     me, state, back, navigate, sendMessage, dispatch, toggleFavorite, closeConnection,
-    blockUser, setRevealConsent, markRead, toast, canUseAi, spendAi, mode,
+    blockUser, markRead, toast, canUseAi, spendAi, mode,
     loadOlder, hasOlder,
   } = useApp();
 
@@ -38,7 +38,6 @@ export function Chat({ id }: { id: string }) {
   const [pendingRisk, setPendingRisk] = useState<{ text: string; advice: string; categories: string[] } | null>(null);
   const [showCopilot, setShowCopilot] = useState(false);
   const [suggestion, setSuggestion] = useState<string[]>([]);
-  const [affinity, setAffinity] = useState('');
   const [loadingAi, setLoadingAi] = useState(false);
   const [reporting, setReporting] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -77,14 +76,6 @@ export function Chat({ id }: { id: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conn?.id, me?.id]);
 
-  useEffect(() => {
-    if (!me || !other) return;
-    let alive = true;
-    summarizeAffinities(me, other).then((t) => alive && setAffinity(t));
-    return () => { alive = false; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [me?.id, other?.id]);
-
   if (!me || !conn || !other || !health) {
     return (
       <Page title="Conversa indisponível" back={back}>
@@ -97,7 +88,6 @@ export function Chat({ id }: { id: string }) {
   // primeiro carregamento, e o resto é buscado sob demanda.
   const podeCarregarAntigas = hasOlder(conn.id) && messages.length > 0;
   const closed = conn.status === 'encerrada' || conn.status === 'bloqueada';
-  const mutualRevealed = !!conn.revealConsent[conn.userA] && !!conn.revealConsent[conn.userB];
   const level = nextRitualLevel(messages);
 
   const doSend = (text: string, kind: Message['kind'] = 'texto', extra?: Partial<Message>) => {
@@ -124,10 +114,10 @@ export function Chat({ id }: { id: string }) {
 
   const sendRitual = () => {
     const rnd = seededRandom(`${conn.id}:${messages.length}`);
-    const pool = LADDER.filter((q) => q.level === level);
+    const pool = LADDER.filter((q: { level: number }) => q.level === level);
     const question = shuffle(pool, rnd)[0]?.text ?? 'O que fez o seu dia melhor hoje?';
     doSend(question, 'ritual', { ritualLevel: level });
-    toast(`Ritual de nível ${level} enviado. Rituais aumentam a "abertura" no termômetro.`, 'ok');
+    toast(`Pergunta de nível ${level} enviada. Perguntas assim aumentam a "abertura" no termômetro.`, 'ok');
   };
 
   const simulateReply = () => {
@@ -177,11 +167,11 @@ export function Chat({ id }: { id: string }) {
       <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-line bg-surface/95 px-4 py-3 backdrop-blur">
         <IconButton label="Voltar" name="back" onClick={back} />
         <button type="button" onClick={() => navigate({ name: 'person', id: other.id })} className="flex min-w-0 flex-1 items-center gap-3 text-left">
-          <Avatar seed={other.id} photo={other.photo} name={other.name} reveal={health.reveal} size={40} />
+          <Avatar seed={other.id} photo={other.photo} name={other.name} size={40} />
           <div className="min-w-0">
             <p className="truncate text-[15px] font-semibold">{firstName(other.name)}</p>
             <p className="truncate text-[11px] text-muted">
-              {typing ? <span className="text-brand">digitando…</span> : `${health.stageLabel} · ${Math.round(health.reveal * 100)}% revelado`}
+              {typing ? <span className="text-brand">digitando…</span> : health.stageLabel}
             </p>
           </div>
         </button>
@@ -197,7 +187,7 @@ export function Chat({ id }: { id: string }) {
               <Card className="p-5">
                 <h3 className="font-display text-lg font-semibold">Vocês se conectaram 🎉</h3>
                 <p className="mt-1 text-[13px] leading-relaxed text-muted">
-                  {affinity || `Comece por algo que ${firstName(other.name)} escreveu no perfil. Aberturas genéricas quase nunca viram conversa.`}
+                  {`Comece por algo que ${firstName(other.name)} escreveu no perfil. Aberturas genéricas quase nunca viram trabalho.`}
                 </p>
                 <div className="mt-4">
                   <Button size="sm" variant="secondary" icon="sparkle" onClick={() => setShowCopilot(true)}>
@@ -334,7 +324,7 @@ export function Chat({ id }: { id: string }) {
                   <button
                     type="button" onClick={simulateReply}
                     className="ml-auto rounded-full border border-dashed border-line px-3 py-1.5 text-[11px] text-muted hover:text-ink"
-                    title="Recurso de demonstração: simula uma resposta para você ver o termômetro e o véu evoluindo."
+                    title="Recurso de demonstração: simula uma resposta para você ver o termômetro evoluindo."
                   >
                     Simular resposta (demo)
                   </button>
@@ -368,24 +358,13 @@ export function Chat({ id }: { id: string }) {
             showCopilot ? 'block' : 'hidden lg:block',
           )}
         >
-          <VeilProgress
-            health={health} mutualRevealed={mutualRevealed}
-            revealRequested={!!conn.revealConsent[me.id]}
-            onReveal={() => setRevealConsent(conn.id, !conn.revealConsent[me.id])}
-          />
-
-          {mutualRevealed && (
-            <Card className="overflow-hidden p-0">
-              <Portrait seed={other.id} photo={other.photo} name={other.name} reveal={1} className="aspect-square w-full" rounded="rounded-none" />
-              <p className="p-3 text-center text-[12px] text-muted">Vocês concordaram em revelar as fotos.</p>
-            </Card>
-          )}
+          <EtapasDaConversa health={health} />
 
           <ConversationThermometer health={health} />
 
           <CopilotPanel
             compact title="Próxima pergunta"
-            description={affinity || `Sugestões conectadas ao que vocês já falaram. Nível ${level} da escada.`}
+            description={`Sugestões conectadas ao que vocês já falaram. Nível ${level} da escada.`}
             suggestions={suggestion} loading={loadingAi} onGenerate={genQuestion}
             generateLabel="Sugerir pergunta"
             onUse={(t) => setDraft(t)}
@@ -437,8 +416,8 @@ export function Chat({ id }: { id: string }) {
         }
       >
         <p className="text-[13px] leading-relaxed text-muted">
-          Sumir sem avisar é o comportamento mais comum em apps de relacionamento e o que mais machuca.
-          Aqui, quem se despede ganha reputação de conversa — e mais alcance na curadoria.
+          Sumir sem avisar é o que mais machuca a reputação de quem vive de serviço — e é o que mais
+          acontece. Aqui, quem diz "não vou conseguir" ganha reputação; quem some, perde.
         </p>
         <div className="mt-4 space-y-2">
           {goodbyes.map((g) => (

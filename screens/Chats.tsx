@@ -29,12 +29,12 @@ export function Chats() {
   if (!me) return null;
 
   return (
-    <Page title="Conversas" subtitle="A foto de cada pessoa se revela conforme a conversa de vocês evolui.">
+    <Page title="Conversas" subtitle="Onde as negociações acontecem.">
       {rows.length === 0 ? (
         <Empty
           icon="chat" title="Nenhuma conversa ainda"
-          body="Quando houver interesse dos dois lados, a conversa aparece aqui — com sugestões para começar."
-          action={<Button size="sm" variant="outline" onClick={() => navigate({ name: 'discover' })}>Descobrir pessoas</Button>}
+          body="Quando os dois lados aceitarem conversar, a conversa aparece aqui — com sugestões para começar."
+          action={<Button size="sm" variant="outline" onClick={() => navigate({ name: 'profissionais' })}>Ver profissionais</Button>}
         />
       ) : (
         <Card className="divide-y divide-line overflow-hidden">
@@ -45,7 +45,7 @@ export function Chats() {
                 key={c.id} type="button" onClick={() => navigate({ name: 'chat', id: c.id })}
                 className="flex w-full items-center gap-3.5 p-4 text-left transition-colors hover:bg-bg"
               >
-                <Avatar seed={user.id} photo={user.photo} name={user.name} reveal={health.reveal} size={52} ring={unread > 0} />
+                <Avatar seed={user.id} photo={user.photo} name={user.name} size={52} ring={unread > 0} />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-baseline justify-between gap-2">
                     <p className={cx('truncate text-[15px]', unread ? 'font-bold' : 'font-semibold')}>
@@ -65,7 +65,7 @@ export function Chats() {
                     )}
                   </div>
                   <p className="mt-1 flex items-center gap-1.5 text-[11px] text-muted">
-                    <Icon name="lock" size={11} /> {health.stageLabel} · {Math.round(health.reveal * 100)}% revelado
+                    <Icon name="handshake" size={11} /> {health.stageLabel}
                   </p>
                 </div>
               </button>

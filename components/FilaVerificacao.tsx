@@ -9,7 +9,7 @@ import { age, timeAgo } from '../services/utils';
 // ---------------------------------------------------------------------------
 // A fila de revisão de verificação.
 //
-// O revisor vê lado a lado a selfie e a foto do perfil sem véu — administrador
+// O revisor vê lado a lado a selfie e a foto do perfil — administrador
 // tem nível 4 em qualquer retrato, e isso está declarado em nivel_permitido().
 //
 // A recusa exige motivo porque a pessoa vai lê-lo. Recusar sem dizer por quê
@@ -151,7 +151,7 @@ function ItemDaFila({
         <figure>
           <figcaption className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted">Foto do perfil</figcaption>
           <Portrait
-            seed={item.userId} photo={item.photoBase} name={item.name} reveal={1}
+            seed={item.userId} photo={item.photoBase} name={item.name}
             className="aspect-[3/4] w-full"
           />
         </figure>

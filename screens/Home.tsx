@@ -1,20 +1,34 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useApp } from '../state/AppContext';
-import { blockedIdsFor, connectionsOf, findUser, healthOf, messagesOf, otherId } from '../state/appState';
-import { buildCandidates, dailyCuration } from '../services/curation';
-import { profileCompletion } from '../services/compatibility';
+import { connectionsOf, healthOf, messagesOf } from '../state/appState';
+import { profileCompletion, oQueFalta } from '../services/perfil';
 import { suggestProfileImprovements } from '../services/geminiService';
 import { SAFETY_TIPS } from '../services/moderation';
 import { Page } from '../components/layout/AppShell';
 import { Banner, Button, Card, Empty, Icon, Ring, SectionTitle } from '../components/ui';
 import { AvisoDeCortesia } from '../components/AvisoDeCortesia';
-import { EssenceCard } from '../components/EssenceCard';
 import { CopilotPanel } from '../components/Copilot';
-import { Avatar } from '../components/Portrait';
-import { dateKey, firstName, timeAgo } from '../services/utils';
+import { firstName, timeAgo } from '../services/utils';
+import {
+  type Anuncio, type Proposta,
+  buscarAnuncios, faixaDeOrcamento, meusAnuncios, minhasPropostas, ondeFica,
+} from '../services/mercado';
+
+// ---------------------------------------------------------------------------
+// Início.
+//
+// Era o resumo do dia de um app de relacionamentos: a curadoria de hoje, o
+// Encontro do Dia, quantas conexões, quantas conversas. Agora é o painel de
+// quem trabalha — o que está esperando resposta de você, o que você mandou e
+// ainda não voltou, e o que apareceu de novo no quadro.
+//
+// A ordem das seções é a ordem do que custa dinheiro deixar parado: propostas
+// esperando a SUA decisão primeiro, porque quem publicou e não responde perde o
+// profissional; depois as suas propostas pendentes; só então o quadro.
+// ---------------------------------------------------------------------------
 
 function Stat({ icon, value, label, onClick }: {
-  icon: 'sparkle' | 'chat' | 'heart' | 'thermometer'; value: React.ReactNode; label: string; onClick?: () => void;
+  icon: 'search' | 'chat' | 'send' | 'edit'; value: React.ReactNode; label: string; onClick?: () => void;
 }) {
   return (
     <button
@@ -29,28 +43,42 @@ function Stat({ icon, value, label, onClick }: {
 }
 
 export function Home() {
-  const { me, state, navigate, quota, expressInterest, passOn, toast, canUseAi, spendAi } = useApp();
+  const { me, state, navigate, toast, canUseAi, spendAi } = useApp();
   const [tips, setTips] = useState<string[]>([]);
   const [loadingTips, setLoadingTips] = useState(false);
+
+  const [meus, setMeus] = useState<Anuncio[]>([]);
+  const [minhas, setMinhas] = useState<Proposta[]>([]);
+  const [recentes, setRecentes] = useState<Anuncio[]>([]);
+  const [carregando, setCarregando] = useState(true);
+
+  useEffect(() => {
+    if (!me) return;
+    let vivo = true;
+    setCarregando(true);
+    Promise.all([meusAnuncios(me.id), minhasPropostas(me.id), buscarAnuncios({})])
+      .then(([a, p, q]) => {
+        if (!vivo) return;
+        setMeus(a);
+        setMinhas(p);
+        setRecentes(q.anuncios.filter((x) => x.autorId !== me.id).slice(0, 3));
+      })
+      .catch((e) => { if (vivo) toast((e as Error).message, 'danger'); })
+      .finally(() => { if (vivo) setCarregando(false); });
+    return () => { vivo = false; };
+  }, [me, toast]);
 
   const data = useMemo(() => {
     if (!me) return null;
     const conns = connectionsOf(state, me.id);
-    const seen = new Set(conns.map((c) => otherId(c, me.id)));
-    const blocked = blockedIdsFor(state, me.id);
-    const candidates = buildCandidates(me, state.users, blocked, seen);
-    const usage = state.usage.find((u) => u.userId === me.id && u.date === dateKey());
-    const curation = dailyCuration(me, candidates, quota.discoverCards, quota.dailyInterests - (usage?.interests ?? 0));
-
     const active = conns.filter((c) => c.status === 'conectada');
     const staleOnes = active
       .map((c) => ({ c, h: healthOf(state, c, messagesOf(state, c.id)) }))
       .filter((x) => x.h.stale && x.h.messages > 0);
     const pending = conns.filter((c) => c.status === 'pendente' && !c.likes[me.id]);
     const talking = active.filter((c) => messagesOf(state, c.id).length > 0);
-
-    return { curation, active, staleOnes, pending, talking, completion: profileCompletion(me) };
-  }, [me, state, quota]);
+    return { active, staleOnes, pending, talking, completion: profileCompletion(me) };
+  }, [me, state]);
 
   useEffect(() => {
     if (!me) return;
@@ -62,146 +90,169 @@ export function Home() {
   }, [me?.id]);
 
   if (!me || !data) return null;
-  const tip = SAFETY_TIPS[new Date().getDate() % SAFETY_TIPS.length];
 
-  const regenerateTips = async () => {
-    if (!canUseAi) return;
-    setLoadingTips(true);
-    spendAi();
-    setTips(await suggestProfileImprovements(me));
-    setLoadingTips(false);
-  };
+  // Propostas esperando a decisão de quem publicou. É o número que mais custa
+  // caro quando fica parado: do outro lado há alguém que já trabalhou para
+  // escrever, e que some se não for respondido.
+  const aguardandoMim = meus.reduce((s, a) => s + (a.propostas ?? 0), 0);
+  const minhasPendentes = minhas.filter((p) => p.status === 'enviada').length;
+  const minhasAceitas = minhas.filter((p) => p.status === 'aceita');
+  const faltaNoPerfil = oQueFalta(me);
 
   return (
-    <Page maxWidth="max-w-5xl">
-      <header className="mb-6 flex items-start justify-between gap-4">
-        <div>
-          <h1 className="font-display text-2xl font-bold tracking-tight sm:text-3xl">
-            Olá, {firstName(me.name)} 👋
-          </h1>
-          <p className="mt-1 text-sm text-muted">
-            {data.curation.quotaLeft > 0
-              ? `Você tem ${data.curation.quotaLeft} interesse(s) para usar hoje.`
-              : 'Seus interesses de hoje acabaram. Amanhã tem mais.'}
-          </p>
-        </div>
-        <button type="button" onClick={() => navigate({ name: 'profile' })} className="shrink-0">
-          <Ring value={data.completion} size={72} sublabel="perfil" />
-        </button>
-      </header>
-
-      <div className="mb-6"><AvisoDeCortesia /></div>
-
+    <Page
+      title={`Olá, ${firstName(me.name)}`}
+      subtitle="O que está esperando por você hoje."
+      maxWidth="max-w-4xl"
+    >
       <div className="mb-6 flex gap-3">
-        <Stat icon="sparkle" value={data.curation.others.length + (data.curation.highlight ? 1 : 0)} label="pessoas na sua curadoria de hoje" onClick={() => navigate({ name: 'discover' })} />
-        <Stat icon="chat" value={data.talking.length} label="conversas ativas" onClick={() => navigate({ name: 'chats' })} />
-        <Stat icon="heart" value={data.active.length} label="conexões" onClick={() => navigate({ name: 'connections' })} />
+        <Stat
+          icon="edit" value={carregando ? '—' : aguardandoMim}
+          label="propostas esperando sua resposta"
+          onClick={() => navigate({ name: 'meusAnuncios' })}
+        />
+        <Stat
+          icon="send" value={carregando ? '—' : minhasPendentes}
+          label="propostas suas sem resposta"
+          onClick={() => navigate({ name: 'minhasPropostas' })}
+        />
+        <Stat
+          icon="chat" value={data.talking.length}
+          label="conversas ativas"
+          onClick={() => navigate({ name: 'chats' })}
+        />
       </div>
 
-      {data.pending.length > 0 && (
-        <div className="mb-6">
+      {minhasAceitas.length > 0 && (
+        <div className="mb-5">
           <Banner
-            tone="ok" icon="heart" title={`${data.pending.length} pessoa(s) demonstraram interesse em você`}
+            tone="ok" icon="handshake" title={`Você foi escolhido em ${minhasAceitas.length} trabalho(s)`}
+            action={<Button size="sm" onClick={() => navigate({ name: 'minhasPropostas' })}>Ver</Button>}
+          >
+            Combine os próximos passos com quem publicou. O telefone dos dois lados já foi liberado.
+          </Banner>
+        </div>
+      )}
+
+      {faltaNoPerfil.length > 0 && (
+        <div className="mb-5">
+          <Card className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center">
+            <Ring value={data.completion} size={72} sublabel="perfil" />
+            <div className="min-w-0 flex-1">
+              <p className="font-display text-base font-semibold">Seu perfil ainda não está pronto</p>
+              <p className="mt-1 text-[13px] leading-relaxed text-muted">
+                Falta {faltaNoPerfil.slice(0, 2).join(' e ')}. Quem contrata lê o perfil antes de
+                responder a proposta — e descarta o que está pela metade.
+              </p>
+            </div>
+            <Button size="sm" icon="edit" onClick={() => navigate({ name: 'profileEdit' })}>Completar</Button>
+          </Card>
+        </div>
+      )}
+
+      {data.pending.length > 0 && (
+        <div className="mb-5">
+          <Banner
+            tone="info" icon="chat" title={`${data.pending.length} pessoa(s) querem falar com você`}
             action={<Button size="sm" onClick={() => navigate({ name: 'connections' })}>Ver</Button>}
           >
-            Responder rápido aumenta muito a chance da conversa acontecer.
+            Um pedido sem resposta é um negócio que não aconteceu.
           </Banner>
         </div>
       )}
 
       {data.staleOnes.length > 0 && (
-        <div className="mb-6">
-          <Banner tone="warn" icon="clock" title="Conversas paradas">
-            <p>
-              {data.staleOnes.map(({ c }) => firstName(findUser(state, otherId(c, me.id))?.name ?? '')).join(', ')} está
-              esperando há mais de cinco dias. Responder ou se despedir com gentileza vale mais que sumir —
-              e conta na sua reputação de conversa.
-            </p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {data.staleOnes.map(({ c }) => (
-                <Button key={c.id} size="sm" variant="outline" onClick={() => navigate({ name: 'chat', id: c.id })}>
-                  Abrir conversa com {firstName(findUser(state, otherId(c, me.id))?.name ?? '')}
-                </Button>
-              ))}
-            </div>
-          </Banner>
+        <div className="mb-5">
+          <AvisoDeCortesia />
         </div>
       )}
 
-      <section className="mb-8">
-        <SectionTitle hint="Uma pessoa em destaque por dia. Some em 24 horas.">Encontro do dia</SectionTitle>
-        {data.curation.highlight ? (
-          <EssenceCard
-            highlight
-            user={data.curation.highlight.user}
-            score={data.curation.highlight.score}
-            shared={data.curation.highlight.shared}
-            headline={data.curation.highlight.headline}
-            distanceKm={data.curation.highlight.distanceKm}
-            onOpen={() => navigate({ name: 'person', id: data.curation.highlight!.user.id })}
-            onPass={() => { passOn(data.curation.highlight!.user.id); toast('Ok, não mostramos mais essa pessoa.', 'info'); }}
-            onInterest={() => {
-              const r = expressInterest(data.curation.highlight!.user.id);
-              if (!r.ok) return toast(r.reason ?? 'Não foi possível.', 'warn');
-              toast(r.connected ? 'Conexão! Vocês dois demonstraram interesse.' : 'Interesse enviado.', r.connected ? 'ok' : 'info');
-            }}
+      <section className="mb-6">
+        <SectionTitle
+          hint="O que apareceu de mais recente no quadro."
+          action={<Button size="sm" variant="ghost" onClick={() => navigate({ name: 'anuncios' })}>Ver tudo</Button>}
+        >
+          Trabalho disponível
+        </SectionTitle>
+
+        {carregando ? (
+          <div className="space-y-3">
+            {[0, 1].map((i) => <Card key={i} className="h-24 animate-pulseSoft"><span /></Card>)}
+          </div>
+        ) : recentes.length === 0 ? (
+          <Empty
+            icon="search"
+            title="O quadro ainda está vazio"
+            body="Ninguém publicou nada por enquanto. Você pode ser o primeiro — e quem publica num quadro calmo costuma receber as melhores respostas."
+            action={<Button size="sm" icon="plus" onClick={() => navigate({ name: 'publicar' })}>Publicar um anúncio</Button>}
           />
         ) : (
-          <Empty
-            icon="compass" title="Nenhuma pessoa nova hoje"
-            body="Você já viu todo mundo que combina com seus filtros. Tente ampliar a distância ou a faixa de idade nas configurações."
-            action={<Button size="sm" variant="outline" onClick={() => navigate({ name: 'settings' })}>Ajustar preferências</Button>}
-          />
+          <div className="space-y-3">
+            {recentes.map((a) => (
+              <Card key={a.id} className="transition-shadow hover:shadow-lift">
+                <button
+                  type="button" className="w-full p-4 text-left"
+                  onClick={() => navigate({ name: 'anuncio', id: a.id })}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="font-display text-[15px] font-semibold leading-snug">{a.titulo}</p>
+                    <span className="shrink-0 text-[11px] text-muted">{timeAgo(a.createdAt)}</span>
+                  </div>
+                  <p className="mt-1.5 text-[12px] text-muted">
+                    {a.categoriaNome && `${a.categoriaNome} · `}{ondeFica(a)} · {faixaDeOrcamento(a)}
+                  </p>
+                </button>
+              </Card>
+            ))}
+          </div>
         )}
       </section>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <div>
-          <SectionTitle hint="Sugestões do Copiloto para o seu perfil">Melhore seu perfil</SectionTitle>
-          <CopilotPanel
-            title="O que mudar primeiro"
-            description="Sugestões focadas em atrair conversas melhores, não mais curtidas."
-            suggestions={tips} loading={loadingTips} onGenerate={regenerateTips}
-            generateLabel="Analisar meu perfil"
-          />
-        </div>
-
-        <div>
-          <SectionTitle hint="Últimas mensagens">Suas conversas</SectionTitle>
-          {data.talking.length ? (
-            <Card className="divide-y divide-line">
-              {data.talking.slice(0, 4).map((c) => {
-                const other = findUser(state, otherId(c, me.id));
-                const msgs = messagesOf(state, c.id);
-                const last = msgs[msgs.length - 1];
-                const health = healthOf(state, c, msgs);
-                if (!other) return null;
-                return (
-                  <button
-                    key={c.id} type="button" onClick={() => navigate({ name: 'chat', id: c.id })}
-                    className="flex w-full items-center gap-3 p-4 text-left transition-colors hover:bg-bg"
-                  >
-                    <Avatar seed={other.id} photo={other.photo} name={other.name} reveal={health.reveal} size={44} />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-baseline justify-between gap-2">
-                        <p className="truncate text-sm font-semibold">{firstName(other.name)}</p>
-                        <span className="shrink-0 text-[11px] text-muted">{last ? timeAgo(last.createdAt) : ''}</span>
-                      </div>
-                      <p className="truncate text-[13px] text-muted">{last?.text ?? 'Diga oi.'}</p>
-                    </div>
-                  </button>
-                );
-              })}
-            </Card>
-          ) : (
-            <Empty icon="chat" title="Nenhuma conversa ainda" body="Assim que houver interesse dos dois lados, a conversa aparece aqui." />
-          )}
-
-          <div className="mt-4">
-            <Banner tone="info" icon="shield" title="Dica de segurança">{tip}</Banner>
+      <section className="mb-6">
+        {/* No celular esta é a porta para a lista de profissionais: ela não
+            cabe na barra de baixo, que já carrega seis itens. */}
+        <Card className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center">
+          <div className="min-w-0 flex-1">
+            <p className="font-display text-base font-semibold">Precisa de alguém agora?</p>
+            <p className="mt-1 text-[13px] leading-relaxed text-muted">
+              Em vez de esperar propostas, procure direto quem faz o que você precisa — por área,
+              cidade ou palavra.
+            </p>
           </div>
-        </div>
-      </div>
+          <Button size="sm" icon="users" variant="outline" onClick={() => navigate({ name: 'profissionais' })}>
+            Ver profissionais
+          </Button>
+        </Card>
+      </section>
+
+      <section className="mb-6">
+        <CopilotPanel
+          title="Como melhorar o seu perfil"
+          description="Sugestões do Copiloto, olhando o que já está preenchido."
+          suggestions={tips}
+          loading={loadingTips}
+          onGenerate={() => {
+            if (!canUseAi) return;
+            spendAi();
+            setLoadingTips(true);
+            void suggestProfileImprovements(me).then((t) => { setTips(t); setLoadingTips(false); });
+          }}
+          compact
+        />
+      </section>
+
+      <section>
+        <SectionTitle hint="Vale para qualquer negociação, aqui ou fora daqui.">Segurança</SectionTitle>
+        <Card className="p-5">
+          <ul className="space-y-2 text-[13px] leading-relaxed text-muted">
+            {SAFETY_TIPS.slice(0, 4).map((t) => (
+              <li key={t} className="flex gap-2">
+                <Icon name="shield" size={15} className="mt-0.5 shrink-0 text-brand" />{t}
+              </li>
+            ))}
+          </ul>
+        </Card>
+      </section>
     </Page>
   );
 }
