@@ -9,6 +9,11 @@ import { RecuperarSenha } from './screens/RecuperarSenha';
 import { RedefinirSenha } from './screens/RedefinirSenha';
 import { Home } from './screens/Home';
 import { Discover } from './screens/Discover';
+import { Anuncios } from './screens/Anuncios';
+import { Anuncio } from './screens/Anuncio';
+import { PublicarAnuncio } from './screens/PublicarAnuncio';
+import { MeusAnuncios } from './screens/MeusAnuncios';
+import { MinhasPropostas } from './screens/MinhasPropostas';
 import { PersonProfile } from './screens/PersonProfile';
 import { Connections } from './screens/Connections';
 import { Chats } from './screens/Chats';
@@ -30,6 +35,12 @@ function Router() {
     case 'redefinirSenha': return <RedefinirSenha />;
     case 'home': return <Home />;
     case 'discover': return <Discover />;
+    // ---------------------------- o mercado ------------------------------
+    case 'anuncios': return <Anuncios />;
+    case 'anuncio': return <Anuncio id={route.id} />;
+    case 'publicar': return <PublicarAnuncio />;
+    case 'meusAnuncios': return <MeusAnuncios />;
+    case 'minhasPropostas': return <MinhasPropostas />;
     case 'person': return <PersonProfile id={route.id} />;
     case 'connections': return <Connections />;
     case 'chats': return <Chats />;

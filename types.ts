@@ -266,6 +266,12 @@ export type Route =
   | { name: 'redefinirSenha' }
   | { name: 'home' }
   | { name: 'discover' }
+  // ------------------------------ o mercado --------------------------------
+  | { name: 'anuncios' }                 // buscar trabalho
+  | { name: 'anuncio'; id: string }      // um anúncio, e propor nele
+  | { name: 'publicar' }                 // publicar o que você precisa
+  | { name: 'meusAnuncios' }             // o que publiquei, e quem respondeu
+  | { name: 'minhasPropostas' }          // onde me ofereci
   | { name: 'person'; id: string }
   | { name: 'connections' }
   | { name: 'chats' }

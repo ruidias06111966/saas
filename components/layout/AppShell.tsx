@@ -8,11 +8,18 @@ import { cx, firstName } from '../../services/utils';
 import { Avatar } from '../Portrait';
 import { APP_NAME } from '../../constants';
 
+// O menu do mercado. As duas telas pessoais — o que publiquei e onde me
+// ofereci — ficam lado a lado de propósito: são os dois papéis que a mesma
+// pessoa exerce aqui, e quem contrata hoje é quem se oferece amanhã.
+//
+// Descobrir e Conexões saíram daqui, não do app: continuam acessíveis pela
+// Início enquanto a Fase 2 não refaz aquela tela.
 const NAV: { route: Route['name']; label: string; icon: IconName }[] = [
   { route: 'home', label: 'Início', icon: 'home' },
-  { route: 'discover', label: 'Descobrir', icon: 'compass' },
+  { route: 'anuncios', label: 'Trabalhos', icon: 'search' },
+  { route: 'meusAnuncios', label: 'Publiquei', icon: 'edit' },
+  { route: 'minhasPropostas', label: 'Propostas', icon: 'send' },
   { route: 'chats', label: 'Conversas', icon: 'chat' },
-  { route: 'connections', label: 'Conexões', icon: 'sparkle' },
   { route: 'profile', label: 'Perfil', icon: 'user' },
 ];
 
@@ -31,13 +38,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       .map((m) => m.connectionId),
   ).size;
 
+  // Só as rotas que o retrato em memória sabe contar. O mercado é buscado sob
+  // demanda (ver services/mercado.ts): contar propostas aqui obrigaria o menu
+  // a consultar o banco em toda tela, e o aviso já chega pelas notificações.
   const badgeFor = (name: Route['name']) =>
     name === 'chats' ? unreadChats : name === 'connections' ? pending : 0;
 
   const isActive = (name: Route['name']) =>
     route.name === name ||
     (name === 'chats' && route.name === 'chat') ||
-    (name === 'discover' && route.name === 'person') ||
+    (name === 'anuncios' && route.name === 'anuncio') ||
+    (name === 'meusAnuncios' && route.name === 'publicar') ||
     (name === 'profile' && route.name === 'profileEdit');
 
   // O chat ocupa a tela inteira no celular: sem menu inferior competindo com
@@ -50,7 +61,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r border-line bg-surface px-4 py-6 lg:flex">
         <button type="button" onClick={() => navigate({ name: 'home' })} className="mb-8 px-2 text-left">
           <span className="font-display text-xl font-bold tracking-tight">{APP_NAME}</span>
-          <span className="mt-0.5 block text-[10px] uppercase tracking-[0.18em] text-muted">conversa primeiro</span>
+          <span className="mt-0.5 block text-[10px] uppercase tracking-[0.18em] text-muted">negócios e trabalho</span>
         </button>
 
         <nav className="flex-1 space-y-1">
@@ -78,6 +89,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </nav>
 
         <div className="space-y-1 border-t border-line pt-3">
+          <button
+            type="button" onClick={() => navigate({ name: 'connections' })}
+            className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium text-muted transition-colors hover:bg-bg hover:text-ink"
+          >
+            <Icon name="sparkle" size={19} /> Conexões
+            {pending > 0 && (
+              <span className="ml-auto grid h-5 min-w-5 place-items-center rounded-full bg-ember px-1.5 text-[10px] font-bold text-white">
+                {pending}
+              </span>
+            )}
+          </button>
           <button
             type="button" onClick={() => navigate({ name: 'notifications' })}
             className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium text-muted transition-colors hover:bg-bg hover:text-ink"
