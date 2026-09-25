@@ -1,5 +1,5 @@
 import type { Connection, ConversationHealth, Message } from '../types';
-import { VEIL_STAGES } from '../constants';
+import { ETAPAS_DA_CONVERSA } from '../constants';
 import { clamp } from './utils';
 
 // ---------------------------------------------------------------------------
@@ -65,11 +65,8 @@ export function buildHealth(
   const b = connection.userB;
 
   let stageIdx = 0;
-  VEIL_STAGES.forEach((s, i) => { if (m.score >= s.min) stageIdx = i; });
+  ETAPAS_DA_CONVERSA.forEach((etapa, i) => { if (m.score >= etapa.min) stageIdx = i; });
   const stageIndex = stageIdx as ConversationHealth['stage'];
-
-  const mutualReveal = !!connection.revealConsent[a] && !!connection.revealConsent[b];
-  const reveal = mutualReveal ? 1 : clamp(m.score / 82);
 
   const real = tail.filter((x) => x.kind !== 'sistema');
   const last = real[real.length - 1];
@@ -78,11 +75,11 @@ export function buildHealth(
   const waitingOn = last ? (last.senderId === a ? b : a) : undefined;
 
   const nextGoal =
-    stageIndex >= 4 ? 'Vocês já se revelaram. Agora é com vocês.'
+    stageIndex >= 4 ? 'Já dá para fechar o combinado: escopo, prazo e valor.'
       : m.reciprocity < 60 ? 'Dê espaço para o outro falar — a troca precisa ser dos dois.'
-      : m.depth < 50 ? 'Faça uma pergunta aberta. Respostas longas revelam mais.'
-      : m.openness < 50 ? 'Aceite um Ritual de Conversa para subir um degrau.'
-      : 'Continue no ritmo. O véu está abrindo.';
+      : m.depth < 50 ? 'Pergunte o que ainda não está claro sobre o trabalho.'
+      : m.openness < 50 ? 'Diga com mais detalhe o que você faz e como cobra.'
+      : 'Continue no ritmo. Está indo bem.';
 
   return {
     score: m.score,
@@ -93,8 +90,7 @@ export function buildHealth(
     messages: m.messages,
     days: m.days,
     stage: stageIndex,
-    stageLabel: VEIL_STAGES[stageIndex].label,
-    reveal,
+    stageLabel: ETAPAS_DA_CONVERSA[stageIndex].label,
     nextGoal,
     stale,
     waitingOn,
@@ -171,7 +167,6 @@ export function conversationHealth(
 }
 
 /** Blur em pixels aplicado ao retrato, dado o quanto já foi revelado. */
-export const veilBlur = (reveal: number): number => Math.round((1 - clamp(reveal)) * 26 * 10) / 10;
 
 /** Nível do próximo ritual a ser sugerido nesta conversa. */
 export function nextRitualLevel(messages: Message[]): 1 | 2 | 3 | 4 {

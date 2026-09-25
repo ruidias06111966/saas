@@ -1,43 +1,17 @@
 // ---------------------------------------------------------------------------
 // QICONEXÃO — modelo de domínio
-// Estes tipos espelham 1:1 as tabelas em docs/SUPABASE.sql. Ao plugar o backend
-// real, só a camada services/storage.ts muda; telas e regras continuam iguais.
+//
+// Em setembro de 2026 o produto mudou de assunto: deixou de aproximar pessoas
+// por afinidade e passou a aproximá-las por TRABALHO. Estes tipos acompanharam.
+//
+// O que saiu daqui — gênero, idade, objetivo de relacionamento, bússola de
+// personalidade, estilo de vida, interesses, preferências de descoberta — não
+// foi "desativado": foi removido. Campo morto num modelo de domínio é uma
+// pergunta que alguém vai acabar respondendo errado.
 // ---------------------------------------------------------------------------
 
-export type Gender = 'mulher' | 'homem' | 'nao_binario' | 'outro';
-export type SeekingGender = Gender | 'todos';
-
-export type RelationshipGoal = 'serio' | 'conhecer' | 'amizade' | 'descobrindo';
-
-/** Eixos da "Bússola de Conexão". Valores 0..100. */
-export type AxisKey = 'energia' | 'ritmo' | 'planejamento' | 'afeto' | 'novidade';
-export type Personality = Record<AxisKey, number>;
-
-export interface Lifestyle {
-  bebida: 'nunca' | 'socialmente' | 'frequente';
-  fumo: 'nao' | 'as_vezes' | 'sim';
-  exercicio: 'raro' | 'as_vezes' | 'frequente';
-  filhos: 'nao_quero' | 'quero' | 'tenho_e_quero' | 'tenho_nao_quero' | 'indeciso';
-  animais: 'amo' | 'gosto' | 'nao_tenho' | 'alergia';
-  religiosidade: 'nada' | 'pouco' | 'importante' | 'muito_importante';
-}
-
-/** Ritmo de conversa preferido — entra no cálculo de compatibilidade. */
-export type ChatPace = 'poucas_profundas' | 'equilibrado' | 'muitas_rapidas';
-
-export interface PromptAnswer {
-  promptId: string;
-  answer: string;
-}
-
-export interface Preferences {
-  seeking: SeekingGender[];
-  ageMin: number;
-  ageMax: number;
-  maxDistanceKm: number;
-  goals: RelationshipGoal[];
-  minCompatibility: number;
-}
+export type AccountStatus = 'ativo' | 'suspenso' | 'banido';
+export type Plan = 'free' | 'premium';
 
 export type ConsentKind = 'termos' | 'privacidade' | 'diretrizes' | 'maioridade' | 'dados_sensiveis';
 
@@ -47,20 +21,16 @@ export interface Consent {
   acceptedAt: string;
 }
 
-export type AccountStatus = 'ativo' | 'suspenso' | 'banido';
-export type Plan = 'free' | 'premium';
-
 // ---------------------------------------------------------------------------
 // Um `User` chega por dois caminhos, e eles carregam coisas diferentes.
 //
 //   • O PRÓPRIO registro, lido direto de `public.users`: vem completo.
-//   • Um registro de TERCEIRO, lido da view `perfis_descobriveis`: vem sem
-//     e-mail, sem data de nascimento, sem coordenadas e sem papel.
+//   • Um registro de TERCEIRO, lido da view `perfis_do_mercado`: vem só com o
+//     crachá — nome, profissão, cidade, foto, verificado, reputação.
 //
 // Os campos opcionais abaixo marcam exatamente essa diferença. Não é descuido
 // de tipagem: é o vazamento de dado pessoal corrigido em 03/09/2026 ficando
 // visível no tipo, para que o compilador recuse quem tentar usá-los sem checar.
-// No modo demo tudo vem preenchido, porque ali não há servidor nem terceiros.
 // ---------------------------------------------------------------------------
 export interface User {
   id: string;
@@ -69,21 +39,11 @@ export interface User {
   email?: string;
   /** Demo: SHA-256 no navegador. Em produção isto vive no provedor de auth. */
   passwordHash: string;
-  /** Só do próprio registro. Para qualquer pessoa existe `age`. */
-  birthDate?: string; // ISO yyyy-mm-dd
-  /**
-   * Anos completos. SEMPRE presente — é o que as telas de fato usam.
-   * Recalculado a cada carregamento (pela view, no servidor; por `age()`, no
-   * modo demo), então não envelhece dentro de uma sessão longa.
-   */
-  age: number;
-  gender: Gender;
   city: string;
   state: string;
   /**
    * Coordenada APROXIMADA (arredondada a ~0.05°, ≈5 km). Nunca a exata, e
    * nunca de terceiros: a base inteira de coordenadas permite trilateração.
-   * Para a distância até outra pessoa existe `distanceKm`.
    */
   approxLat?: number;
   approxLng?: number;
@@ -91,24 +51,35 @@ export interface User {
   distanceKm?: number;
   photo?: string; // dataURL; ausente => retrato generativo determinístico
   extraPhotos: string[];
+
+  // ------------------------------ o profissional ----------------------------
+
+  /** Como a pessoa se apresenta: "Contadora", "Engenheiro civil". */
   profession: string;
+  /** O resumo profissional. Substituiu a bio de relacionamento. */
   bio: string;
-  interests: string[];
-  personality: Personality;
-  lifestyle: Lifestyle;
-  chatPace: ChatPace;
-  goal: RelationshipGoal;
-  answers: PromptAnswer[];
-  preferences: Preferences;
+  /** Em que atua — ids de `public.categorias`. No máximo 5, e o banco cobra. */
+  especialidades: string[];
+  /** Trabalha a distância. Entra na busca por profissionais. */
+  atendeRemoto: boolean;
+  anosExperiencia?: number;
+  /**
+   * SÓ DO PRÓPRIO REGISTRO, e nem a view do crachá o carrega.
+   *
+   * O telefone não aparece em perfil nenhum: ele é revelado aos dois lados
+   * quando uma proposta é aceita, pela função `contato_do_negocio` no banco.
+   * Ver supabase/migrations/012_perfil_profissional.sql.
+   */
+  telefone?: string;
+
   verified: boolean;
-  /** Reputação de conversa 0..100 (encerra com gentileza sobe, some baixa). */
+  /** Reputação 0..100. */
   reputation: number;
   plan: Plan;
   /**
-   * Só do próprio registro. A descoberta não recebe o papel de ninguém — antes
+   * Só do próprio registro. A busca não recebe o papel de ninguém — antes
    * recebia, só para filtrar administradores no cliente, o que equivalia a
-   * entregar a lista de administradores a todo mundo. Agora a view simplesmente
-   * não devolve essas linhas.
+   * entregar a lista de administradores a todo mundo.
    */
   role?: 'user' | 'admin';
   status: AccountStatus;
@@ -133,16 +104,11 @@ export interface Connection {
   /** quem demonstrou interesse: { [userId]: true } */
   likes: Record<string, boolean>;
   favorite: Record<string, boolean>;
-  /** "Revelar antes do tempo" — só vale se os dois marcarem. */
-  revealConsent: Record<string, boolean>;
-  compatibility: number;
   createdAt: string;
   connectedAt?: string;
   closedBy?: string;
   closedReason?: string;
   closedGently?: boolean;
-  /** Data-chave (yyyy-mm-dd) da curadoria que gerou esta sugestão. */
-  curatedOn?: string;
 }
 
 export type MessageKind = 'texto' | 'imagem' | 'ritual' | 'sistema';
@@ -252,7 +218,12 @@ export interface Block {
 export interface DailyUsage {
   userId: string;
   date: string; // yyyy-mm-dd
-  interests: number;
+  /**
+   * Quantos pedidos de conversa hoje. Era `interests` — o nome de namoro —, e
+   * a coluna no banco ainda se chama assim até a limpeza da 013. O mapeamento
+   * vive em `backend.bumpUsage`, num lugar só.
+   */
+  contatos: number;
   aiCalls: number;
 }
 
@@ -265,14 +236,14 @@ export type Route =
   | { name: 'recuperarSenha' }
   | { name: 'redefinirSenha' }
   | { name: 'home' }
-  | { name: 'discover' }
+  | { name: 'profissionais' }          // quem faz o quê, e onde
   // ------------------------------ o mercado --------------------------------
   | { name: 'anuncios' }                 // buscar trabalho
   | { name: 'anuncio'; id: string }      // um anúncio, e propor nele
   | { name: 'publicar' }                 // publicar o que você precisa
   | { name: 'meusAnuncios' }             // o que publiquei, e quem respondeu
   | { name: 'minhasPropostas' }          // onde me ofereci
-  | { name: 'person'; id: string }
+  | { name: 'person'; id: string }  // o perfil profissional de alguém
   | { name: 'connections' }
   | { name: 'chats' }
   | { name: 'chat'; id: string }
@@ -282,27 +253,6 @@ export type Route =
   | { name: 'settings' }
   | { name: 'notifications' }
   | { name: 'admin' };
-
-// --------------------------- compatibilidade --------------------------------
-
-export interface CompatibilityDimension {
-  key: string;
-  label: string;
-  weight: number;
-  /** 0..1 */
-  score: number;
-  detail: string;
-}
-
-export interface CompatibilityResult {
-  score: number; // 0..100
-  dimensions: CompatibilityDimension[];
-  sharedInterests: string[];
-  confidence: 'baixa' | 'media' | 'alta';
-  headline: string;
-  reasons: string[];
-  distanceKm: number;
-}
 
 // --------------------------- conversa ---------------------------------------
 
@@ -317,8 +267,6 @@ export interface ConversationHealth {
   days: number;
   stage: 0 | 1 | 2 | 3 | 4;
   stageLabel: string;
-  /** 0..1 — quanto da foto já está revelado. */
-  reveal: number;
   nextGoal: string;
   stale: boolean;
   waitingOn?: string;

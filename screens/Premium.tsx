@@ -9,13 +9,13 @@ import { openBillingPortal, startCheckout } from '../services/billing';
 import { uid } from '../services/utils';
 
 const FEATURES: { label: string; free: string; premium: string }[] = [
-  { label: 'Interesses por dia', free: String(QUOTAS.free.dailyInterests), premium: String(QUOTAS.premium.dailyInterests) },
-  { label: 'Pessoas na curadoria diária', free: String(QUOTAS.free.discoverCards), premium: String(QUOTAS.premium.discoverCards) },
+  { label: 'Publicar anúncios', free: 'Ilimitado', premium: 'Ilimitado' },
+  { label: 'Enviar propostas', free: 'Ilimitado', premium: 'Ilimitado' },
+  { label: 'Pedidos de conversa por dia', free: String(QUOTAS.free.dailyContatos), premium: String(QUOTAS.premium.dailyContatos) },
   { label: 'Sugestões do Copiloto por dia', free: String(QUOTAS.free.dailyAiCalls), premium: String(QUOTAS.premium.dailyAiCalls) },
-  { label: 'Ver quem demonstrou interesse', free: '—', premium: 'Sim' },
-  { label: 'Filtros avançados', free: '—', premium: 'Compatibilidade mínima e interesses obrigatórios' },
-  { label: 'Decomposição completa da compatibilidade', free: 'Resumida', premium: 'Todas as dimensões e pesos' },
-  { label: 'Destaque na curadoria de outras pessoas', free: '—', premium: '1x por semana' },
+  { label: 'Áreas de atuação no perfil', free: 'Até 5', premium: 'Até 5' },
+  { label: 'Filtros avançados na busca de profissionais', free: '—', premium: 'Sim' },
+  { label: 'Selo de verificado', free: 'Mediante análise', premium: 'Mediante análise' },
   { label: 'Bloquear, denunciar e moderação', free: 'Sim', premium: 'Sim' },
 ];
 
@@ -105,10 +105,10 @@ export function Premium() {
       <div className="mt-6 grid gap-4 lg:grid-cols-2">
         <Card className={`p-6 ${!isPremium ? 'border-brand/40' : ''}`}>
           <h2 className="font-display text-xl font-bold">Gratuito</h2>
-          <p className="mt-1 text-sm text-muted">Tudo que é preciso para conversar de verdade.</p>
+          <p className="mt-1 text-sm text-muted">Tudo que é preciso para anunciar e ser encontrado.</p>
           <p className="mt-4 font-display text-3xl font-bold">R$ 0</p>
           <ul className="mt-4 space-y-2 text-[13px]">
-            {['Perfil completo e Cartão de Essência', `${QUOTAS.free.dailyInterests} interesses por dia`, 'Curadoria diária com Encontro do Dia', 'Conversas ilimitadas com quem já conectou', 'Rituais de conversa e Termômetro', 'Bloqueio, denúncia e verificação'].map((t) => (
+            {['Perfil profissional completo', 'Publicar anúncios sem limite', 'Enviar propostas sem limite', `${QUOTAS.free.dailyContatos} pedidos de conversa por dia`, 'Termômetro da conversa', 'Bloqueio, denúncia e verificação'].map((t) => (
               <li key={t} className="flex gap-2"><Icon name="check" size={15} className="mt-0.5 shrink-0 text-sage" />{t}</li>
             ))}
           </ul>
@@ -122,10 +122,10 @@ export function Premium() {
           <h2 className="flex items-center gap-2 font-display text-xl font-bold">
             <Icon name="crown" size={20} className="text-ember" /> Premium
           </h2>
-          <p className="mt-1 text-sm text-muted">Para quem quer alcance maior sem perder a curadoria.</p>
+          <p className="mt-1 text-sm text-muted">Para quem vive disso e precisa de alcance maior.</p>
           <p className="mt-4 font-display text-3xl font-bold">R$ 29,90<span className="text-base font-medium text-muted">/mês</span></p>
           <ul className="mt-4 space-y-2 text-[13px]">
-            {[`${QUOTAS.premium.dailyInterests} interesses por dia`, `${QUOTAS.premium.discoverCards} pessoas na curadoria`, 'Ver quem demonstrou interesse em você', 'Filtros avançados de compatibilidade', 'Copiloto de conversa sem limite prático', 'Destaque semanal na curadoria'].map((t) => (
+            {[`${QUOTAS.premium.dailyContatos} pedidos de conversa por dia`, 'Filtros avançados na busca de profissionais', 'Copiloto sem limite prático', 'Prioridade no atendimento'].map((t) => (
               <li key={t} className="flex gap-2"><Icon name="check" size={15} className="mt-0.5 shrink-0 text-ember" />{t}</li>
             ))}
           </ul>

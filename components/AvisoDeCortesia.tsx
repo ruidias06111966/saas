@@ -62,7 +62,7 @@ export function AvisoDeCortesia({ compacto = false }: { compacto?: boolean }) {
         <>
           Por ter chegado no lançamento, você ganhou <strong>60 dias de Premium</strong>,
           sem pagar nada e sem cartão. Vale até <strong>{formata(cortesia.expiresAt)}</strong>.
-          {!compacto && ' Mais alcance na curadoria, filtros avançados e o Copiloto liberado.'}
+          {!compacto && ' Mais pedidos de conversa por dia, filtros avançados e o Copiloto liberado.'}
         </>
       )}
     </Banner>

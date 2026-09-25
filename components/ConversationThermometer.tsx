@@ -1,18 +1,23 @@
 import type { ConversationHealth } from '../types';
-import { VEIL_STAGES } from '../constants';
+import { ETAPAS_DA_CONVERSA } from '../constants';
 import { Bar, Card, Icon } from './ui';
 import { cx } from '../services/utils';
 
 // ---------------------------------------------------------------------------
-// Termômetro de Conversa — mede a troca, não o volume, e é o que abre o véu.
-// Deliberadamente transparente: a pessoa vê exatamente o que está sendo medido.
+// Termômetro de Conversa — mede a troca, não o volume.
+//
+// Antes ele tinha uma segunda função: era o que abria o véu da foto. Essa
+// parte morreu no pivô, e com razão — num negócio ninguém quer ver a cara da
+// outra pessoa aparecendo aos poucos. O que ficou é o que sempre foi útil:
+// mostrar, sem enfeite, se a conversa está andando ou se alguém está falando
+// sozinho. Deliberadamente transparente: a pessoa vê o que está sendo medido.
 // ---------------------------------------------------------------------------
 
 const METRICS: { key: keyof ConversationHealth; label: string; help: string }[] = [
   { key: 'reciprocity', label: 'Reciprocidade', help: 'Os dois falam de forma equilibrada?' },
   { key: 'depth', label: 'Profundidade', help: 'Respostas com conteúdo e perguntas de volta.' },
   { key: 'consistency', label: 'Constância', help: 'Respostas dentro de um tempo razoável.' },
-  { key: 'openness', label: 'Abertura', help: 'Rituais de conversa aceitos.' },
+  { key: 'openness', label: 'Abertura', help: 'Perguntas mais francas aceitas dos dois lados.' },
 ];
 
 export function ConversationThermometer({ health, compact }: { health: ConversationHealth; compact?: boolean }) {
@@ -66,44 +71,42 @@ export function ConversationThermometer({ health, compact }: { health: Conversat
   );
 }
 
-export function VeilProgress({ health, onReveal, revealRequested, mutualRevealed }: {
-  health: ConversationHealth; onReveal?: () => void;
-  revealRequested?: boolean; mutualRevealed?: boolean;
-}) {
+/**
+ * Em que pé está a conversa.
+ *
+ * Era a `VeilProgress`, a barra que mostrava quanto da foto já tinha sido
+ * revelado e oferecia o botão de "revelar antes do tempo". Sem véu, o que
+ * sobra é o degrau: primeiro contato, conversando, entendendo, alinhando,
+ * pronto para fechar. Serve para a pessoa saber se já pode falar de preço.
+ */
+export function EtapasDaConversa({ health }: { health: ConversationHealth }) {
   return (
     <div className="rounded-2xl border border-line bg-surface p-4">
       <div className="mb-2.5 flex items-center justify-between gap-3">
         <p className="flex items-center gap-2 text-[13px] font-semibold">
-          <Icon name={mutualRevealed ? 'eye' : 'lock'} size={15} className="text-brand" />
-          {mutualRevealed ? 'Fotos reveladas' : `Véu: ${health.stageLabel}`}
+          <Icon name="handshake" size={15} className="text-brand" />
+          {health.stageLabel}
         </p>
-        <span className="text-[11px] tabular-nums text-muted">{Math.round(health.reveal * 100)}%</span>
+        <span className="text-[11px] tabular-nums text-muted">
+          etapa {health.stage + 1} de {ETAPAS_DA_CONVERSA.length}
+        </span>
       </div>
 
       <div className="flex gap-1">
-        {VEIL_STAGES.map((s, i) => (
+        {ETAPAS_DA_CONVERSA.map((etapa, i) => (
           <div
-            key={s.label}
-            className={cx('h-1.5 flex-1 rounded-full transition-colors duration-700', i <= health.stage ? 'bg-brand' : 'bg-line')}
-            title={s.label}
+            key={etapa.label}
+            className={cx(
+              'h-1.5 flex-1 rounded-full transition-colors duration-700',
+              i <= health.stage ? 'bg-brand' : 'bg-line',
+            )}
+            title={etapa.label}
           />
         ))}
       </div>
-      <p className="mt-2 text-[11px] leading-relaxed text-muted">{VEIL_STAGES[health.stage].note}</p>
-
-      {!mutualRevealed && onReveal && (
-        <button
-          type="button" onClick={onReveal}
-          className={cx(
-            'mt-3 w-full rounded-xl2 border px-3 py-2 text-[12px] font-semibold transition-colors',
-            revealRequested
-              ? 'border-brand/40 bg-brandSoft text-brand'
-              : 'border-line text-muted hover:border-brand/40 hover:text-brand',
-          )}
-        >
-          {revealRequested ? 'Aguardando o aceite da outra pessoa…' : 'Propor revelar as fotos agora'}
-        </button>
-      )}
+      <p className="mt-2 text-[11px] leading-relaxed text-muted">
+        {ETAPAS_DA_CONVERSA[health.stage].note}
+      </p>
     </div>
   );
 }

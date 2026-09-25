@@ -1,14 +1,21 @@
 import { useEffect, useMemo, useState } from 'react';
 import { cx, initials, seededRandom } from '../services/utils';
-import { veilBlur } from '../services/conversation';
-import { nivelDoReveal, resolveImage } from '../services/media';
-import { Icon } from './ui/Icon';
+import { resolveImage } from '../services/media';
 
 // ---------------------------------------------------------------------------
-// Retrato com Véu — o componente que carrega o diferencial nº 1 do QICONEXÃO.
-// A foto começa velada e o desfoque só diminui conforme a conversa evolui.
-// Sem foto enviada, geramos um retrato abstrato determinístico (mesma pessoa =
-// mesma imagem, sempre), para que a descoberta nunca dependa de aparência.
+// Retrato.
+//
+// Era o "Retrato com Véu", o diferencial nº 1 do app de relacionamentos: a
+// foto começava desfocada e só ia clareando conforme a conversa evoluía.
+//
+// O véu morreu no pivô, e tinha de morrer. Num mercado de trabalho, esconder a
+// cara de quem vai entrar na sua obra, mexer na sua contabilidade ou atender no
+// seu balcão é o contrário do que o produto precisa vender, que é confiança.
+// Aqui a foto é nítida desde o primeiro segundo.
+//
+// O que ficou é o retrato generativo: sem foto enviada, geramos uma imagem
+// abstrata determinística (mesma pessoa = mesma imagem, sempre), para que um
+// perfil sem foto não fique com um buraco cinza.
 // ---------------------------------------------------------------------------
 
 function GenerativePortrait({ seed }: { seed: string }) {
@@ -56,57 +63,34 @@ function GenerativePortrait({ seed }: { seed: string }) {
  * No modo demo `photo` é um dataURL. No modo online é um caminho dentro do
  * bucket privado, que precisa virar URL assinada de curta duração.
  */
-export function useFotoResolvida(photo?: string, reveal = 1): string | undefined {
-  const direta = photo && (photo.startsWith('data:') || photo.startsWith('http')) ? photo : undefined;
-  // O nível pedido ao servidor muda em degraus, não continuamente: assim o
-  // efeito não refaz a URL assinada a cada centésimo de reveal.
-  const nivel = nivelDoReveal(reveal);
-  const [url, setUrl] = useState<string | undefined>(direta);
+export function useFotoResolvida(photo?: string): string | undefined {
+  const [url, setUrl] = useState<string | undefined>(undefined);
+
   useEffect(() => {
     let vivo = true;
-    if (direta) { setUrl(direta); return; }
     if (!photo) { setUrl(undefined); return; }
-    resolveImage(photo, reveal).then((u) => { if (vivo) setUrl(u); }).catch(() => {});
+    resolveImage(photo).then((u) => { if (vivo) setUrl(u); }).catch(() => {});
     return () => { vivo = false; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [photo, direta, nivel]);
+  }, [photo]);
+
   return url;
 }
 
-export function Portrait({
-  seed, photo, name, reveal = 1, className, rounded = 'rounded-xl3', showLock = false, stageLabel,
-}: {
-  seed: string; photo?: string; name: string; reveal?: number;
-  className?: string; rounded?: string; showLock?: boolean; stageLabel?: string;
+export function Portrait({ seed, photo, name, className, rounded = 'rounded-xl3' }: {
+  seed: string; photo?: string; name: string; className?: string; rounded?: string;
 }) {
-  const src = useFotoResolvida(photo, reveal);
-  const blur = veilBlur(reveal);
-  const veiled = reveal < 0.995;
+  const src = useFotoResolvida(photo);
+
   return (
-    <div className={cx('relative overflow-hidden bg-brandSoft grain', rounded, className)}>
-      <div
-        className="h-full w-full transition-[filter,transform] duration-1000"
-        style={{
-          filter: veiled ? `blur(${blur}px) saturate(${0.55 + reveal * 0.45})` : undefined,
-          transform: veiled ? `scale(${1 + (1 - reveal) * 0.14})` : undefined,
-        }}
-      >
-        {src
-          ? <img src={src} alt={veiled ? `Retrato velado de ${name}` : name} className="h-full w-full object-cover" />
-          : <GenerativePortrait seed={seed} />}
-      </div>
-
-      {!src && !veiled && (
-        <span className="absolute inset-0 grid place-items-center font-display text-3xl font-semibold text-white/90 drop-shadow">
-          {initials(name)}
-        </span>
+    <div className={cx('relative overflow-hidden bg-line', rounded, className)}>
+      {src ? (
+        <img src={src} alt={`Foto de ${name}`} className="h-full w-full object-cover" />
+      ) : (
+        <GenerativePortrait seed={seed} />
       )}
-
-      {veiled && showLock && (
-        <div className="absolute inset-x-0 bottom-0 flex items-center gap-2 bg-gradient-to-t from-ink/70 to-transparent px-3 pb-2.5 pt-8 text-white">
-          <Icon name="lock" size={14} />
-          <span className="text-[11px] font-semibold tracking-wide">{stageLabel ?? 'Velado'}</span>
-          <span className="ml-auto text-[11px] tabular-nums opacity-80">{Math.round(reveal * 100)}%</span>
+      {!src && (
+        <div className="absolute inset-0 grid place-items-center">
+          <span className="font-display text-2xl font-bold text-white/85 drop-shadow">{initials(name)}</span>
         </div>
       )}
     </div>
@@ -114,15 +98,15 @@ export function Portrait({
 }
 
 /** Avatar circular pequeno — usado em listas e cabeçalhos. */
-export function Avatar({ seed, photo, name, reveal = 1, size = 44, ring }: {
-  seed: string; photo?: string; name: string; reveal?: number; size?: number; ring?: boolean;
+export function Avatar({ seed, photo, name, size = 44, ring }: {
+  seed: string; photo?: string; name: string; size?: number; ring?: boolean;
 }) {
   return (
     <div
       className={cx('shrink-0 overflow-hidden rounded-full', ring && 'ring-2 ring-brand ring-offset-2 ring-offset-surface')}
       style={{ width: size, height: size }}
     >
-      <Portrait seed={seed} photo={photo} name={name} reveal={reveal} rounded="rounded-full" className="h-full w-full" />
+      <Portrait seed={seed} photo={photo} name={name} rounded="rounded-full" className="h-full w-full" />
     </div>
   );
 }

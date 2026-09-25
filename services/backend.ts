@@ -1,10 +1,10 @@
 import type {
-  AppNotification, Block, Connection, Consent, DailyUsage, Lifestyle, Message,
-  ModerationItem, Personality, Preferences, Report, Subscription, User,
+  AppNotification, Block, Connection, Consent, DailyUsage, Message,
+  ModerationItem, Report, Subscription, User,
 } from '../types';
 import type { HealthMetrics } from './conversation';
 import { requireSupabase, supabaseEnabled } from './supabaseClient';
-import { age, dateKey } from './utils';
+import { dateKey } from './utils';
 
 // ---------------------------------------------------------------------------
 // Camada de acesso ao Supabase.
@@ -22,120 +22,91 @@ import { age, dateKey } from './utils';
 export const pairOrder = (x: string, y: string): [string, string] =>
   x < y ? [x, y] : [y, x];
 
-/** As colunas ligadas ao perfil que valem para os dois caminhos de leitura. */
+/** As colunas de perfil que valem para os dois caminhos de leitura. */
 const CAMPOS_COMUNS = `
-  gender, city, state, photo_url, extra_photos, profession, bio,
-  goal, chat_pace, verified, reputation, plan, status,
-  created_at, last_active_at,
-  profiles ( personality, lifestyle ),
-  user_interests ( interest_id ),
-  prompt_answers ( prompt_id, answer )
+  city, state, photo_url, extra_photos, profession, bio,
+  verified, reputation, plan, atende_remoto, anos_experiencia
 `;
 
 /**
- * O PRÓPRIO registro, direto de `public.users`. Vem completo — o e-mail, a data
- * de nascimento e as coordenadas são da própria pessoa, e ela tem todo o direito
- * de recebê-los. `preferences` e `consents` também só existem aqui: o RLS deles
- * é `user_id = auth.uid()`, então nunca viriam de outra pessoa mesmo.
+ * O PRÓPRIO registro, direto de `public.users`. Vem completo — e-mail,
+ * coordenadas e TELEFONE são da própria pessoa, e ela tem todo o direito de
+ * recebê-los. `consents` também só existe aqui: o RLS dele é
+ * `user_id = auth.uid()`, então nunca viria de outra pessoa mesmo.
  */
 const SELECT_EU = `
-  id, name, email, birth_date, approx_lat, approx_lng, role,
+  id, name, email, approx_lat, approx_lng, role, status, telefone,
+  created_at, last_active_at,
   ${CAMPOS_COMUNS},
-  preferences ( seeking, age_min, age_max, max_distance_km, goals, min_compatibility ),
   consents ( kind, version, accepted_at )
 `;
 
 /**
- * TERCEIROS, pela view `perfis_descobriveis`.
+ * TERCEIROS, pela view `perfis_do_mercado`.
  *
  * A view é a correção do vazamento confirmado em 03/09/2026: o RLS protege
- * linhas, não colunas, então ler `users` direto entregava e-mail, nascimento,
- * coordenadas e papel de todas as contas ativas. Aqui só sai o que a tela
- * precisa, com idade e distância já derivadas no servidor.
- *
- * A view não devolve administradores nem a própria pessoa — os dois filtros que
- * antes eram feitos no cliente.
+ * linhas, não colunas, então ler `users` direto entregava e-mail, coordenadas
+ * e papel de todas as contas ativas. Aqui sai só o crachá — e, desde o pivô,
+ * SEM TELEFONE: ele só é revelado com proposta aceita, pela função
+ * `contato_do_negocio`. Ver 009 e 012.
  */
 const SELECT_OUTROS = `
-  id, name, idade, distancia_km,
-  ${CAMPOS_COMUNS}
+  id, name, ${CAMPOS_COMUNS}
 `;
 
 /** O que os dois caminhos de leitura têm em comum. */
 interface RawComum {
   id: string; name: string;
-  gender: User['gender']; city: string; state: string;
+  city: string; state: string;
   photo_url: string | null; extra_photos: string[] | null;
   profession: string | null; bio: string | null;
-  goal: User['goal']; chat_pace: User['chatPace'];
   verified: boolean; reputation: number; plan: User['plan'];
-  status: User['status'];
-  created_at: string; last_active_at: string;
-  profiles: { personality: Personality; lifestyle: Lifestyle } | null;
-  user_interests: { interest_id: string }[] | null;
-  prompt_answers: { prompt_id: string; answer: string }[] | null;
+  atende_remoto: boolean | null; anos_experiencia: number | null;
 }
 
 /** O próprio registro, de `public.users`. */
 interface RawEu extends RawComum {
-  email: string; birth_date: string; role: User['role'];
+  email: string; role: User['role']; status: User['status'];
+  telefone: string | null;
+  created_at: string; last_active_at: string;
   approx_lat: number | string; approx_lng: number | string;
-  preferences: {
-    seeking: string[]; age_min: number; age_max: number;
-    max_distance_km: number; goals: string[]; min_compatibility: number;
-  } | null;
   consents: { kind: string; version: string; accepted_at: string }[] | null;
 }
 
-/** Terceiros, da view. Idade e distância já vêm calculadas. */
-interface RawOutro extends RawComum {
-  idade: number;
-  /** `numeric` do Postgres chega como string no JSON. Null quando falta coordenada. */
-  distancia_km: number | string | null;
-}
-
-const DEFAULT_PERSONALITY: Personality = {
-  energia: 50, ritmo: 50, planejamento: 50, afeto: 50, novidade: 50,
-};
-const DEFAULT_LIFESTYLE: Lifestyle = {
-  bebida: 'socialmente', fumo: 'nao', exercicio: 'as_vezes',
-  filhos: 'indeciso', animais: 'gosto', religiosidade: 'pouco',
-};
-const DEFAULT_PREFERENCES: Preferences = {
-  seeking: ['todos'], ageMin: 18, ageMax: 99,
-  maxDistanceKm: 50, goals: [], minCompatibility: 0,
-};
+/**
+ * Terceiros, da view do crachá.
+ *
+ * A view não carrega `status` (só devolve conta ativa, então a coluna seria
+ * sempre a mesma) nem as datas. Os valores abaixo refletem isso: quem está na
+ * view está ativo, por construção.
+ */
+type RawOutro = RawComum;
 
 /** O miolo compartilhado. Nada aqui é dado de contato nem de localização. */
-function baseUser(r: RawComum): Omit<User, 'age'> {
+function baseUser(r: RawComum): User {
   return {
     id: r.id,
     name: r.name,
     // A senha vive no Supabase Auth. Este campo existe só para o modo demo.
     passwordHash: '',
-    gender: r.gender,
     city: r.city,
     state: r.state,
     photo: r.photo_url ?? undefined,
     extraPhotos: r.extra_photos ?? [],
     profession: r.profession ?? '',
     bio: r.bio ?? '',
-    interests: (r.user_interests ?? []).map((i) => i.interest_id),
-    personality: r.profiles?.personality ?? DEFAULT_PERSONALITY,
-    lifestyle: r.profiles?.lifestyle ?? DEFAULT_LIFESTYLE,
-    chatPace: r.chat_pace,
-    goal: r.goal,
-    answers: (r.prompt_answers ?? []).map((a) => ({ promptId: a.prompt_id, answer: a.answer })),
-    // Preferências e consentimentos só chegam pelo próprio registro; o RLS
-    // deles é `user_id = auth.uid()`. Para terceiros ficam nos padrões.
-    preferences: DEFAULT_PREFERENCES,
+    // As especialidades vivem em tabela à parte e são carregadas em bloco,
+    // para todo mundo de uma vez. Ver `carregarEspecialidades`.
+    especialidades: [],
+    atendeRemoto: r.atende_remoto ?? true,
+    anosExperiencia: r.anos_experiencia ?? undefined,
     consents: [],
     verified: r.verified,
     reputation: r.reputation,
     plan: r.plan,
-    status: r.status,
-    createdAt: r.created_at,
-    lastActiveAt: r.last_active_at,
+    status: 'ativo',
+    createdAt: new Date(0).toISOString(),
+    lastActiveAt: new Date(0).toISOString(),
   };
 }
 
@@ -144,45 +115,92 @@ function toEu(r: RawEu): User {
   return {
     ...baseUser(r),
     email: r.email,
-    birthDate: r.birth_date,
-    age: age(r.birth_date),
+    telefone: r.telefone ?? undefined,
     approxLat: Number(r.approx_lat),
     approxLng: Number(r.approx_lng),
     role: r.role,
-    preferences: r.preferences
-      ? {
-          seeking: r.preferences.seeking as Preferences['seeking'],
-          ageMin: r.preferences.age_min,
-          ageMax: r.preferences.age_max,
-          maxDistanceKm: r.preferences.max_distance_km,
-          goals: r.preferences.goals as Preferences['goals'],
-          minCompatibility: r.preferences.min_compatibility,
-        }
-      : DEFAULT_PREFERENCES,
+    status: r.status,
+    createdAt: r.created_at,
+    lastActiveAt: r.last_active_at,
     consents: (r.consents ?? []).map((c) => ({
       kind: c.kind as Consent['kind'], version: c.version, acceptedAt: c.accepted_at,
     })),
   };
 }
 
-/**
- * Terceiros: sem e-mail, sem nascimento, sem coordenadas, sem papel.
- * Idade e distância vêm prontas do servidor — o cliente não as recalcula
- * porque não tem, e não deve ter, o insumo.
- */
+/** Terceiros: sem e-mail, sem coordenadas, sem papel e sem telefone. */
 function toOutro(r: RawOutro): User {
-  return {
-    ...baseUser(r),
-    age: r.idade,
-    distanceKm: r.distancia_km === null ? undefined : Number(r.distancia_km),
-  };
+  return baseUser(r);
+}
+
+/**
+ * As especialidades de um conjunto de pessoas, numa consulta só.
+ *
+ * Fica fora do `select` do perfil de propósito: são muitas linhas por pessoa,
+ * e o PostgREST as devolveria aninhadas em cada perfil, repetindo o mesmo
+ * conjunto em toda busca. Aqui vêm uma vez e são distribuídas.
+ */
+export async function carregarEspecialidades(ids: string[]): Promise<Map<string, string[]>> {
+  const unicos = [...new Set(ids.filter(Boolean))];
+  const mapa = new Map<string, string[]>();
+  if (unicos.length === 0) return mapa;
+
+  const { data, error } = await requireSupabase()
+    .from('profissionais_categorias')
+    .select('user_id, categoria_id')
+    .in('user_id', unicos);
+  if (error) return mapa;
+
+  for (const linha of data ?? []) {
+    const atual = mapa.get(linha.user_id) ?? [];
+    atual.push(linha.categoria_id);
+    mapa.set(linha.user_id, atual);
+  }
+  return mapa;
+}
+
+/**
+ * Trocar as especialidades de alguém pelas que ela escolheu agora.
+ *
+ * Apaga e reinsere em vez de calcular a diferença: são no máximo 5 linhas, a
+ * RLS já garante que só o dono mexe nas próprias, e um `delete` seguido de
+ * `insert` não tem o caso de borda que um diff mal feito tem.
+ */
+export async function salvarEspecialidades(userId: string, categorias: string[]): Promise<void> {
+  const db = requireSupabase();
+  const { error: erroApagando } = await db
+    .from('profissionais_categorias').delete().eq('user_id', userId);
+  if (erroApagando) throw new Error(`Não foi possível salvar as áreas: ${erroApagando.message}`);
+
+  const escolhidas = [...new Set(categorias)].slice(0, 5);
+  if (escolhidas.length === 0) return;
+
+  const { error } = await db.from('profissionais_categorias')
+    .insert(escolhidas.map((categoria_id) => ({ user_id: userId, categoria_id })));
+  if (error) throw new Error(`Não foi possível salvar as áreas: ${error.message}`);
+}
+
+/**
+ * O telefone do outro lado de uma proposta ACEITA.
+ *
+ * É o único caminho do navegador até `users.telefone`, e quem decide se ele
+ * responde é o banco: a função exige proposta aceita e que quem pergunta seja
+ * uma das duas partes. Ver 012_perfil_profissional.sql.
+ */
+export async function contatoDoNegocio(
+  propostaId: string,
+): Promise<{ pessoaId: string; nome: string; telefone?: string } | null> {
+  const { data, error } = await requireSupabase()
+    .rpc('contato_do_negocio', { proposta: propostaId });
+  if (error || !data || data.length === 0) return null;
+  const c = data[0] as { pessoa_id: string; nome: string; telefone: string | null };
+  return { pessoaId: c.pessoa_id, nome: c.nome, telefone: c.telefone ?? undefined };
 }
 
 export interface RawConnection {
   id: string; user_a: string; user_b: string; status: Connection['status'];
   likes: Record<string, boolean>; favorite: Record<string, boolean>;
-  reveal_consent: Record<string, boolean>; compatibility: number;
-  curated_on: string | null; created_at: string; connected_at: string | null;
+  created_at: string; connected_at: string | null;
   closed_by: string | null; closed_reason: string | null; closed_gently: boolean;
 }
 
@@ -193,14 +211,11 @@ export const toConnection = (r: RawConnection): Connection => ({
   status: r.status,
   likes: r.likes ?? {},
   favorite: r.favorite ?? {},
-  revealConsent: r.reveal_consent ?? {},
-  compatibility: r.compatibility,
   createdAt: r.created_at,
   connectedAt: r.connected_at ?? undefined,
   closedBy: r.closed_by ?? undefined,
   closedReason: r.closed_reason ?? undefined,
   closedGently: r.closed_gently,
-  curatedOn: r.curated_on ?? undefined,
 });
 
 export interface RawMessage {
@@ -297,10 +312,10 @@ export async function loadSnapshot(meId: string): Promise<RemoteSnapshot> {
   const [eu, outros, connections, notifications, blocks, reports, moderation, usage, mensagens, termometros, assinatura] =
     await Promise.all([
       // Duas leituras em vez de uma. O próprio registro vem completo de
-      // `users`; todo o resto vem da view, que não carrega dado de contato nem
-      // de localização. Ver supabase/migrations/001_perfis_descobriveis.sql.
+      // `users`; todo o resto vem da view do crachá, que não carrega e-mail,
+      // coordenada nem TELEFONE. Ver 009 e 012.
       db.from('users').select(SELECT_EU).eq('id', meId).maybeSingle(),
-      db.from('perfis_descobriveis').select(SELECT_OUTROS),
+      db.from('perfis_do_mercado').select(SELECT_OUTROS),
       db.from('connections').select('*'),
       db.from('notifications').select('*').order('created_at', { ascending: false }),
       db.from('blocks').select('*'),
@@ -322,6 +337,15 @@ export async function loadSnapshot(meId: string): Promise<RemoteSnapshot> {
   if (firstError) throw new Error(`Falha ao carregar dados: ${firstError.message}`);
 
   const conns = (connections.data ?? []).map((c) => toConnection(c as RawConnection));
+
+  // As áreas de atuação de todo mundo, numa consulta só. Vêm depois porque
+  // dependem da lista de ids que as duas leituras acima acabaram de trazer.
+  const pessoas: User[] = [
+    ...(eu.data ? [toEu(eu.data as unknown as RawEu)] : []),
+    ...((outros.data ?? []) as unknown as RawOutro[]).map(toOutro),
+  ];
+  const areas = await carregarEspecialidades(pessoas.map((p) => p.id));
+  const users = pessoas.map((p) => ({ ...p, especialidades: areas.get(p.id) ?? [] }));
   const messages = ((mensagens.data ?? []) as RawMessage[]).map(toMessage);
 
   const healths: Record<string, HealthMetrics> = {};
@@ -343,10 +367,7 @@ export async function loadSnapshot(meId: string): Promise<RemoteSnapshot> {
   return {
     // O próprio registro primeiro: várias telas assumem que ele está na lista.
     // Sem ele, `me` fica indefinido e o app trata como "sessão sem perfil".
-    users: [
-      ...(eu.data ? [toEu(eu.data as unknown as RawEu)] : []),
-      ...((outros.data ?? []) as unknown as RawOutro[]).map(toOutro),
-    ],
+    users,
     connections: conns,
     messages,
     healths,
@@ -371,7 +392,7 @@ export async function loadSnapshot(meId: string): Promise<RemoteSnapshot> {
       result: { level: m.level, categories: m.categories ?? [], advice: '', source: m.source },
     })),
     usage: (usage.data ?? []).map((u) => ({
-      userId: u.user_id, date: u.day, interests: u.interests, aiCalls: u.ai_calls,
+      userId: u.user_id, date: u.day, contatos: u.interests, aiCalls: u.ai_calls,
     })),
     subscription: assinatura.data
       ? {
@@ -420,52 +441,31 @@ export async function loadHealth(connectionId: string): Promise<HealthMetrics | 
 
 // ------------------------------- escrita -----------------------------------
 
-/** Grava o perfil inteiro: users + profiles + preferences + interesses + respostas. */
+/**
+ * Grava o perfil.
+ *
+ * Ficou curto porque o perfil encurtou: saíram `profiles` (bússola e estilo de
+ * vida), `preferences` (quem você quer conhecer), `user_interests` e
+ * `prompt_answers`. As áreas de atuação vão por `salvarEspecialidades`, que é
+ * chamada à parte — ela escreve noutra tabela e pode falhar sozinha, e juntar
+ * as duas aqui esconderia qual das duas falhou.
+ */
 export async function saveUser(u: User): Promise<void> {
   const db = requireSupabase();
 
   const { error } = await db.from('users').upsert({
-    id: u.id, name: u.name, email: u.email, birth_date: u.birthDate,
-    gender: u.gender, city: u.city, state: u.state,
+    id: u.id, name: u.name, email: u.email,
+    city: u.city, state: u.state,
     approx_lat: u.approxLat, approx_lng: u.approxLng,
     photo_url: u.photo ?? null, extra_photos: u.extraPhotos,
-    profession: u.profession, bio: u.bio, goal: u.goal, chat_pace: u.chatPace,
+    profession: u.profession, bio: u.bio,
+    telefone: u.telefone?.trim() || null,
+    atende_remoto: u.atendeRemoto,
+    anos_experiencia: u.anosExperiencia ?? null,
     verified: u.verified, reputation: u.reputation, plan: u.plan,
     role: u.role, status: u.status, last_active_at: new Date().toISOString(),
   });
   if (error) throw new Error(`Falha ao salvar o perfil: ${error.message}`);
-
-  const [profile, prefs] = await Promise.all([
-    db.from('profiles').upsert({
-      user_id: u.id, personality: u.personality, lifestyle: u.lifestyle,
-      updated_at: new Date().toISOString(),
-    }),
-    db.from('preferences').upsert({
-      user_id: u.id, seeking: u.preferences.seeking,
-      age_min: u.preferences.ageMin, age_max: u.preferences.ageMax,
-      max_distance_km: u.preferences.maxDistanceKm,
-      goals: u.preferences.goals, min_compatibility: u.preferences.minCompatibility,
-    }),
-  ]);
-  if (profile.error) throw new Error(`Falha ao salvar o perfil: ${profile.error.message}`);
-  if (prefs.error) throw new Error(`Falha ao salvar preferências: ${prefs.error.message}`);
-
-  // Interesses e respostas são conjuntos: apaga o que saiu, insere o que ficou.
-  await db.from('user_interests').delete().eq('user_id', u.id);
-  if (u.interests.length) {
-    const { error: e } = await db.from('user_interests')
-      .insert(u.interests.map((interest_id) => ({ user_id: u.id, interest_id })));
-    if (e) throw new Error(`Falha ao salvar interesses: ${e.message}`);
-  }
-
-  await db.from('prompt_answers').delete().eq('user_id', u.id);
-  const answers = u.answers.filter((a) => a.answer.trim());
-  if (answers.length) {
-    const { error: e } = await db.from('prompt_answers').insert(
-      answers.map((a) => ({ user_id: u.id, prompt_id: a.promptId, answer: a.answer })),
-    );
-    if (e) throw new Error(`Falha ao salvar respostas: ${e.message}`);
-  }
 }
 
 export async function saveConsents(userId: string, consents: Consent[]): Promise<void> {
@@ -485,8 +485,7 @@ export async function saveConnection(c: Connection): Promise<void> {
   const [user_a, user_b] = pairOrder(c.userA, c.userB);
   const { error } = await db.from('connections').upsert({
     id: c.id, user_a, user_b, status: c.status,
-    likes: c.likes, favorite: c.favorite, reveal_consent: c.revealConsent,
-    compatibility: c.compatibility, curated_on: c.curatedOn ?? null,
+    likes: c.likes, favorite: c.favorite,
     created_at: c.createdAt, connected_at: c.connectedAt ?? null,
     closed_by: c.closedBy ?? null, closed_reason: c.closedReason ?? null,
     closed_gently: !!c.closedGently,
@@ -531,9 +530,14 @@ export async function setBlock(blockerId: string, blockedId: string, on: boolean
   if (error) throw new Error(`Falha ao atualizar o bloqueio: ${error.message}`);
 }
 
-export async function bumpUsage(userId: string, field: 'interests' | 'aiCalls'): Promise<void> {
+/**
+ * `contatos` era `interests`, e a COLUNA no banco ainda se chama assim — a
+ * renomeação vai junto com a limpeza da 013. Este é o único lugar do cliente
+ * que conhece o nome antigo, e é de propósito.
+ */
+export async function bumpUsage(userId: string, field: 'contatos' | 'aiCalls'): Promise<void> {
   const db = requireSupabase();
-  const column = field === 'interests' ? 'interests' : 'ai_calls';
+  const column = field === 'contatos' ? 'interests' : 'ai_calls';
   const day = dateKey();
   const { data } = await db.from('daily_usage')
     .select('interests, ai_calls').eq('user_id', userId).eq('day', day).maybeSingle();
