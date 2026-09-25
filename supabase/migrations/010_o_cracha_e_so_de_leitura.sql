@@ -1,0 +1,56 @@
+-- ---------------------------------------------------------------------------
+-- 010 · O crachá é só de leitura
+--
+-- CORREÇÃO DE UM BURACO ABERTO PELA 009, encontrado na verificação logo depois
+-- de aplicá-la. Ficou de pé menos de um minuto, mas era sério.
+--
+-- O QUE ACONTECEU
+--
+-- A 009 fez `revoke all ... from public, anon` e `grant select ... to
+-- authenticated`. Parece completo, e não é: `public` ali é o pseudo-papel
+-- PUBLIC, não o papel `authenticated`. E o Supabase tem privilégios padrão
+-- (`alter default privileges`) que dão a `authenticated` TODOS os privilégios
+-- sobre qualquer objeto novo do schema `public` — no instante da criação.
+--
+-- Conferido depois de aplicar:
+--
+--   authenticated: INSERT, SELECT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER
+--
+-- POR QUE ISSO ERA GRAVE
+--
+-- Três fatos que, sozinhos, não são nada, e juntos abrem a porta:
+--
+--   1. A view é AUTOATUALIZÁVEL. Uma view de tabela única, com colunas simples
+--      e um `where`, o Postgres aceita escrever através dela. Confirmado:
+--      `information_schema.views` diz is_updatable = YES.
+--
+--   2. Ela tem DIREITOS DO DONO (`security_invoker = false`) — de propósito,
+--      é o que permite ler nomes com `public.users` fechada.
+--
+--   3. `authenticated` tinha UPDATE nela.
+--
+-- Somando: qualquer conta poderia escrever em `public.users` ATRAVÉS da view,
+-- com os direitos do dono, contornando a RLS que a migração 002 pôs lá. Dá
+-- para trocar o nome, a cidade, a profissão e a foto de outra pessoa.
+--
+-- A `perfis_descobriveis` da 001 não tem esse problema, e por acidente feliz:
+-- o `left join lateral` do cálculo de distância a torna NÃO autoatualizável.
+-- Conferido também: is_updatable = NO.
+--
+-- A LIÇÃO, PARA A PRÓXIMA VIEW
+--
+-- `revoke all from public` NÃO alcança `authenticated`. Toda view nova neste
+-- projeto precisa do revoke nominal, e ele tem de vir DEPOIS do `create`,
+-- porque é o `create` que dispara os privilégios padrão. Um `create or replace`
+-- futuro reabre o buraco — por isso o revoke mora no mesmo arquivo, e reaplicar
+-- o arquivo inteiro conserta.
+--
+-- security_barrier: a view esconde linhas (conta inativa, bloqueio entre as
+-- partes). Sem a barreira, uma função barata posta pelo usuário no `where`
+-- pode rodar ANTES do filtro da view e denunciar o que ela escondeu.
+-- ---------------------------------------------------------------------------
+
+revoke all on public.perfis_do_mercado from public, anon, authenticated;
+grant select on public.perfis_do_mercado to authenticated;
+
+alter view public.perfis_do_mercado set (security_barrier = true);
