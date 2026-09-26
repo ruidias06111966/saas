@@ -70,8 +70,8 @@ def main():
     d.rounded_rectangle([x, 336 * s, (x + 92 * s), 344 * s], radius=4 * s, fill=BRASA[:3])
 
     f_frase = fonte(SANS, 34 * s)
-    d.text((x, 378 * s), 'Antes de escolher alguém,', font=f_frase, fill=(233, 226, 243))
-    d.text((x, 424 * s), 'conheça alguém.', font=f_frase, fill=(233, 226, 243))
+    d.text((x, 378 * s), 'Quem sabe fazer,', font=f_frase, fill=(233, 226, 243))
+    d.text((x, 424 * s), 'e quem precisa.', font=f_frase, fill=(233, 226, 243))
 
     f_pe = fonte(SANS, 24 * s)
     d.text((x, 498 * s), 'conexao.qidominios.com.br', font=f_pe, fill=(191, 174, 219))

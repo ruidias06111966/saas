@@ -159,7 +159,15 @@ export function Profile() {
 
       <div className="mt-8 flex flex-wrap gap-2">
         <Button variant="outline" icon="settings" onClick={() => navigate({ name: 'settings' })}>Configurações e privacidade</Button>
-        {me.plan === 'free' && <Button variant="secondary" icon="crown" onClick={() => navigate({ name: 'premium' })}>Ver Premium</Button>}
+        {/* No celular este é o ÚNICO caminho para os planos — `premium` não
+            está na barra de baixo. Escondê-lo de quem assina deixava a pessoa
+            sem nenhuma porta para a própria assinatura. */}
+        <Button
+          variant={me.plan === 'free' ? 'secondary' : 'outline'} icon="crown"
+          onClick={() => navigate({ name: 'premium' })}
+        >
+          {me.plan === 'free' ? 'Ver Premium' : 'Meu plano'}
+        </Button>
         <Button variant="ghost" icon="logout" onClick={() => void logout()}>Sair da conta</Button>
       </div>
       <p className="mt-4 text-xs text-muted">Olá, {firstName(me.name)} — conta criada em {new Date(me.createdAt).toLocaleDateString('pt-BR')}.</p>

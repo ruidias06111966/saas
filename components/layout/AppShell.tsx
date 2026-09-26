@@ -116,14 +116,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <Icon name="bell" size={19} /> Notificações
             {unread > 0 && <span className="ml-auto h-2 w-2 rounded-full bg-ember" />}
           </button>
-          {me.plan === 'free' && (
-            <button
-              type="button" onClick={() => navigate({ name: 'premium' })}
-              className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium text-ember transition-colors hover:bg-ember/10"
-            >
-              <Icon name="crown" size={19} /> Premium
-            </button>
-          )}
+          {/* Sempre visível. Enquanto isto dependia de `plan === 'free'`, quem
+              assinava perdia o único caminho para a própria assinatura: não
+              via o que tinha, até quando ia, nem como cancelar. O botão de
+              gerenciar existia no código e não tinha como ser alcançado. */}
+          <button
+            type="button" onClick={() => navigate({ name: 'premium' })}
+            className={cx(
+              'flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium transition-colors',
+              me.plan === 'free'
+                ? 'text-ember hover:bg-ember/10'
+                : 'text-muted hover:bg-bg hover:text-ink',
+            )}
+          >
+            <Icon name="crown" size={19} /> {me.plan === 'free' ? 'Premium' : 'Meu plano'}
+          </button>
           {me.role === 'admin' && (
             <button
               type="button" onClick={() => navigate({ name: 'admin' })}

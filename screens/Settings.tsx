@@ -7,6 +7,7 @@ import { aiEnabled } from '../services/geminiService';
 import { POLICY_VERSION, URL_DIRETRIZES, URL_PRIVACIDADE, URL_TERMOS } from '../constants';
 import { Page } from '../components/layout/AppShell';
 import { Banner, Button, Card, Chip, Field, Icon, Input, Modal, SectionTitle, Toggle } from '../components/ui';
+import { QUOTAS, quantidade } from '../constants';
 import { firstName } from '../services/utils';
 import { redefinirSenha } from '../services/auth';
 import { desligarPush, estadoDoPush, ligarPush, type EstadoDoPush } from '../services/push';
@@ -68,6 +69,26 @@ export function Settings() {
   return (
     <Page title="Configurações e privacidade" back={back}>
       <div className="space-y-6">
+        {/* Primeiro cartão de propósito: é aqui que se procura a assinatura
+            quando se quer cancelar, e esconder isso é a prática que a defesa
+            do consumidor chama de dificultar o cancelamento. */}
+        <Card className="p-5">
+          <SectionTitle hint={me.plan === 'premium' ? 'Você assina o Premium.' : 'Você está no plano gratuito.'}>
+            Plano e cobrança
+          </SectionTitle>
+          <p className="mt-2 text-sm leading-relaxed text-muted">
+            {me.plan === 'premium'
+              ? 'Publicar anúncio é de graça para todo mundo. O Premium é o que libera enviar propostas sem limite.'
+              : `No plano gratuito você envia ${quantidade(QUOTAS.free.propostasPorMes)} propostas por mês. Publicar anúncio não tem limite nenhum, nem custo.`}
+          </p>
+          <Button
+            className="mt-4" variant="outline" icon="crown" full
+            onClick={() => navigate({ name: 'premium' })}
+          >
+            {me.plan === 'premium' ? 'Ver e gerenciar meu plano' : 'Ver os planos'}
+          </Button>
+        </Card>
+
         <Card className="p-5">
           <SectionTitle>Aparência</SectionTitle>
           <Toggle
