@@ -1,277 +1,264 @@
 # PROMPT-MESTRE — QICONEXÃO
-### Versão melhorada, pronta para colar no Google AI Studio (Build) ou no Lovable
-
-> **Documento histórico.** Este é o prompt da primeira versão do QICONEXÃO, quando o
-> produto era um aplicativo de relacionamentos. O produto mudou para conexões entre quem
-> precisa de um serviço profissional e quem sabe fazê-lo; o app e o site seguem a proposta
-> atual ("quem sabe fazer, e quem precisa").
+### O prompt do produto atual, pronto para colar no Google AI Studio (Build) ou no Lovable
 
 > Como usar: cole **tudo** o que está entre as linhas `>>>` e `<<<` como primeira
-> mensagem. Se a ferramenta truncar, use `PROMPT-ETAPAS.md`, que quebra este mesmo
-> conteúdo em 9 blocos encadeados.
+> mensagem. Ele descreve o QICONEXÃO como está hoje: um mercado de serviços
+> profissionais. A primeira versão, um aplicativo de relacionamentos, continua no
+> histórico do git e em `PROMPT-ETAPAS.md`, que é só registro e não serve para este
+> produto.
 
 ---
 
 >>> COMEÇA O PROMPT
 
-# QICONEXÃO — aplicativo de relacionamentos em que a conversa vem antes da aparência
+# QICONEXÃO — quem sabe fazer, e quem precisa
 
 Construa um aplicativo web responsivo, mobile-first, em **React + TypeScript**, chamado
-**QICONEXÃO**. Não é um clone de Tinder com outra paleta. É um produto com uma tese
-própria, e o seu trabalho é implementar essa tese sem diluí-la.
+**QICONEXÃO**. É um mercado de serviços profissionais **regional**: liga quem precisa de
+um contador, engenheiro, advogado ou de alguém para resolver um alvará a quem sabe fazer
+isso, na mesma região. Não é um site de freelancer nacional com outra cor.
 
 ## 0. A tese, e a anti-tese
 
-**Tese:** *"Quem sabe fazer, e quem precisa."* O gargalo dos aplicativos de
-relacionamento não é a falta de perfis — é a quantidade de conexões que morrem sem
-nunca virar conversa. O QICONEXÃO otimiza para **conversas que acontecem de verdade**,
-não para tempo de tela.
+**Tese:** *"Quem sabe fazer, e quem precisa."* Quem precisa de um serviço profissional
+depende de indicação de conhecido; quem presta o serviço depende do boca a boca. Os dois
+estão na mesma cidade e não se acham. Os sites grandes de freelancer não resolvem: são
+nacionais, disputados por preço e feitos para trabalho remoto e genérico — laudo de obra,
+vigilância sanitária e licitação não cabem ali.
 
 **Anti-tese — o que este app NÃO deve ter, em nenhuma hipótese:**
 
-- Nada de deslizar cartões para os lados (swipe) como mecânica principal.
-- Nada de feed infinito de perfis.
-- Nada de foto grande e nítida como primeiro elemento de um perfil desconhecido.
-- Nada de gradiente rosa-vermelho, coração pulsante ou estética de "match".
+- Nada de telefone ou e-mail à vista antes do acordo. O contato é o que o mercado protege.
+- Nada de propostas visíveis entre concorrentes. Preço à vista faz todo mundo copiar
+  quem chegou primeiro.
+- Nada de cobrar de quem publica. Quem traz a demanda não paga, nunca.
 - Nada de IA escrevendo mensagens no lugar da pessoa e enviando sozinha.
-- Nada de contagem de curtidas, ranking de popularidade ou "quem te viu" como isca.
+- Nada de vocabulário ou estética de aplicativo de relacionamento: sem "match", sem
+  coração, sem foto borrada como recompensa, sem idade ao lado do nome.
 
 Se alguma decisão de implementação empurrar o produto para um desses itens, escolha
 a outra saída.
 
-## 1. Os três mecanismos que definem o produto
+## 1. O mercado — o fluxo que define o produto
 
-Estes três são o produto. Implemente-os **completos e integrados**, não como enfeite.
+Implemente o fluxo **completo e integrado**, ponta a ponta:
 
-### 1.1 Revelação Progressiva (o Véu)
+1. **Quem precisa publica** um anúncio: título, descrição, categoria, modalidade
+   (presencial, remoto ou híbrido), cidade e UF, tipo de orçamento (fechado, por hora ou
+   a combinar, com mínimo e máximo opcionais) e prazo em dias. Publicar é gratuito,
+   sempre. O anúncio fica aberto por **30 dias** e depois expira sozinho.
+2. **Quem sabe fazer se oferece** com uma proposta: mensagem, valor e prazo.
+3. **Quem publicou compara as propostas e escolhe** uma.
+4. **Proposta aceita libera o telefone dos dois lados.** A liberação é uma função no
+   servidor que exige proposta aceita e que quem pergunta seja parte dela.
 
-A foto de uma pessoa desconhecida **nunca** aparece nítida.
+**Regras que sustentam a confiança, impostas no banco e não só na tela:**
 
-- Na descoberta, todo perfil aparece como **Cartão de Essência**: um retrato fortemente
-  desfocado e pequeno, e no centro do cartão o que a pessoa **escreveu** — uma resposta
-  de perfil destacada, objetivo de relacionamento, interesses em comum e o índice de
-  compatibilidade.
-- Dentro de uma conversa, o desfoque diminui conforme o **Índice de Conversa** (item 1.3)
-  sobe. Fórmula exata: `blur_px = (1 - reveal) * 26`, onde `reveal = min(1, indice / 82)`.
-- Cinco estágios visíveis, com nome: **Silhueta** (0–19), **Contornos** (20–39),
-  **Traços** (40–61), **Quase lá** (62–81), **Revelado** (82–100). Mostre sempre o
-  estágio atual e a porcentagem — a pessoa precisa entender a regra.
-- **Atalho consensual:** existe o botão "Propor revelar as fotos agora". Ele só produz
-  efeito se **as duas pessoas** marcarem. Um lado sozinho vê "aguardando o aceite da
-  outra pessoa". Consentimento mútuo, nunca unilateral.
-- Sem foto enviada, gere um **retrato abstrato determinístico** por SVG a partir do id
-  do usuário (mesma pessoa, sempre a mesma arte). Nunca use foto de banco de imagens
-  representando pessoas reais.
+- **Contato protegido.** O telefone fica guardado e não aparece para ninguém até o aceite.
+- **Proposta sigilosa.** Cada profissional vê apenas a própria proposta; quem publicou vê
+  todas. O profissional não aceita a própria proposta nem muda o preço depois de enviada.
+- **Busca de verdade.** O quadro é **procurado**, não empurrado: por palavra, categoria,
+  UF, cidade e modalidade, com paginação de 20 por página. A busca ignora acento e
+  maiúsculas — "goiania" encontra "Goiânia".
+- **Foco regional.** Centro-Oeste e Minas primeiro. **37 categorias em 9 grupos**:
+  Contábil e Tributário (5), Jurídico (5), Tecnologia (5), Marketing e Vendas (5),
+  Engenharia e Obras (5), Licenças e Segurança (4), Administrativo (4), Consultoria (3)
+  e Outros (1). As categorias vivem numa tabela, não no código.
 
-### 1.2 Curadoria Diária (o Encontro do Dia)
+## 2. Termômetro de Conversa e reputação pela conduta
 
-Acabe com a rolagem infinita.
+A negociação acontece numa conversa. Meça se ela **anda**, e mostre a medição abertamente.
 
-- Uma vez por dia, o app monta uma seleção determinística por semente `hash(userId + data)`:
-  **1 Encontro do Dia em destaque** + **5 perfis** (plano gratuito) ou **20** (Premium).
-  Mesma semente = mesma lista o dia inteiro, mesmo recarregando a página.
-- O Encontro do Dia **expira em 24 horas**. Sem ação, some.
-- O plano gratuito tem **6 "Tenho interesse" por dia**. Quando acabam, mostre uma
-  mensagem que explica o porquê ("o limite existe de propósito: aqui a ideia é conversar,
-  não colecionar"), não uma tela de venda agressiva.
-- Todo cartão explica **por que** aquela pessoa está ali, com frases derivadas do
-  algoritmo — nunca só um número solto.
+- Quatro métricas 0–100 sobre as mensagens: **reciprocidade** (os dois falam, ninguém
+  fala sozinho), **profundidade** (tamanho das mensagens e perguntas feitas),
+  **constância** (intervalo entre respostas) e **abertura**. Aplique fatores que impedem
+  uma conversa curta de pontuar alto.
+- Cinco degraus com nome e frase: **Primeiro contato** (0), **Conversando** (20),
+  **Entendendo** (40), **Alinhando** (62, "já dá para falar de prazo e preço") e
+  **Pronto** (82, "está na hora de fechar o combinado").
+- **Encerrar com gentileza:** depois de cinco dias sem resposta, ofereça mensagens de
+  despedida educadas e editáveis. Quem se despede **ganha** reputação; quem some
+  **perde**. A reputação aparece no perfil profissional.
 
-### 1.3 Termômetro de Conversa e anti-ghosting
+## 3. O perfil profissional
 
-Meça a qualidade da troca, e mostre a medição abertamente.
+- Nome, foto, profissão, **até 5 áreas de atuação** entre as 37 categorias, anos de
+  experiência, cidade, se atende a distância, resumo e telefone (guardado, nunca exibido).
+- **Sem idade, sem gênero, sem data de nascimento.** Idade ao lado do nome num perfil
+  profissional é convite para discriminação etária. A maioridade é declarada no
+  consentimento do cadastro.
+- **Foto nítida desde o primeiro segundo.** Num mercado de serviços o rosto é credencial,
+  não recompensa. A foto segue exatamente a mesma regra de visibilidade do perfil.
+- Sem foto enviada, gere um **retrato abstrato determinístico** por SVG a partir do id.
+  Nunca use foto de banco de imagens representando pessoas reais.
+- Selo de **verificado** por selfie, com revisão humana no painel — não reconhecimento
+  facial. A selfie é apagada depois da decisão.
+- **"Quem faz":** uma busca de profissionais por área, cidade e palavra, para quem
+  prefere procurar a pessoa antes de publicar.
 
-Quatro métricas, todas 0–100, calculadas sobre as mensagens da conexão:
+## 4. Planos — cobra-se de quem é abundante
 
-| Métrica | Como calcular | Peso |
+Há muito mais profissional procurando cliente do que cliente procurando profissional, e
+quem publica traz o combustível do mercado. Então:
+
+| | Gratuito | Premium (R$ 39,90/mês) |
 |---|---|---|
-| Reciprocidade | `1 - |msgsA - msgsB| / total` (mínimo de 4 mensagens para valer) | 28% |
-| Profundidade | média de palavras por mensagem (normalizada em 22) 65% + proporção de mensagens com pergunta (normalizada em 0,3) 35% | 28% |
-| Constância | mediana do intervalo entre turnos alternados: ≤6 h = 1, ≥72 h = 0,1, linear no meio | 22% |
-| Abertura | rituais respondidos (normalizado em 6) 60% + maior nível de ritual atingido (de 4) 40% | 22% |
+| Publicar anúncio | ilimitado | ilimitado |
+| Propostas enviadas | **3 por mês** | ilimitadas |
+| Pedidos de conversa por dia | 10 | 40 |
+| Uso do Copiloto por dia | 8 | 100 |
+| Filtros avançados | não | sim |
 
-Multiplique o resultado por um **fator de substância** `log2(1+total) / log2(41)` e por
-um **fator de duração** `0,65 + 0,35 * min(1, dias/5)`. Isso impede que uma conversa de
-seis mensagens em uma hora atinja nota alta.
+- As cotas ficam centralizadas numa constante, e o limite de propostas é imposto por
+  **gatilho no banco**. Limite que só existe no navegador não é limite.
+- Segurança, verificação, moderação e direitos de LGPD **jamais** entram na lista do
+  plano pago.
+- A tela de plano é **sempre** alcançável, também para quem já assina ("Meu plano"), com
+  o botão de cancelar à vista. Esconder o cancelamento é prática abusiva.
+- Pagamento pelo Stripe: o app abre o checkout, e quem muda o plano é o webhook, depois
+  de conferir a assinatura do evento. O navegador nunca diz "paguei".
 
-- Exiba as quatro barras, o número e uma frase de **próximo passo** ("Dê espaço para o
-  outro falar", "Faça uma pergunta aberta", "Aceite um Ritual para subir um degrau").
-- **Rituais de Conversa:** uma Escada de Intimidade com 4 níveis, ~30 perguntas curadas.
-  Nível 1 leve e concreto; 2 histórias e preferências; 3 valores e como a pessoa se
-  relaciona; 4 vulnerabilidade, com cuidado. O nível liberado depende do volume da
-  conversa e de quantos rituais já foram usados. Nada invasivo: nenhuma pergunta sobre
-  renda, endereço, histórico sexual ou dado sensível.
-- **Anti-ghosting:** depois de 5 dias sem resposta de um lado, ofereça
-  **"Encerrar com gentileza"** — 3 mensagens de despedida educadas, editáveis, que a
-  pessoa escolhe e envia. Quem se despede **ganha** reputação de conversa (+3); quem
-  simplesmente desfaz a conexão em silêncio **perde** (-4). Exponha esse número no perfil
-  como "reputação de conversa".
+## 5. Copiloto de IA (Gemini) — sugere, nunca escreve por você
 
-## 2. Índice de Compatibilidade — explicável por construção
+A geração passa por uma função no servidor que exige login e é dona dos prompts: a chave
+do modelo **nunca** chega ao navegador. Saída estruturada em JSON.
 
-Nunca mostre só o percentual. Toda tela que exibe compatibilidade exibe também a
-**decomposição** e o **grau de confiança**.
-
-Sete dimensões, cada uma devolvendo score 0–1 **e uma frase de explicação**:
-
-| Dimensão | Peso | Regra |
-|---|---|---|
-| Objetivo de relacionamento | 22% | matriz simétrica: sério×sério 1,0; sério×conhecer 0,55; sério×amizade 0,20; conhecer×descobrindo 0,80; etc. |
-| Jeito de ser | 20% | 5 eixos 0–100 ("Bússola de Conexão"). Similaridade **tolerante**: `1 - (diff/100) * pesoDoEixo`. Ritmo de vida e expressão afetiva pesam 1,0 (semelhança importa); energia social 0,65 e planejamento 0,6 (complementaridade é aceitável). |
-| Interesses | 18% | Jaccard **ponderado por raridade** (cada interesse tem peso 0,8–1,5), suavizado: `min(1, sqrt(jaccard) * 1,35)`. Bater em "astronomia" vale mais que bater em "séries". |
-| Estilo de vida | 14% | matriz por campo (bebida, fumo, exercício, filhos, animais, espiritualidade). "Filhos" pesa 1,6 — é o item que mais desfaz relacionamento sério. |
-| Ritmo de conversa | 10% | matriz entre "poucas e profundas", "equilibrado", "muitas e rápidas". |
-| Faixa etária | 8% | satisfação **mútua** das preferências dos dois, com decaimento fora da faixa. |
-| Distância | 8% | 1,0 até 10 km, decaindo linearmente até o limite configurado. |
-
-- **Confiança** = média da completude dos dois perfis: ≥78% alta, ≥50% média, senão baixa.
-  Com confiança baixa, o app diz na cara: *"Perfis ainda incompletos. Trate este número
-  como um palpite fraco."*
-- Sempre inclua o **ponto de atrito**: a dimensão de menor score aparece como "ponto de
-  atenção", mesmo quando o índice geral é alto.
-- Texto obrigatório em toda tela de compatibilidade: *"Este índice é uma sugestão de
-  conversa, não uma previsão de relacionamento."*
-
-**Filtros duros** (aplicados antes do ranking, quem não passa nem entra no funil):
-gênero procurado nos dois sentidos, faixa etária nos dois sentidos, distância máxima,
-bloqueios, status da conta, e 18 anos completos.
-
-## 3. Copiloto de IA (Gemini) — sugere, nunca escreve por você
-
-Use `@google/genai` com o modelo `gemini-2.5-flash`, chave em `process.env.API_KEY`.
-Use `responseMimeType: 'application/json'` + `responseSchema` para saída estruturada.
-
-Funções: sugerir 3 aberturas personalizadas; sugerir a próxima pergunta no nível certo
-da escada; explicar em 2 frases por que faz sentido conversar; sugerir melhorias de
-perfil; resumir afinidades; ler o termômetro; classificar risco em moderação; sugerir
-despedidas gentis.
+Funções: sugerir como abrir a conversa sobre um serviço; sugerir a próxima pergunta —
+o que falta para orçar, prazo, escopo; sugerir melhorias no perfil profissional; ler o
+termômetro; classificar risco em moderação; sugerir despedidas gentis.
 
 **Regras invioláveis, escritas no `systemInstruction`:**
 
 1. A IA **nunca** envia mensagem sozinha. Ela preenche o campo; a pessoa edita e envia.
 2. A IA **nunca** se passa pelo usuário nem inventa fatos sobre ele.
-3. A IA **nunca** sugere pedir telefone, endereço, redes sociais ou dinheiro.
-4. Nada de conteúdo sexual, elogio à aparência física ou pressão por encontro.
-5. Nenhum dado sensível (e-mail, senha, coordenada) entra no prompt — só o que já é
+3. A IA **nunca** sugere pagamento antecipado ou dado bancário antes do acordo.
+4. Nenhum dado sensível (e-mail, telefone, coordenada) entra no prompt — só o que já é
    público no perfil.
 
-**Requisito de robustez:** toda função de IA precisa de um **fallback determinístico
-local**. Sem `API_KEY`, o app funciona 100%, com sugestões vindas de um banco curado de
-perguntas. Mostre um aviso discreto de "modo local", nunca uma tela de erro.
+**Requisito de robustez:** toda função de IA tem um **fallback determinístico local**.
+Sem chave ou sem servidor, o app funciona inteiro, com sugestões de um banco curado, e
+mostra um aviso discreto de "modo local", nunca uma tela de erro.
 
-## 4. Segurança e LGPD — desde o MVP, nunca atrás do paywall
+## 6. Segurança e LGPD — desde o MVP
 
-- **Moderação em duas camadas.** Camada 1: heurística local em regex, roda **antes** do
-  envio, sem rede e sem custo, cobrindo: pedido financeiro (Pix, transferência, cripto,
-  código de verificação), contato externo precoce, conteúdo sexual não solicitado,
-  discurso de ódio, assédio/ameaça, spam com link, suspeita de menor de idade. Camada 2:
-  Gemini classifica o que a camada 1 marcou.
-- Mensagem de **risco** abre um diálogo de confirmação consciente explicando o perigo
-  antes de deixar enviar, e vai para a fila de revisão.
-- **Nenhuma suspensão automática.** IA só sinaliza; quem decide é um humano no painel
-  administrativo. Escreva isso na interface.
-- Verificação de perfil por selfie-desafio (pose aleatória comparada com a foto), com
-  selo visível. No MVP pode ser simulada, mas o estado `verified` e o selo existem.
-- **Localização:** guarde apenas cidade + coordenada arredondada a ~0,05° (≈5 km). Exiba
-  apenas faixas ("até 30 km"), nunca distância exata nem endereço.
-- **LGPD (Lei 13.709/2018) funcionando de verdade:** exportar todos os meus dados em JSON
-  (art. 18 II e V), corrigir dados (III), excluir a conta com anonimização do que precisa
-  sobreviver por legítimo interesse — denúncias feitas contra a pessoa (VI), e
-  consentimentos versionados com data (art. 8º §1º). Cada um desses é um botão que
-  funciona, não um texto.
-- E-mail e telefone **nunca** aparecem em perfil público.
-- Bloquear e denunciar em um toque, com 8 motivos, em toda tela de perfil e de conversa.
+- **Moderação em duas camadas.** Camada 1: heurística local, **antes** do envio, sem rede,
+  cobrindo pedido financeiro suspeito (Pix, transferência, cripto, código de
+  verificação), contato externo, conteúdo sexual, discurso de ódio, assédio, spam com link
+  e suspeita de menor de idade. Camada 2: Gemini classifica o que a camada 1 marcou.
+- Dois níveis: **risco** marca a mensagem, abre um diálogo de confirmação antes de enviar
+  e entra na fila de revisão humana; **atenção** é só um conselho para quem escreve,
+  mostrado uma vez. Combinar contato depois de uma proposta aceita é o objetivo do
+  produto, não uma suspeita.
+- **Nenhuma suspensão automática.** A IA só sinaliza; quem decide é um humano no painel,
+  e a decisão fica gravada com quem decidiu.
+- Bloquear e denunciar em um toque, com 8 motivos (perfil falso, assédio, conteúdo
+  ofensivo, golpe ou fraude, conteúdo sexual inadequado, spam, suspeita de menor de idade,
+  outro), em toda tela de perfil e de conversa.
+- **Localização:** a coordenada nunca é pedida; é deduzida da cidade informada, e a
+  dedução ignora acento.
+- **LGPD (Lei 13.709/2018) funcionando de verdade:** exportar os dados em JSON, corrigir,
+  excluir a conta com anonimização do que precisa sobreviver por legítimo interesse, e
+  consentimentos versionados com data. Quando as políticas mudam, peça o reaceite.
+- Privacidade, Termos de Uso e Diretrizes da Comunidade descrevem **este** produto:
+  anúncios, propostas, telefone liberado só depois do aceite.
 
-## 5. Telas
+## 7. Telas
 
-1. **Landing** — herói com a tese, "Como funciona" em 4 passos, os 3 diferenciais, bloco
-   de segurança, citação de fechamento.
-2. **Cadastro em 7 etapas** com barra de progresso: conta (18+ validado) → identidade e
-   preferências → objetivo e ritmo → interesses (mínimo 5) → Bússola de Conexão + estilo
-   de vida → bio e respostas (mínimo 3) → foto, verificação e os três aceites.
-3. **Login** com contas de demonstração de um clique.
-4. **Início** — saudação, anel de completude do perfil, três indicadores, alertas de
-   solicitações pendentes e de conversas paradas, Encontro do Dia, sugestões do Copiloto
-   para o perfil, últimas conversas, dica de segurança rotativa.
-5. **Descobrir** — Cartões de Essência + filtros (idade, distância, cidade, objetivo;
-   compatibilidade mínima e interesses obrigatórios travados no Premium).
-6. **Perfil de outra pessoa** — retrato velado com estágio, decomposição completa da
-   compatibilidade, respostas, interesses (destacando os em comum), Bússola comparada com
-   a sua sobreposta, aberturas sugeridas, denunciar e bloquear.
-7. **Conexões** — abas: Novas, Conversando, Solicitações, Favoritos, Encerradas.
-8. **Conversas** — lista com estágio do véu e não lidas.
-9. **Chat** — mensagens agrupadas por dia, enviada/lida, "digitando…", envio de imagem,
-   Rituais, painel lateral com Véu + Termômetro + Copiloto, encerrar com gentileza,
-   denunciar, bloquear, desfazer conexão. Tela cheia no celular.
-10. **Meu perfil** e **edição**, com prévia de como o Cartão de Essência aparece para os outros.
-11. **Premium** — comparativo honesto. Segurança, verificação, moderação e direitos de
-    LGPD **jamais** entram na lista do plano pago.
-12. **Configurações e privacidade** — aparência, o que é visível, direitos LGPD,
+1. **Landing** — a tese, "Como funciona" em 4 passos, os diferenciais, o bloco de
+   segurança e o modelo de planos.
+2. **Cadastro em 4 etapas** com barra de progresso: Conta → Seu trabalho → Suas áreas →
+   Foto e termos.
+3. **Login**, **recuperar senha** e **redefinir senha**, com contas de demonstração de
+   um clique.
+4. **Início** — saudação; três indicadores (propostas esperando sua resposta, propostas
+   suas sem resposta, conversas ativas); aviso quando você é escolhido num trabalho;
+   completude do perfil; pedidos de conversa; anúncios recentes; dicas para o perfil e de
+   segurança.
+5. **Trabalhos** — o quadro de anúncios, com busca e filtros.
+6. **Anúncio** — pelos dois lados: quem publicou vê as propostas e escolhe; quem passa
+   por ali se oferece.
+7. **Publicar** — o formulário do anúncio, com as regras do banco ditas em português
+   antes do clique.
+8. **Publiquei** — meus anúncios e quantas propostas cada um recebeu.
+9. **Propostas** — onde me ofereci, e no que deu.
+10. **Quem faz** — a busca de profissionais.
+11. **Perfil de outra pessoa** — profissão, áreas, experiência, reputação, selo,
+    denunciar e bloquear.
+12. **Conexões** — abas Novas, Conversando, Solicitações, Favoritos e Encerradas.
+13. **Conversas** e **Chat** — mensagens agrupadas por dia, enviada/lida, "digitando…",
+    termômetro, Copiloto e encerrar com gentileza. Tela cheia no celular.
+14. **Meu perfil** e **edição**.
+15. **Plano** — gratuito e Premium, honesto, com cancelar à vista.
+16. **Configurações** — plano e cobrança primeiro, aparência, privacidade, direitos LGPD,
     bloqueios, transparência sobre a IA.
-13. **Notificações**.
-14. **Painel administrativo** — visão geral, usuários (buscar, suspender, banir, reativar),
-    denúncias (analisar, procedente, improcedente), fila de moderação (liberar, remover).
-    Métrica de topo: **taxa de conexões que viraram conversa**, não tempo de tela.
+17. **Notificações**.
+18. **Painel administrativo** — usuários, denúncias, verificações e fila de moderação.
 
-Navegação: menu inferior no celular (Início, Descobrir, Conversas, Conexões, Perfil) e
-sidebar no desktop.
+Navegação: menu inferior no celular (Início, Trabalhos, Publiquei, Propostas, Conversas,
+Perfil) e barra lateral no computador, com "Quem faz" a mais.
 
-## 6. Identidade visual — própria, não genérica
+## 8. Identidade visual — própria, não genérica
 
 - **Paleta:** areia `#FAF6F1` (fundo), tinta `#1F1A2E` (texto), ameixa `#6E4C9B`
   (primária), brasa `#CA6A43` (acento), sálvia `#5A8667` (positivo). Modo escuro por
-  troca de variáveis CSS. Nada de rosa-choque nem de vermelho saturado.
+  troca de variáveis CSS.
 - **Tipografia:** serifa de display (Fraunces) para títulos e números; Inter para o resto.
-  A serifa é o que separa este produto visualmente da categoria inteira.
-- Cantos generosos (20–36 px), muito espaço em branco, sombras suaves, animação de
-  entrada discreta, textura de grão sutil sobre os retratos velados.
+- Cantos generosos, muito espaço em branco, sombras suaves, animação de entrada discreta.
 - Respeite `prefers-reduced-motion`. Contraste AA. Todo ícone interativo com `aria-label`.
 
-## 7. Arquitetura e qualidade
+## 9. Arquitetura e qualidade
 
 - React 19 + TypeScript **strict** + Vite + Tailwind. Sem `any`.
 - Camadas separadas: `types.ts` (domínio) · `services/` (regras puras e testáveis:
-  compatibilidade, termômetro, curadoria, moderação, LGPD, Gemini) · `state/`
-  (reducer + contexto) · `components/` · `screens/`.
-- **A regra de negócio não mora no componente.** Compatibilidade, termômetro e curadoria
-  são funções puras, sem React, sem I/O.
-- Persistência do MVP em `localStorage`, isolada em `services/storage.ts` — a única
-  camada que muda ao plugar um backend real.
-- Entregue junto o **schema PostgreSQL/Supabase** correspondente, com RLS: ninguém lê
-  mensagem de conversa alheia, fila de moderação só para admin, checagem de 18+ como
-  constraint no banco.
-- Cotas de plano centralizadas em uma constante, não espalhadas por telas.
+  termômetro, reputação, moderação, LGPD, localização, mercado) · `state/` (reducer +
+  contexto) · `components/` · `screens/`.
+- **A regra de negócio não mora no componente.** E as regras do mercado — sigilo das
+  propostas, cota, liberação do telefone — moram no **banco**, com RLS e gatilhos.
+- Backend Supabase: Auth, PostgreSQL com RLS, Storage privado com URL assinada,
+  Realtime para a conversa ao vivo e Edge Functions para IA, checkout, webhook do
+  pagamento e aviso no celular. Toda alteração de schema entra como migração numerada.
+- **RLS protege linhas, não colunas.** Terceiros leem o perfil por uma view só de
+  leitura com os campos públicos (nome, profissão, cidade, foto, verificado, reputação),
+  nunca a tabela de usuários.
+- **Modo demo:** sem as variáveis do Supabase, o app roda em `localStorage` para navegar
+  perfis, conversas e painel. O mercado exige o modo online.
+- Testes com Vitest para as regras puras, e testes de guarda que leem as migrações e
+  comparam com o que o cliente pede.
 
-## 8. Dados de demonstração — obrigatórios
+## 10. Dados de demonstração — obrigatórios
 
-Crie **12 perfis fictícios brasileiros** completos (bio, profissão, 6–8 interesses,
-Bússola, estilo de vida, 2–4 respostas escritas com voz própria e específica — nada de
-"gosto de viajar e de rir"), mais uma conta de usuário logado e uma conta administrativa.
-Semeie também: uma conversa viva com 14 mensagens (para o véu já aparecer em "Quase lá"),
-uma conexão nova sem mensagem, uma solicitação recebida, uma conversa parada há dias (para
-o anti-ghosting aparecer), duas denúncias e um item na fila de moderação.
+Crie **8 perfis profissionais fictícios** no Centro-Oeste e em Minas (contadora,
+engenheiro civil, advogada, designer, consultor de licitações, consultora de vigilância
+sanitária, uma construtora e outros), mais uma conta de usuário logado e uma conta
+administrativa, todas com a mesma senha de demonstração. Semeie também: uma negociação em
+andamento com escopo, prazo, preço e contraproposta (para o termômetro subir de verdade),
+uma solicitação de conversa recebida, uma conversa parada há dias (para o "Encerrar com
+gentileza" aparecer), duas denúncias e um item na fila de moderação.
 
 Perfis fictícios devem ser claramente fictícios: nenhuma foto de pessoa real.
 
-## 9. Critérios de aceitação — o app está pronto quando
+## 11. Critérios de aceitação — o app está pronto quando
 
-1. `npm install && npm run dev` sobe sem erro, e `tsc --noEmit` passa limpo.
-2. Sem `GEMINI_API_KEY`, tudo funciona; com a chave, as sugestões passam a ser geradas.
-3. Dá para percorrer, sem tela morta: cadastro → perfil → descobrir → demonstrar interesse
-   → conexão → conversar → enviar ritual → ver o véu abrir → propor revelação → encerrar
-   com gentileza.
-4. Enviar "me manda um pix de 200 reais" abre o diálogo de moderação **antes** do envio.
-5. O painel administrativo mostra a denúncia semeada e permite resolvê-la.
-6. "Exportar meus dados" baixa um JSON de verdade; "Excluir minha conta" apaga de verdade.
-7. Funciona em 390 px de largura e em 1280 px, sem rolagem horizontal.
-8. Nenhuma tela exibe percentual de compatibilidade sem a decomposição ao lado.
+1. `npm install && npm run dev` sobe sem erro, e `tsc --noEmit` e os testes passam limpos.
+2. Sem a chave do Gemini, tudo funciona; com a chave, as sugestões passam a ser geradas.
+3. Dá para percorrer, sem tela morta: cadastro → perfil profissional → publicar anúncio →
+   outra conta encontra pela busca sem acento → envia proposta → quem publicou aceita →
+   os dois veem o telefone → conversam → encerram com gentileza.
+4. Antes do aceite, nenhuma tela e nenhuma consulta devolve o telefone de ninguém.
+5. Um profissional não consegue ler a proposta de outro, nem aceitar a própria.
+6. A quarta proposta do mês no plano gratuito é recusada **pelo banco**.
+7. Enviar "me manda um pix de 200 reais" abre o diálogo de moderação **antes** do envio.
+8. O painel administrativo mostra a denúncia semeada e permite resolvê-la, e a decisão
+   continua lá depois de recarregar.
+9. "Exportar meus dados" baixa um JSON de verdade; "Excluir minha conta" apaga de verdade.
+10. Funciona em 390 px e em 1280 px de largura, sem rolagem horizontal.
 
-## 10. O que NÃO implementar agora (deixe preparado e documentado)
+## 12. O que NÃO implementar agora (deixe preparado e documentado)
 
-Pagamento real, notificações push, geolocalização por GPS, chamadas de vídeo, eventos e
-comunidades. Deixe os tipos, o schema e os pontos de extensão prontos, com um comentário
-dizendo exatamente onde plugar.
+Geolocalização por GPS, chamadas de áudio e vídeo, eventos e comunidades. Deixe os tipos,
+o schema e os pontos de extensão prontos, com um comentário dizendo exatamente onde
+plugar.
 
-Comece pelo item 9.3 — o fluxo principal ponta a ponta — e só depois refine o visual.
+Comece pelo item 11.3 — o fluxo principal ponta a ponta — e só depois refine o visual.
 
 <<< TERMINA O PROMPT
