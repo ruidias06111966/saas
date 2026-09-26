@@ -1,8 +1,8 @@
 {
   "id": "conexao",
-  "name": "QICONEXÃO — a conversa antes da aparência",
+  "name": "QICONEXÃO — quem sabe fazer, e quem precisa",
   "short_name": "QICONEXÃO",
-  "description": "Conexões baseadas em interesses, personalidade e boas conversas.",
+  "description": "Publique o serviço que você precisa e receba propostas de profissionais da sua região — ou ofereça o que você sabe fazer.",
   "lang": "pt-BR",
   "dir": "ltr",
   "start_url": ".",
@@ -10,7 +10,7 @@
   "display": "standalone",
   "background_color": "#FAF6F1",
   "theme_color": "#1F1A2E",
-  "categories": ["social", "lifestyle"],
+  "categories": ["business", "productivity"],
   "icons": [
     { "src": "icones/icone-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "icones/icone-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },

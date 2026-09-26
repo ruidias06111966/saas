@@ -19,7 +19,7 @@ const RULES: Rule[] = [
     category: 'financeiro',
     level: 'risco',
     pattern: /\b(pix|transfer[êe]ncia|empr[ée]stimo|dep[óo]sito|cripto|bitcoin|investimento garantido|me manda? (um|uns)? ?(dinheiro|grana)|cart[ãa]o de cr[ée]dito|c[óo]digo de verifica[çc][ãa]o)\b/i,
-    advice: 'Pedidos de dinheiro, transferência ou códigos são o golpe mais comum em apps de relacionamento. Nunca envie.',
+    advice: 'Pedido de dinheiro adiantado, PIX ou código de verificação é o golpe mais comum em mercado de serviços. Combine o pagamento só depois de saber com quem está falando.',
   },
   {
     category: 'contato_externo',
