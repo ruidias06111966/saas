@@ -1,5 +1,9 @@
 # QICONEXÃO — prompt em 9 etapas encadeadas
 
+> **Documento histórico.** Este é o prompt da primeira versão do QICONEXÃO, quando o
+> produto era um aplicativo de relacionamentos, e **não serve para o produto atual**. O
+> prompt do mercado de serviços profissionais está em [`PROMPT-MESTRE.md`](PROMPT-MESTRE.md).
+
 Use este arquivo quando a ferramenta truncar o `PROMPT-MESTRE.md`, ou quando você quiser
 ver o app crescendo por partes e corrigir o rumo no meio do caminho. Envie um bloco por
 vez, na ordem, e só siga para o próximo depois de ver o anterior funcionando.
