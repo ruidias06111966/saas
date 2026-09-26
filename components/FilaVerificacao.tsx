@@ -4,7 +4,7 @@ import { Banner, Button, Card, Empty, Icon, Modal, Textarea } from './ui';
 import { Portrait } from './Portrait';
 import { type QueueItem, decide, reviewQueue, selfieUrl } from '../services/verification';
 import { supabaseEnabled } from '../services/supabaseClient';
-import { age, timeAgo } from '../services/utils';
+import { timeAgo } from '../services/utils';
 
 // ---------------------------------------------------------------------------
 // A fila de revisão de verificação.
@@ -128,7 +128,7 @@ function ItemDaFila({
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
         <p className="font-semibold">{item.name}</p>
         <p className="text-[12px] text-muted">
-          {age(item.birthDate)} anos · {item.city} · pediu {timeAgo(item.createdAt)}
+          {item.profession ? `${item.profession} · ` : ''}{item.city} · pediu {timeAgo(item.createdAt)}
         </p>
       </div>
 

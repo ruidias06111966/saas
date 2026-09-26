@@ -28,8 +28,23 @@
 --             prompt_answers, prompts
 --   colunas   users.birth_date, users.gender, users.goal, users.chat_pace
 --   view      perfis_descobriveis
---   funções   compatibility_score, e o que mais depender do acima
---   renomeia  daily_usage.interests -> daily_usage.contatos
+--   funções   compatibility_score
+--   redefine  fila_de_verificacao, que devolvia a data de nascimento
+--
+-- O QUE FICOU DE FORA, E POR QUÊ
+--
+-- A renomeação de `daily_usage.interests` para `contatos` estava aqui e SAIU,
+-- para a 017. A verificação de véspera mostrou que `backend.bumpUsage` ainda
+-- lê e escreve nessa coluna pelo nome antigo, em quatro pontos. Renomear hoje
+-- quebraria o pedido de conversa no app publicado — exatamente o erro que a
+-- 014 e a 015 corrigiram há poucas horas, e que esta migração existe para não
+-- repetir.
+--
+-- A `fila_de_verificacao` é o outro achado. Ela devolve `u.birth_date` como
+-- `nascimento`, e a tela do revisor mostrava "38 anos" ao lado do nome. Não
+-- dava para dropar a coluna sem redefinir a função e mudar a tela junto — e a
+-- idade não volta: num perfil profissional ela não deve aparecer. No lugar
+-- entra a profissão, que é o que o revisor precisa ver.
 --
 -- E POR QUE A IDADE SAI JUNTO
 --
@@ -70,6 +85,35 @@ drop view if exists public.perfis_descobriveis;
 
 drop function if exists public.compatibility_score(uuid, uuid);
 
+-- ------------------- 2b. a fila do revisor, sem a idade -------------------
+-- Ela devolve `u.birth_date` como `nascimento`; enquanto for assim, o
+-- `drop column` abaixo é recusado. A idade sai e a profissão entra — é o que
+-- um revisor de verificação profissional precisa ver ao lado do rosto.
+--
+-- O CLIENTE QUE LÊ ISTO JÁ FOI PUBLICADO. `services/verification.ts` pede
+-- `profissao` e não pede mais `nascimento`. A ordem é a mesma de sempre, e
+-- desta vez foi respeitada.
+
+create or replace function public.fila_de_verificacao()
+returns table (
+  id uuid, user_id uuid, nome text, pose text,
+  criado_em timestamptz, foto_base text, cidade text, profissao text
+)
+language sql
+stable
+security definer
+set search_path to 'public'
+as $$
+  select r.id, r.user_id, u.name, r.pose, r.created_at, u.photo_url, u.city, u.profession
+  from public.verification_requests r
+  join public.users u on u.id = r.user_id
+  where r.status = 'pendente' and private.is_admin()
+  order by r.created_at;
+$$;
+
+comment on function public.fila_de_verificacao() is
+  'A fila do revisor. Devolve profissão, e não mais idade: num perfil profissional a idade não deve aparecer. Ver 013_a_limpeza_do_relacionamento.sql.';
+
 -- --------------------------- 3. as seis tabelas ---------------------------
 -- Ordem importa: as de ligação antes dos catálogos.
 
@@ -88,16 +132,7 @@ alter table public.users
   drop column if exists goal,
   drop column if exists chat_pace;
 
--- ------------------------- 5. a coluna mal-nomeada ------------------------
--- `daily_usage.interests` contava quantos "interesses" alguém tinha
--- demonstrado por dia. A cota continua existindo e continua sendo a mesma
--- ideia — quantas pessoas você aborda por dia —, mas com o nome do que é.
--- O cliente já fala `contatos` desde a Fase 2; o mapeamento temporário vive
--- em `backend.bumpUsage` e some quando isto for aplicado.
-
-alter table public.daily_usage rename column interests to contatos;
-
--- ------------------------------ 6. conferir -------------------------------
+-- ------------------------------ 5. conferir -------------------------------
 -- Falha alto e desfaz tudo se alguma coluna teimar em continuar existindo.
 
 do $$

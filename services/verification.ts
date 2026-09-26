@@ -37,7 +37,8 @@ export interface QueueItem {
   createdAt: string;
   photoBase?: string;
   city: string;
-  birthDate: string;
+  /** Como a pessoa se apresenta profissionalmente. Substituiu a idade. */
+  profession?: string;
 }
 
 /** Abre um pedido e devolve a pose sorteada pelo servidor. */
@@ -91,7 +92,7 @@ export async function reviewQueue(): Promise<QueueItem[]> {
   return ((data ?? []) as Record<string, string>[]).map((r) => ({
     id: r.id, userId: r.user_id, name: r.nome, pose: r.pose,
     createdAt: r.criado_em, photoBase: r.foto_base ?? undefined,
-    city: r.cidade, birthDate: r.nascimento,
+    city: r.cidade, profession: r.profissao ?? undefined,
   }));
 }
 
