@@ -330,6 +330,24 @@ export async function minhasPropostas(profissionalId: string): Promise<Proposta[
   return (data ?? []).map(paraProposta);
 }
 
+/**
+ * Quantas propostas ainda cabem no mês.
+ *
+ * Vem do banco, e não de uma conta no cliente, por dois motivos: contar aqui
+ * exigiria ler as propostas de terceiros (a RLS não deixa, e ainda bem), e o
+ * número que vale é o mesmo que o gatilho usa para recusar. Uma conta só, num
+ * lugar só. Ver 016_a_cota_de_propostas.sql.
+ *
+ * Devolve `Infinity` para quem é Premium — inclusive para quem está nos 60
+ * dias de cortesia de lançamento.
+ */
+export async function propostasRestantes(): Promise<number> {
+  const { data, error } = await requireSupabase().rpc('propostas_restantes');
+  // Sem resposta, não bloqueia ninguém: quem recusa de verdade é o gatilho.
+  if (error || typeof data !== 'number') return Infinity;
+  return data > 1_000_000 ? Infinity : data;
+}
+
 export async function enviarProposta(
   anuncioId: string, profissionalId: string,
   p: { mensagem: string; valor?: number; prazoDias?: number },
@@ -345,6 +363,10 @@ export async function enviarProposta(
     // O banco recusa a segunda proposta pela chave única. Traduzir aqui evita
     // mostrar jargão do Postgres a quem só quis responder duas vezes.
     if (error.code === '23505') throw new Error('Você já enviou uma proposta neste anúncio.');
+    // P0100 é a cota do mês, e a mensagem do gatilho já está em português e já
+    // diz o que fazer. Repassar a dele é melhor do que inventar outra aqui —
+    // se o limite mudar no banco, a frase muda junto.
+    if (error.code === 'P0100') throw new Error(error.message);
     throw new Error(`Não foi possível enviar a proposta: ${error.message}`);
   }
 }

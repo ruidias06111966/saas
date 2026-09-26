@@ -5,7 +5,7 @@ import { Banner, Button, Card, Chip, Field, Input, SectionTitle, Textarea } from
 import {
   type Anuncio as TAnuncio, type Proposta,
   dinheiro, enviarProposta, faixaDeOrcamento, lerAnuncio, minhasPropostas, ondeFica,
-  responderProposta, propostasDoAnuncio, STATUS_PROPOSTA_LABEL,
+  propostasRestantes, responderProposta, propostasDoAnuncio, STATUS_PROPOSTA_LABEL,
 } from '../services/mercado';
 
 // ---------------------------------------------------------------------------
@@ -19,13 +19,19 @@ import {
 const MIN_MENSAGEM = 20;
 
 function Formulario({ anuncioId, onEnviada }: { anuncioId: string; onEnviada: () => void }) {
-  const { me, toast } = useApp();
+  const { me, navigate, toast } = useApp();
   const [mensagem, setMensagem] = useState('');
   const [valor, setValor] = useState('');
   const [prazo, setPrazo] = useState('');
   const [enviando, setEnviando] = useState(false);
+  // `null` = ainda não sabemos. Mostrar "0 restantes" antes de perguntar ao
+  // servidor assustaria quem tem cota de sobra.
+  const [restantes, setRestantes] = useState<number | null>(null);
+
+  useEffect(() => { propostasRestantes().then(setRestantes).catch(() => setRestantes(Infinity)); }, []);
 
   const curta = mensagem.trim().length < MIN_MENSAGEM;
+  const semCota = restantes === 0;
 
   const enviar = async () => {
     if (!me || curta) return;
@@ -45,11 +51,38 @@ function Formulario({ anuncioId, onEnviada }: { anuncioId: string; onEnviada: ()
     }
   };
 
+  if (semCota) {
+    return (
+      <Card className="space-y-4 p-5">
+        <SectionTitle>Suas propostas do mês acabaram</SectionTitle>
+        <p className="text-sm leading-relaxed text-muted">
+          No plano gratuito você envia três propostas por mês. Elas voltam quando o mês virar —
+          ou você assina o Premium e envia sem limite.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <Button icon="crown" onClick={() => navigate({ name: 'premium' })}>Ver os planos</Button>
+        </div>
+        <p className="text-[11px] leading-relaxed text-muted">
+          Publicar anúncio continua de graça, sem limite nenhum.
+        </p>
+      </Card>
+    );
+  }
+
   return (
     <Card className="space-y-4 p-5">
       <SectionTitle hint="Quem publicou vê o seu nome, a sua mensagem e, se preencher, o valor e o prazo.">
         Enviar proposta
       </SectionTitle>
+
+      {restantes !== null && Number.isFinite(restantes) && (
+        <Banner tone={restantes <= 1 ? 'warn' : 'info'} icon="send">
+          Esta é a sua <strong>{4 - restantes}ª de 3</strong> propostas gratuitas deste mês.{' '}
+          {restantes === 1
+            ? 'É a última — vale escolher bem o anúncio.'
+            : `Depois desta, sobram ${restantes - 1}.`}
+        </Banner>
+      )}
 
       <Field
         label="Sua mensagem"

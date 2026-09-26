@@ -299,10 +299,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const expressInterest = useCallback((targetId: string) => {
     if (!me) return { ok: false, connected: false, reason: 'Sessão expirada.' };
-    if (usage.contatos >= quota.dailyContatos) {
+    if (usage.contatos >= quota.conversasPorDia) {
       return {
         ok: false, connected: false,
-        reason: `Você já abordou ${quota.dailyContatos} pessoas hoje. O limite existe de propósito: quem dispara mensagem para todo mundo não fecha negócio com ninguém.`,
+        reason: `Você já abordou ${quota.conversasPorDia} pessoas hoje. O limite existe de propósito: quem dispara mensagem para todo mundo não fecha negócio com ninguém.`,
       };
     }
     const target = state.users.find((u) => u.id === targetId);
@@ -341,7 +341,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     persist(() => backend.saveConnection(conn), 'Não foi possível registrar seu interesse.');
     persist(() => backend.bumpUsage(me.id, 'contatos'), 'Não foi possível atualizar sua cota diária.');
     return { ok: true, connected: false };
-  }, [me, state, usage.contatos, quota.dailyContatos, notify, persist]);
+  }, [me, state, usage.contatos, quota.conversasPorDia, notify, persist]);
 
   const passOn = useCallback((targetId: string) => {
     if (!me) return;
