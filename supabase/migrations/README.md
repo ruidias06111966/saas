@@ -53,7 +53,7 @@ já aplicada é escrever a próxima.
 | `015_as_colunas_orfas_bloqueavam_o_salvamento.sql` | ✅ | Corrige a 012: `not null` em coluna órfã impedia salvar perfil e criar conta. |
 | `016_a_cota_de_propostas.sql` | ✅ | 3 propostas/mês no plano gratuito. |
 | `017_o_nome_certo_da_cota_diaria.sql` | ✅ | `daily_usage.contatos` nasce ao lado de `interests`, espelhadas por gatilho. |
-| `018_a_coluna_do_nome_antigo_sai.sql` | ❌ **não** | **Só depois** de o cliente que usa `contatos` estar no ar, com folga para as abas antigas. |
+| `018_a_coluna_do_nome_antigo_sai.sql` | ✅ | Aplicada depois de conferir, no pacote PUBLICADO, que ele não cita mais `interests`. |
 | `019_a_foto_deixa_de_ser_recompensa.sql` | ✅ | A foto de perfil seguia o Véu do app de namoro e chegava BORRADA a todo mundo. Passa a seguir a mesma regra do crachá. |
 
 ### O que a lista ensina
@@ -74,7 +74,11 @@ verificar o app**. Antes de aplicar, simule o `select` e o `upsert` que o client
 manda, como o cliente manda, dentro de uma transação terminada em
 `raise exception` para não deixar rastro.
 
-E daí também a regra da 017/018: quando um nome muda, ele não muda de uma vez.
-A coluna nova nasce ao lado da antiga, um gatilho mantém as duas iguais, o
-cliente troca, e só então a antiga sai. Assim não existe instante em que o app
-publicado peça algo que o banco não tem.
+E daí também a regra da 017/018, que se cumpriu inteira: quando um nome muda,
+ele não muda de uma vez. A coluna nova nasce ao lado da antiga, um gatilho
+mantém as duas iguais, o cliente troca, e só então a antiga sai. Assim não
+existe instante em que o app publicado peça algo que o banco não tem.
+
+O sinal verde para a segunda metade não foi o relógio: foi baixar o pacote
+JavaScript que está NO AR e conferir que ele não contém mais a palavra
+`interests`. Tempo decorrido é palpite; o pacote publicado é fato.
