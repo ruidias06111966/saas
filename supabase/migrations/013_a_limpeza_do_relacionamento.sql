@@ -93,8 +93,20 @@ drop function if exists public.compatibility_score(uuid, uuid);
 -- O CLIENTE QUE LÊ ISTO JÁ FOI PUBLICADO. `services/verification.ts` pede
 -- `profissao` e não pede mais `nascimento`. A ordem é a mesma de sempre, e
 -- desta vez foi respeitada.
+--
+-- É `drop` e depois `create`, e não `create or replace`. O Postgres recusa
+-- trocar o TIPO DE RETORNO de uma função existente:
+--
+--     42P13: cannot change return type of existing function
+--     DETAIL: Row type defined by OUT parameters is different.
+--
+-- Aqui a coluna `nascimento date` vira `profissao text`, o que muda o tipo da
+-- linha devolvida. E derrubar a função apaga as permissões dela — por isso os
+-- `grant` no fim, que devolvem exatamente o que ela tinha antes.
 
-create or replace function public.fila_de_verificacao()
+drop function if exists public.fila_de_verificacao();
+
+create function public.fila_de_verificacao()
 returns table (
   id uuid, user_id uuid, nome text, pose text,
   criado_em timestamptz, foto_base text, cidade text, profissao text
@@ -113,6 +125,12 @@ $$;
 
 comment on function public.fila_de_verificacao() is
   'A fila do revisor. Devolve profissão, e não mais idade: num perfil profissional a idade não deve aparecer. Ver 013_a_limpeza_do_relacionamento.sql.';
+
+-- As permissões que o `drop` levou embora. `anon` nunca teve, e continua sem:
+-- a função já se protege por dentro com `private.is_admin()`, mas defesa em
+-- duas camadas custa uma linha.
+revoke all on function public.fila_de_verificacao() from public, anon;
+grant execute on function public.fila_de_verificacao() to authenticated, service_role;
 
 -- --------------------------- 3. as seis tabelas ---------------------------
 -- Ordem importa: as de ligação antes dos catálogos.
