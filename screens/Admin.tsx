@@ -111,8 +111,13 @@ export function Admin() {
   };
 
   const resolveReport = (id: string, status: ReportStatus, note: string) => {
-    dispatch({ type: 'UPDATE_REPORT', id, patch: { status, resolvedAt: new Date().toISOString(), adminNote: note } });
-    toast('Denúncia atualizada.', 'ok');
+    if (!me) return;
+    const resolvedAt = new Date().toISOString();
+    void comServidor(
+      () => backend.resolverDenuncia(id, status, note, me.id),
+      () => dispatch({ type: 'UPDATE_REPORT', id, patch: { status, resolvedAt, adminNote: note } }),
+      'Denúncia atualizada.',
+    );
   };
 
   return (

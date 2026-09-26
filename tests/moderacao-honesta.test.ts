@@ -124,6 +124,43 @@ describe('a decisão do revisor não pode sumir ao recarregar', () => {
     expect(admin).toContain('backend.definirStatusDaConta');
   });
 
+  it('resolver denúncia também passa pelo servidor', () => {
+    // Último dos três botões do painel que ainda só mexia na memória. Uma
+    // denúncia marcada "procedente" voltava para "aberta" ao recarregar.
+    expect(admin).toContain('backend.resolverDenuncia');
+    expect(admin).not.toMatch(/resolveReport[\s\S]{0,200}^\s*dispatch\(\{ type: 'UPDATE_REPORT'/m);
+  });
+
+  it('a decisão guarda QUEM decidiu', () => {
+    // Sem `resolved_by` o registro diz que foi decidido e não diz por quem —
+    // metade do valor de um registro de moderação.
+    const back = ler('services/backend.ts');
+    const fn = back.slice(back.indexOf('export async function resolverDenuncia'));
+    expect(fn.slice(0, fn.indexOf('\n}'))).toContain('resolved_by');
+  });
+
+  it('nenhum botão do painel decide só na memória', () => {
+    // A varredura que fecha a classe inteira: se aparecer um `dispatch` de
+    // decisão solto, é porque alguém acrescentou um botão novo sem servidor.
+    //
+    // A primeira versão deste teste olhava 400 caracteres para trás — e PASSOU
+    // com a quebra forçada, porque encontrou o `comServidor` da função
+    // VIZINHA. Teste que passa por acidente é pior que teste nenhum: dá
+    // confiança sem dar garantia. Agora delimita a função que contém a
+    // decisão, e só procura ali dentro.
+    const decisoes = [...admin.matchAll(/dispatch\(\{ type: '(UPDATE_USER|UPDATE_MODERATION|UPDATE_REPORT)'/g)];
+    expect(decisoes.length, 'nenhuma decisão encontrada — o teste ficou cego').toBe(3);
+
+    for (const d of decisoes) {
+      const antes = admin.slice(0, d.index!);
+      // O início da função que contém esta decisão.
+      const inicio = antes.lastIndexOf('  const ');
+      expect(inicio, 'não achei a função que contém a decisão').toBeGreaterThan(-1);
+      const corpo = antes.slice(inicio);
+      expect(corpo, `a decisão ${d[1]} não passa por comServidor`).toContain('comServidor');
+    }
+  });
+
   it('o estado local só muda DEPOIS do servidor aceitar', () => {
     const fn = admin.slice(admin.indexOf('const comServidor'));
     const corpo = fn.slice(0, fn.indexOf('};'));

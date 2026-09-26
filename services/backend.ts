@@ -536,6 +536,30 @@ export async function decidirModeracao(
 }
 
 /**
+ * A decisão do revisor sobre uma denúncia.
+ *
+ * Mesma história da fila de moderação: existia a tela, existiam os três
+ * botões, e nada saía do navegador. A política "admin resolve denúncia" já
+ * estava no banco desde sempre — faltava alguém chamá-la.
+ *
+ * `resolved_by` vai junto com o status. Sem ele o registro diz QUE foi
+ * decidido e não diz POR QUEM, que é metade do valor de um registro de
+ * moderação — ainda mais num sistema em que o revisor pode ser parte
+ * interessada.
+ */
+export async function resolverDenuncia(
+  id: string, status: 'aberta' | 'em_analise' | 'procedente' | 'improcedente',
+  nota: string, revisorId: string,
+): Promise<void> {
+  const db = requireSupabase();
+  const { error } = await db.from('reports').update({
+    status, admin_note: nota,
+    resolved_at: new Date().toISOString(), resolved_by: revisorId,
+  }).eq('id', id);
+  if (error) throw new Error(`Falha ao registrar a decisão: ${error.message}`);
+}
+
+/**
  * Suspender, banir ou reativar uma conta, a partir do painel.
  *
  * Escrita dirigida em vez de `saveUser`: o revisor está mexendo na conta de
