@@ -2,79 +2,81 @@
 
 ## Princípio que organiza tudo
 
-**Regra de negócio não mora em componente React.** Compatibilidade, termômetro de
-conversa, curadoria e moderação são funções puras em `services/`, sem React e sem I/O.
-Isso significa que dá para testá-las, portá-las para o servidor (há uma versão SQL da
-compatibilidade em `docs/SUPABASE.sql`) e trocar toda a camada visual sem tocar nelas.
+**Regra de negócio não mora em componente React.** Termômetro de conversa, reputação,
+moderação, perfil e localização são funções puras em `services/`, sem React e sem I/O.
+E as regras do mercado — sigilo das propostas, cota, liberação do telefone — moram um
+nível abaixo, **no banco**, com RLS e gatilhos: limite que só existe no navegador não é
+limite.
 
 ```
-types.ts            Modelo de domínio. Espelha 1:1 as tabelas do Postgres.
-constants.ts        Eixos da Bússola, rótulos, cotas por plano, estágios do véu.
+types.ts            Modelo de domínio. Espelha as tabelas do Postgres.
+constants.ts        Rótulos, cotas por plano, degraus da conversa, motivos de denúncia.
 
 services/
-  compatibility.ts  Índice explicável (7 dimensões) + filtros duros de elegibilidade
-  conversation.ts   Termômetro (4 métricas) + véu + reputação
-  curation.ts       Curadoria diária determinística
+  mercado.ts        Anúncios e propostas: busca sob demanda, paginada (ver abaixo)
+  perfil.ts         Completude do perfil profissional e o que falta preencher
+  conversation.ts   Termômetro (4 métricas) + reputação
   moderation.ts     Heurística local de risco (camada 1)
   geminiService.ts  Copiloto (camada 2 de moderação + sugestões), com fallback local
+  localizacao.ts    Cidade → coordenada, sem acento decidir onde a pessoa mora
   lgpd.ts           Exportação, anonimização, retenção
-  storage.ts        Persistência — A ÚNICA camada que muda ao plugar backend real
+  politicas.ts      Versão das políticas e pedido de reaceite
+  verification.ts   Verificação por selfie
+  billing.ts        Checkout e portal do Stripe
+  push.ts, pwa.ts   Aviso no celular e app instalável
+  monitoring.ts     Registro de erros (Sentry), limitado no que recebe
+  backend.ts        Leitura e escrita no Supabase (modo online)
+  storage.ts        Persistência local (modo demo)
   utils.ts          Hash determinístico, PRNG semeado, haversine, formatação
 
 state/
   appState.ts       Reducer puro + seletores
   AppContext.tsx    Provider, roteamento, ações de domínio, toasts
 
-data/               Interesses, perguntas, 12 perfis fictícios, atividade semeada
-components/         UI genérica + componentes de produto (Portrait, EssenceCard, …)
-screens/            15 telas
+data/               8 perfis profissionais fictícios, atividade semeada, perguntas curadas
+components/         UI genérica + componentes de produto (Portrait, Termômetro, …)
+screens/            22 rotas
+supabase/           Edge Functions e migrações numeradas
 ```
 
-## Os três mecanismos
+## O mercado
 
-### 1. Revelação Progressiva
+O QICONEXÃO começou como aplicativo de relacionamentos e virou mercado de serviços
+profissionais (migrações 008 a 020). O fluxo é: **quem precisa publica** um anúncio,
+**quem sabe fazer envia proposta**, **quem publicou escolhe**, e a **proposta aceita
+libera o telefone** dos dois lados.
 
-**O Véu é controle de acesso, não efeito visual.** Cada foto de perfil é guardada como
-uma pirâmide de resoluções — 12, 24, 48, 96 px e a original — e o banco decide qual
-nível você pode baixar, a partir do estágio real da conversa entre vocês
-(`private.nivel_permitido`, aplicada como policy no `storage.objects`).
+As regras que sustentam a confiança são impostas no banco:
 
-Resolução em vez de desfoque foi escolha deliberada: um arquivo de 12 px **não tem
-detalhe a recuperar**, enquanto um JPEG desfocado ainda carrega mais informação do que
-parece. `Portrait` continua aplicando `blur((1 - reveal) * 26)px`, mas agora isso é só
-suavização por cima de uma imagem que já não contém o rosto.
+- **Proposta sigilosa.** Cada profissional lê só a própria proposta; quem publicou lê
+  todas. Um gatilho impede o profissional de aceitar a própria proposta ou trocar o
+  preço depois de enviada. A política de `anuncios` consultava `propostas`, cuja política
+  consultava `anuncios` — recursão infinita; a pergunta foi para uma função com direitos
+  do dono (011).
+- **Telefone só depois do acordo.** A coluna não sai em nenhuma view. Quem a lê é
+  `contato_do_negocio()`, que exige proposta aceita e que quem pergunta seja parte dela.
+  Num quadro com telefone à vista, o primeiro a se cadastrar em massa é quem quer a lista.
+- **Cota de propostas.** Três por mês no gratuito, imposta pelo gatilho
+  `private.cota_de_propostas` (016). Retirar uma proposta não devolve cota. Publicar
+  anúncio não tem limite: cobra-se do lado abundante e subsidia-se o escasso.
+- **Busca sem acento.** Configuração de texto `portugues_sem_acento` com `unaccent`:
+  "goiania" encontra "Goiânia". A mesma armadilha do acento já tinha posto três contas a
+  870 km de casa, na localização.
+- **Anúncios expiram** em 30 dias (`expires_at`) e saem do quadro sozinhos.
+- **37 categorias em 9 grupos**, numa tabela: é catálogo, não dado de ninguém, e por isso
+  é a única leitura pública.
 
-Consequência importante: **o termômetro precisou existir no banco**. `private.termometro`
-espelha `services/conversation.ts` — as duas foram comparadas com a mesma conversa
-sintética e devolveram `score 58, estágio 2`. O cliente continua calculando o número para
-*exibir* (ele tem todas as mensagens, então o cálculo é fiel, não um palpite), mas quem
-guarda o portão é o banco. Ao mexer numa fórmula, mexa na outra.
+**Por que `mercado.ts` não segue o padrão do resto do app.** `backend.ts` carrega um
+retrato de tudo no arranque, e as telas leem da memória — funciona para o que é pequeno e
+pessoal (as suas conversas, o seu perfil). Um quadro de anúncios é o contrário: grande, de
+todo mundo, muda o dia inteiro e é **procurado**. Então aqui é busca sob demanda, 20 por
+página, e cada tela guarda o próprio resultado. Por isso o mercado não tem modo demo.
 
-No modo demo não há servidor para fazer valer nada, e o véu volta a ser cosmético — a
-tela de privacidade diz isso com todas as letras em vez de fingir proteção.
+## Termômetro de Conversa e reputação
 
-Sem foto, `GenerativePortrait` desenha um SVG determinístico a partir de `hash32(id)`:
-gradiente de dois matizes, três blobs e uma silhueta. Mesma pessoa, sempre a mesma arte.
-Isso resolve dois problemas ao mesmo tempo — não usar foto de pessoa real em dados
-fictícios, e manter a descoberta legível mesmo com perfis sem foto.
-
-**Revelação consensual:** `connection.revealConsent` é um mapa `{ userId: boolean }`. Só
-vale quando os dois lados estão marcados. Um lado sozinho vê "aguardando o aceite".
-Nunca há revelação unilateral.
-
-### 2. Curadoria Diária
-
-`seededRandom(userId + data)` (xorshift sobre FNV-1a) garante que a lista do dia é a
-mesma o dia inteiro, sem precisar guardar nada. Pegamos o topo do ranking (3× o limite),
-embaralhamos com a semente e cortamos — assim a ordem não engessa nos mesmos perfis, mas
-também não muda a cada recarga.
-
-Perfis já vistos são excluídos por qualquer conexão existente (inclusive `recusada`).
-
-### 3. Termômetro de Conversa
-
-Quatro métricas normalizadas e dois fatores de amortecimento. Os fatores são o que impede
-a métrica de ser enganada: sem eles, seis mensagens curtas em uma hora dariam nota alta.
+A negociação acontece numa conversa, e o termômetro mede se ela **anda**. Quatro métricas
+normalizadas e dois fatores de amortecimento; os fatores são o que impede a métrica de
+ser enganada — sem eles, seis mensagens curtas em uma hora dariam nota alta.
 
 ```
 score = (0,28·recip + 0,28·prof + 0,22·const + 0,22·abert)
@@ -82,27 +84,25 @@ score = (0,28·recip + 0,28·prof + 0,22·const + 0,22·abert)
         × (0,65 + 0,35·min(1, dias/5)) ← duração
 ```
 
-A reputação de conversa (`user.reputation`, 0–100) é ajustada no encerramento:
-+3 ao se despedir de uma conversa com 6+ mensagens, −4 ao desfazer em silêncio. É o
-incentivo econômico contra o ghosting.
+Cinco degraus: Primeiro contato (0), Conversando (20), Entendendo (40), Alinhando (62) e
+Pronto (82). No app antigo o mesmo número abria o véu da foto; essa segunda função saiu no
+pivô, e o termômetro ficou só com a primeira.
 
-## Compatibilidade: por que explicável
+A reputação (`user.reputation`, 0–100) é ajustada no encerramento: +3 ao se despedir de
+uma conversa com 6+ mensagens, −4 ao sumir. Quem grava é `encerrar_conversa()`, no banco,
+contando as mensagens reais — não o número que o navegador afirma.
 
-Um número sozinho é uma caixa-preta que a pessoa não pode contestar. Toda dimensão
-devolve `{ score, weight, detail }` e o produto sempre mostra a decomposição junto do
-total. Três consequências deliberadas:
+## A foto: credencial, não recompensa
 
-1. O **grau de confiança** cai quando os perfis estão incompletos, e o app diz isso.
-2. O **ponto de atrito** (dimensão de menor score) aparece mesmo quando o total é alto.
-3. O texto "isto é uma sugestão de conversa, não uma previsão de relacionamento" é fixo.
+No app antigo a foto era o prêmio da conversa: guardada como pirâmide de resoluções, com
+o banco liberando um nível por vez (o "véu", ver o histórico no fim). Num mercado de
+serviços é o contrário — o rosto de quem vai entrar na sua obra é credencial. Desde a
+migração 019 a política do Storage chama `private.perfil_visivel`, **a mesma função** que
+decide quem aparece em `perfis_do_mercado`: não uma regra parecida, a mesma. Duas regras
+parecidas é como elas divergem, e foi assim que o bug da foto borrada nasceu.
 
-A similaridade de personalidade é **tolerante**: cada eixo tem um `similarityWeight`.
-Ritmo de vida e expressão afetiva pesam 1,0 (diferença aí desgasta); energia social 0,65
-e planejamento 0,6 (complementaridade funciona). Não é "quanto mais parecido, melhor".
-
-Interesses usam Jaccard **ponderado por raridade**, suavizado por raiz quadrada. Bater em
-"astronomia" (peso 1,5) vale mais que bater em "séries" (peso 0,8), e quem marca 20
-interesses não é punido pelo denominador.
+Sem foto, `GenerativePortrait` desenha um SVG determinístico a partir de `hash32(id)`.
+Mesma pessoa, sempre a mesma arte, e nenhuma foto de pessoa real nos dados fictícios.
 
 ## IA: sugere, nunca escreve — e a chave nunca chega ao navegador
 
@@ -142,6 +142,12 @@ Nenhuma das duas suspende conta. As duas apenas classificam e empurram para a fi
 revisão humana no painel administrativo. Mensagem de nível "risco" abre um diálogo de
 confirmação consciente antes do envio, explicando o golpe ou a violação.
 
+Há dois níveis. **Risco** marca a mensagem, aparece para os dois lados e entra na fila por
+gatilho no banco (020). **Atenção** não marca nada: é conselho para quem escreve, mostrado
+uma vez. A diferença nasceu de um caso real — combinar o telefone pelo WhatsApp ganhava
+"em revisão" para sempre, e num mercado de serviços combinar contato depois do aceite é o
+objetivo do produto. As decisões do painel ficam gravadas no servidor, com quem decidiu.
+
 ## LGPD implementada, não prometida
 
 | Direito (art. 18) | Onde |
@@ -159,8 +165,8 @@ exibida como número: só faixas (`distanceBand`).
 
 ## Persistência e o caminho para o backend
 
-O app tem **dois modos**, decididos por variável de ambiente, e nenhuma das 15 telas
-sabe em qual está rodando.
+O app tem **dois modos**, decididos por variável de ambiente, e as telas não sabem em
+qual estão rodando — com uma exceção deliberada: o mercado só existe no modo online.
 
 | | Modo demo | Modo online |
 |---|---|---|
@@ -174,7 +180,7 @@ quase 1:1. O estado continua sendo um `AppState` em memória; só muda de onde e
 
 **Fluxo online.** Na montagem, `AppContext` restaura a sessão e chama
 `backend.loadSnapshot()`, que traz exatamente o recorte que o RLS permite — perfis
-visíveis, apenas as conexões e mensagens em que a pessoa participa, e a fila de
+visíveis (pela view `perfis_do_mercado`), apenas as conexões e mensagens em que a pessoa participa, e a fila de
 moderação só para admin. O resultado entra no reducer por `HYDRATE_REMOTE`.
 
 **Escrita local-first.** Cada ação de domínio despacha para o reducer primeiro (UI
@@ -207,15 +213,15 @@ senão a assinatura seria refeita a cada navegação ou mudança de estado.
 ### Paginação, e a consequência que ela teve no termômetro
 
 `loadSnapshot` trazia o histórico inteiro de todas as conversas de uma vez. Funciona
-com doze perfis fictícios e não funciona com quem conversa há um ano. Agora o
+com poucos perfis fictícios e não funciona com quem conversa há um ano. Agora o
 primeiro carregamento traz as **últimas 40 mensagens de cada conversa**
 (`mensagens_recentes`), e o resto vem sob demanda (`mensagens_anteriores`).
 
 A consequência não é óbvia e é a parte interessante: **sem o histórico completo, o
 cliente não pode mais calcular o termômetro sozinho**. Ele contaria menos mensagens e
-menos dias, e como é o termômetro que abre o véu, o retrato *fecharia* por causa de uma
-decisão de performance. Numa conversa real de 14 mensagens, calcular só sobre as 5
-últimas dá score 23 em vez de 58 — o retrato cairia de 71% para 28% revelado.
+menos dias, e a conversa *regrediria* de degrau por causa de uma decisão de
+performance. Numa conversa real de 14 mensagens, calcular só sobre as 5 últimas dá score
+23 em vez de 58.
 
 Por isso `termometros()` vem junto no primeiro carregamento, e o seletor `healthOf`
 escolhe a fonte:
@@ -226,26 +232,8 @@ escolhe a fonte:
 
 As duas implementações — `services/conversation.ts` e `private.termometro()` — foram
 comparadas com a mesma conversa sintética e devolvem os mesmos oito números. Para não
-duplicar a interpretação, só as *medidas cruas* têm duas origens: estágio, véu, próximo
+duplicar a interpretação, só as *medidas cruas* têm duas origens: estágio, próximo
 objetivo e silêncio são derivados uma única vez, em `buildHealth()`.
-
-### O véu é gerado no servidor
-
-A pirâmide de resoluções (12, 24, 48, 96 px e o original) era gerada no **navegador de
-quem sobe a foto**. O portão de leitura sempre foi do banco — ninguém nunca conseguiu
-ver a foto alheia antes da hora —, mas quem subia escolhia o conteúdo dos próprios
-níveis borrados e podia mandar um "nível 0" nítido, revelando-se cedo demais para todo
-mundo.
-
-Agora o navegador entrega **só o original**, e a Edge Function `velar` gera os quatro
-níveis com `service_role`. A política de escrita do Storage foi ajustada junto: o
-cliente só consegue gravar `-orig.jpg`. Sem essa segunda metade a primeira não valeria
-nada — bastaria subir o arquivo velado direto.
-
-Falha fechada por construção: se a geração falhar, os níveis velados não existem, quem
-não tem direito ao original recebe 404 e cai no retrato generativo. Nenhum caminho de
-erro revela mais do que devia. O cliente ainda apaga o original órfão e avisa, porque
-foto invisível é pior do que foto ausente.
 
 ### Cota de IA imposta no servidor
 
@@ -262,20 +250,6 @@ uma linha no banco. O canal é privado por policy em `realtime.messages` — sen
 pessoa autenticada poderia escutar a conversa alheia e saber quando os dois estão
 trocando mensagens, que é metadado sobre gente real. O envio é limitado a um aviso a
 cada 2 segundos e o indicador some sozinho em 4.
-
-### Um bug que só apareceu quando o véu foi testado de ponta a ponta
-
-`private.nivel_do_arquivo()` tinha `revoke execute ... from public, anon` e **nenhum
-`grant` para `authenticated`**. A policy de leitura avalia
-`nivel_do_arquivo(name) <= nivel_permitido(dono)`, e o operando da esquerda vem
-primeiro: toda leitura de foto morria em *permission denied*, inclusive a da própria
-pessoa.
-
-O erro nunca chegou à tela. `resolveImage()` desce de nível quando a assinatura falha e,
-ao esgotar os níveis, cai no retrato generativo — então o véu *parecia* funcionar e
-nenhuma foto real jamais era exibida. Vale como lembrete: num sistema que degrada
-graciosamente, a degradação esconde a falha. O teste que pegou isso foi o de ponta a
-ponta, não o unitário.
 
 ### RLS protege linhas, não colunas
 
@@ -321,8 +295,8 @@ existe.
 - **A recusa exige motivo**, que vai inteiro para a pessoa. Recusar sem dizer por quê
   deixa alguém tentando de novo do mesmo jeito.
 
-Administrador passa a ver o original de qualquer retrato, porque a comparação exige. É
-poder real, declarado em `nivel_permitido()`.
+Administrador vê a foto de qualquer perfil, porque a comparação exige. É poder real,
+declarado na política do Storage (`private.is_admin()`, migração 019).
 
 ### Cadastro com confirmação de e-mail
 
@@ -406,35 +380,32 @@ assinatura no Stripe para que ele reemita o estado atual. A verdade continua
 vindo dele, pelo caminho normal — a alternativa seria corrigir o plano na mão,
 no banco, sem nada que comprove o que o Stripe pensa.
 
-### O RLS protege linhas, não colunas
+### O RLS protege linhas, não colunas — na leitura
 
-A política que deixa uma pessoa ver os perfis das outras autoriza a **linha
-inteira** de `public.users` — e a linha inteira carrega `email`, `birth_date`,
-`approx_lat`, `approx_lng` e `role`. Confirmado contra o banco em 03/09/2026:
-uma usuária comum lia o e-mail de todas as contas ativas. O próprio app pedia
-essas colunas, a cada carregamento, para todo mundo.
+A política que deixa uma pessoa ver os perfis das outras autoriza a **linha inteira** de
+`public.users` — e a linha inteira carrega e-mail, telefone, papel e coordenadas.
+Confirmado contra o banco em 03/09/2026: uma usuária comum lia o e-mail de todas as contas
+ativas. É a mesma dobra que já tinha mordido este projeto na escrita, agora na leitura.
 
-É a mesma dobra que já tinha mordido este projeto na escrita — onde a resposta
-foi o gatilho `campos_privilegiados` — agora aparecendo na leitura.
+A resposta é uma view de "crachá", hoje `perfis_do_mercado` (009, 010, 014): nome,
+profissão, resumo, cidade, UF, foto, verificado, reputação, plano, atendimento remoto e
+anos de experiência. **Sem e-mail, sem telefone, sem coordenadas, sem papel.**
+Administradores só aparecem se tiverem anúncio ou proposta.
 
-A resposta é a view `perfis_descobriveis`, que **deriva no servidor o que a tela
-realmente queria**:
+Três lições que ela custou:
 
-| a tela usava | agora recebe | por quê |
-|---|---|---|
-| `birth_date` dentro de `age()` | `idade` | o dia e o mês vinham de brinde |
-| duas coordenadas dentro de `haversineKm()` | `distancia_km` | uma distância não permite trilateração; a base inteira de coordenadas permite |
-| `role`, para filtrar administradores | nada — a view não devolve essas linhas | entregar a lista de administradores só ajuda quem procura alvo |
-| `email` | nada | nenhuma tela de terceiro precisava dele |
+- **A view saiu gravável** (010). `revoke all from public` não alcança o papel
+  `authenticated`, e uma view autoatualizável com direitos do dono deixava escrever em
+  `users` contornando o RLS. Agora é só `SELECT`, com `security_barrier`.
+- **O app parou de abrir** (014). A 012 recriou a view sem colunas que o cliente ainda
+  pedia; o PostgREST devolveu `42703` e `loadSnapshot` levantou exceção. Hoje dois testes
+  leem o SQL das migrações e comparam com o que o cliente pede.
+- **Roda com direitos do dono** (`security_invoker = false`), porque precisa enxergar
+  `users` inteira. O que a mantém segura é o `WHERE` — `private.perfil_visivel()` — e
+  nada além dele.
 
-A view roda com direitos do dono (`security_invoker = false`), porque precisa
-enxergar `users` inteira para derivar. Isso a torna uma superfície privilegiada,
-da mesma classe das RPCs `security definer` — o que a mantém segura é o `WHERE`,
-e nada além dele.
-
-No tipo `User`, os cinco campos viraram opcionais e `age` virou obrigatório.
-Não é descuido de tipagem: é o compilador recusando quem tentar usá-los sem
-checar. Foi ele que encontrou os catorze pontos afetados.
+A antecessora, `perfis_descobriveis`, derivava idade e distância no servidor para o app
+de relacionamentos. Saiu na migração 013.
 
 ### Recuperação de senha
 
@@ -444,26 +415,24 @@ senha nenhuma, e sem entender o motivo. Daí `onAuthChange` entregar o evento
 junto do id.
 
 A tela de pedido responde a mesma coisa exista a conta ou não. "E-mail não
-encontrado" viraria um oráculo para descobrir quem tem conta num aplicativo de
-relacionamentos. Verificado: `/auth/v1/recover` devolve 200 para endereço
+encontrado" viraria um oráculo para descobrir quem tem conta no aplicativo. Verificado: `/auth/v1/recover` devolve 200 para endereço
 inexistente, e a interface não desfaz isso.
 
-### Por que a descoberta ainda não é paginada
+### Por que os perfis ainda não são paginados
 
-`loadSnapshot()` traz todos os perfis visíveis de uma vez, e é o primeiro teto
-técnico do sistema. A correção parece óbvia — `range()` na consulta — e é uma
-armadilha.
+`loadSnapshot()` traz todos os perfis visíveis de `perfis_do_mercado` de uma vez, e é o
+primeiro teto técnico do sistema. A correção parece óbvia — `range()` na consulta — e é
+uma armadilha.
 
 O motivo está em `findUser(state, id)`: **a mesma lista `state.users` resolve
-conversas, conexões, denúncias e a fila de moderação.** Paginar a descoberta
-esvaziaria todas elas ao mesmo tempo. Alguém com quem você conversa há semanas
-sumiria da lista de conversas por não estar na página atual.
+conversas, conexões, denúncias e a fila de moderação.** Paginar "Quem faz" esvaziaria
+todas elas ao mesmo tempo. Alguém com quem você negocia há semanas sumiria da lista de
+conversas por não estar na página atual.
 
 A implementação correta tem três partes, e nenhuma é pequena:
 
-1. **A curadoria vai para o servidor.** Uma RPC que recebe as preferências e
-   devolve N candidatos já filtrados e ordenados — hoje `buildCandidates` faz
-   isso no cliente, e para isso precisa de todo mundo em memória.
+1. **A busca de profissionais vai para o servidor**, sob demanda e paginada, como o
+   quadro de anúncios já faz em `mercado.ts`.
 2. **Quem já tem vínculo é carregado à parte**, sempre: as pessoas das minhas
    conexões, das minhas denúncias e da fila. Essa lista é limitada por natureza
    e não depende de paginação.
@@ -471,8 +440,6 @@ A implementação correta tem três partes, e nenhuma é pequena:
    resolver agora", com `findUser` capaz de buscar sob demanda o que faltar.
 
 Fica para uma fase própria, com testes de conversa e conexão antes e depois.
-Fazer junto de uma correção de segurança seria misturar um risco de vazamento
-com um risco de quebrar o chat.
 
 ### O que ainda falta para produção
 
@@ -484,11 +451,10 @@ novo, só entrega para o e-mail dono do projeto.
 
 Quatro pontos que não são óbvios e que já custaram uma revisão:
 
-- **Nada é legível pelo papel `anon`.** Toda policy de leitura declara
-  `to authenticated`. Um `using (true)` em `profiles` ou `prompt_answers`
-  entregaria a base inteira de respostas a quem tivesse só a chave pública —
-  raspagem sem nem precisar de conta. As únicas exceções são `interests` e
-  `prompts`, que são catálogos e não contêm dado de ninguém.
+- **Nada com dado de alguém é legível pelo papel `anon`.** Toda policy de leitura
+  de dado pessoal declara `to authenticated`: um `using (true)` entregaria a base
+  inteira a quem tivesse só a chave pública — raspagem sem nem precisar de conta. A
+  exceção é `categorias`, que é catálogo e não contém dado de ninguém.
 - **Leitura de dado alheio passa por `private.perfil_visivel()`**, que exige
   perfil ativo, não excluído e sem bloqueio entre as duas partes.
 - **Os auxiliares vivem no schema `private`.** O PostgREST só expõe `public`,
@@ -499,24 +465,66 @@ Quatro pontos que não são óbvios e que já custaram uma revisão:
   conclui: o usuário autentica no Supabase Auth mas não consegue criar a
   própria linha de perfil.
 
-As duas funções que ficam em `public` (`compatibility_score` e
-`delete_my_account`) são chamadas pelo cliente de propósito, têm `execute`
-revogado do `anon` e checam `auth.uid()` internamente. O linter de segurança do
-Supabase as sinaliza como `SECURITY DEFINER` acessíveis — é esperado e correto.
+As funções que ficam em `public` — como `delete_my_account` e `contato_do_negocio` —
+são chamadas pelo cliente de propósito, têm `execute` revogado do `anon` e checam
+`auth.uid()` internamente. O linter de segurança do Supabase as sinaliza como
+`SECURITY DEFINER` acessíveis — é esperado e correto.
 
 ## O que ficou preparado e não implementado
 
-Notificações push, geolocalização por GPS, chamadas de áudio e vídeo, eventos e
-comunidades. Cada ponto de extensão está comentado no código onde ele encaixa.
+Geolocalização por GPS, chamadas de áudio e vídeo, eventos e comunidades. Cada ponto
+de extensão está comentado no código onde ele encaixa. (O aviso no celular, que estava
+nesta lista, foi implementado: ver `docs/PUSH.md`.)
 
 ## Limitações conhecidas do MVP
 
 - Autenticação é uma comparação de SHA-256 no navegador. Serve para navegar a demo;
   autenticação real é servidor, sempre.
-- O botão "Simular resposta (demo)" existe para dar para ver o termômetro e o véu
+- O botão "Simular resposta (demo)" existe para dar para ver o termômetro
   evoluindo sem uma segunda pessoa. Está rotulado como demonstração na interface.
 - Fotos viram base64 no `localStorage`, o que estoura a cota se você enviar muitas.
   Em produção isso é Supabase Storage.
 - A verificação por selfie continua simulada por um botão **no modo demo**, onde não há
   servidor para fazer valer nada. No modo online ela é real: pose sorteada, revisão
   humana, e o selo concedido pelo servidor.
+- O quadro de anúncios e as propostas não têm modo demo: sem servidor, a tela mostra o
+  aviso de Supabase não configurado.
+
+## Histórico: o véu da foto (removido na migração 019)
+
+As duas seções abaixo descrevem o mecanismo central do app de relacionamentos, que não
+existe mais. Ficam como registro porque as lições valem para qualquer controle de acesso.
+A Edge Function `velar` ainda gera as versões reduzidas no envio, mas desde a 019 a
+leitura da foto não depende delas.
+
+#### O véu é gerado no servidor
+
+A pirâmide de resoluções (12, 24, 48, 96 px e o original) era gerada no **navegador de
+quem sobe a foto**. O portão de leitura sempre foi do banco — ninguém nunca conseguiu
+ver a foto alheia antes da hora —, mas quem subia escolhia o conteúdo dos próprios
+níveis borrados e podia mandar um "nível 0" nítido, revelando-se cedo demais para todo
+mundo.
+
+Agora o navegador entrega **só o original**, e a Edge Function `velar` gera os quatro
+níveis com `service_role`. A política de escrita do Storage foi ajustada junto: o
+cliente só consegue gravar `-orig.jpg`. Sem essa segunda metade a primeira não valeria
+nada — bastaria subir o arquivo velado direto.
+
+Falha fechada por construção: se a geração falhar, os níveis velados não existem, quem
+não tem direito ao original recebe 404 e cai no retrato generativo. Nenhum caminho de
+erro revela mais do que devia. O cliente ainda apaga o original órfão e avisa, porque
+foto invisível é pior do que foto ausente.
+
+#### Um bug que só apareceu quando o véu foi testado de ponta a ponta
+
+`private.nivel_do_arquivo()` tinha `revoke execute ... from public, anon` e **nenhum
+`grant` para `authenticated`**. A policy de leitura avalia
+`nivel_do_arquivo(name) <= nivel_permitido(dono)`, e o operando da esquerda vem
+primeiro: toda leitura de foto morria em *permission denied*, inclusive a da própria
+pessoa.
+
+O erro nunca chegou à tela. `resolveImage()` desce de nível quando a assinatura falha e,
+ao esgotar os níveis, cai no retrato generativo — então o véu *parecia* funcionar e
+nenhuma foto real jamais era exibida. Vale como lembrete: num sistema que degrada
+graciosamente, a degradação esconde a falha. O teste que pegou isso foi o de ponta a
+ponta, não o unitário.

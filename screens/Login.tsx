@@ -1,14 +1,19 @@
 import React, { useState } from 'react';
 import { useApp } from '../state/AppContext';
 import { Banner, Button, Card, Field, Icon, Input } from '../components/ui';
-import { DEMO_ADMIN_ID, DEMO_PASSWORD, DEMO_USER_ID } from '../data/seed';
+import { DEMO_ADMIN_ID, DEMO_PASSWORD, DEMO_USER_ID, SEED_USERS } from '../data/seed';
 import { isEmail, sha256 } from '../services/utils';
 import { signIn } from '../services/auth';
 import { supabaseEnabled } from '../services/supabaseClient';
 
+// O e-mail da conta de demonstração vem do seed, não de uma cópia aqui: a cópia
+// ficou para trás no pivô (`joao@conexao.app`) e o campo vinha preenchido com uma
+// conta que não existia mais.
+const DEMO_USER_EMAIL = SEED_USERS.find((u) => u.id === DEMO_USER_ID)?.email ?? '';
+
 export function Login() {
   const { state, dispatch, navigate, toast } = useApp();
-  const [email, setEmail] = useState(supabaseEnabled ? '' : 'joao@conexao.app');
+  const [email, setEmail] = useState(supabaseEnabled ? '' : DEMO_USER_EMAIL);
   const [password, setPassword] = useState(supabaseEnabled ? '' : DEMO_PASSWORD);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -98,7 +103,7 @@ export function Login() {
             Todas as contas fictícias usam a senha <code className="font-mono">{DEMO_PASSWORD}</code>.
           </Banner>
           <div className="mt-3 grid gap-2 sm:grid-cols-2">
-            <Button variant="outline" size="sm" onClick={() => quick(DEMO_USER_ID)}>Entrar como João (usuário)</Button>
+            <Button variant="outline" size="sm" onClick={() => quick(DEMO_USER_ID)}>Entrar como usuário</Button>
             <Button variant="outline" size="sm" onClick={() => quick(DEMO_ADMIN_ID)}>Entrar como administrador</Button>
           </div>
         </div>
