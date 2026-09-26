@@ -174,9 +174,11 @@ export function Settings() {
             {[
               ['Seu e-mail', 'Nunca é exibido. Serve só para login e avisos.'],
               ['Sua localização', `Guardamos apenas a cidade (${me.city}) e uma coordenada arredondada em cerca de 5 km. Outras pessoas veem só uma faixa de distância, tipo "até 30 km".`],
-              ['Sua foto', mode === 'online'
-                ? 'Guardamos sua foto em vários níveis de resolução. Quem ainda não conversou com você só consegue baixar a versão de 12 pixels — o rosto não está nos bytes que essa pessoa recebe. O servidor libera níveis maiores conforme a conversa evolui, ou quando os dois concordam em revelar antes.'
-                : 'Aparece nítida para qualquer pessoa cadastrada, junto com seu nome, profissão e cidade. É assim de propósito: quem vai te contratar precisa saber com quem está falando.'],
+              // O ramo `online` descrevia o véu do app de relacionamentos, e o
+              // texto certo estava no ramo de DEMO — ou seja, o aplicativo de
+              // verdade contava à pessoa uma coisa falsa sobre a privacidade
+              // dela. O véu saiu na migração 019; agora a resposta é uma só.
+              ['Sua foto', 'Aparece nítida para qualquer pessoa cadastrada, junto com seu nome, profissão e cidade. É assim de propósito: quem vai te contratar precisa saber com quem está falando. Quem você bloqueou não vê nem o perfil nem a foto.'],
               ['Suas mensagens', 'Só você e a outra pessoa leem. Mensagens sinalizadas pela moderação podem ser lidas por um moderador humano durante a análise.'],
             ].map(([t, d]) => (
               <div key={t} className="rounded-2xl bg-bg p-3.5">
