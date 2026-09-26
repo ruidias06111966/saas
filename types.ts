@@ -219,9 +219,9 @@ export interface DailyUsage {
   userId: string;
   date: string; // yyyy-mm-dd
   /**
-   * Quantos pedidos de conversa hoje. Era `interests` — o nome de namoro —, e
-   * a coluna no banco ainda se chama assim até a limpeza da 013. O mapeamento
-   * vive em `backend.bumpUsage`, num lugar só.
+   * Quantos pedidos de conversa hoje. A coluna no banco se chamava `interests`
+   * — nome do app de relacionamentos — e passou a se chamar `contatos` na
+   * migração 017. Não há mais mapeamento: o nome é o mesmo dos dois lados.
    */
   contatos: number;
   aiCalls: number;

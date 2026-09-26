@@ -406,7 +406,7 @@ export async function loadSnapshot(meId: string): Promise<RemoteSnapshot> {
       result: { level: m.level, categories: m.categories ?? [], advice: '', source: m.source },
     })),
     usage: (usage.data ?? []).map((u) => ({
-      userId: u.user_id, date: u.day, contatos: u.interests, aiCalls: u.ai_calls,
+      userId: u.user_id, date: u.day, contatos: u.contatos, aiCalls: u.ai_calls,
     })),
     subscription: assinatura.data
       ? {
@@ -545,17 +545,19 @@ export async function setBlock(blockerId: string, blockedId: string, on: boolean
 }
 
 /**
- * `contatos` era `interests`, e a COLUNA no banco ainda se chama assim — a
- * renomeação vai junto com a limpeza da 013. Este é o único lugar do cliente
- * que conhece o nome antigo, e é de propósito.
+ * A coluna se chamava `interests` — "interesse demonstrado", nome do app de
+ * relacionamentos. A migração 017 criou `contatos` ao lado dela e as duas
+ * andam juntas por um gatilho de espelho até a 018 apagar a antiga. Por isso
+ * este código pode pedir o nome novo mesmo em abas que ainda não recarregaram:
+ * o banco entende os dois durante a virada.
  */
 export async function bumpUsage(userId: string, field: 'contatos' | 'aiCalls'): Promise<void> {
   const db = requireSupabase();
-  const column = field === 'contatos' ? 'interests' : 'ai_calls';
+  const column = field === 'contatos' ? 'contatos' : 'ai_calls';
   const day = dateKey();
   const { data } = await db.from('daily_usage')
-    .select('interests, ai_calls').eq('user_id', userId).eq('day', day).maybeSingle();
-  const current = (data?.[column as 'interests' | 'ai_calls'] as number | undefined) ?? 0;
+    .select('contatos, ai_calls').eq('user_id', userId).eq('day', day).maybeSingle();
+  const current = (data?.[column] as number | undefined) ?? 0;
   await db.from('daily_usage').upsert({
     user_id: userId, day, [column]: current + 1,
   }, { onConflict: 'user_id,day' });
