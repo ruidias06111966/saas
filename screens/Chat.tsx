@@ -93,8 +93,15 @@ export function Chat({ id }: { id: string }) {
   const doSend = (text: string, kind: Message['kind'] = 'texto', extra?: Partial<Message>) => {
     const result = sendMessage(conn.id, text, kind, extra);
     if (result && blocksSending(result)) {
-      // A mensagem foi registrada e enviada para revisão; avisamos quem enviou.
+      // Risco: a mensagem foi gravada marcada, e o banco a enfileirou para
+      // revisão humana. Quem escreveu precisa saber disso.
       toast(result.advice, 'danger');
+    } else if (result && result.level === 'atencao') {
+      // Atenção NÃO marca a mensagem e não vai para fila nenhuma. O conselho
+      // aparece uma vez, para quem escreveu, e some. A outra pessoa não vê
+      // nada de diferente — antes via "em revisão", o que fazia uma conversa
+      // normal parecer suspeita.
+      toast(result.advice, 'info');
     }
     setDraft('');
   };

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { POLICY_VERSION, PRECO_PREMIUM, QUOTAS } from '../constants';
+import { SAFETY_TIPS } from '../services/moderation';
 
 // ---------------------------------------------------------------------------
 // O pivô tem de chegar na casca, não só nas telas.
@@ -80,8 +81,23 @@ describe('a casca do site fala do produto que existe hoje', () => {
 
   it('o aviso de golpe do chat não cita app de relacionamento', () => {
     // É texto que a pessoa LÊ, num toast, ao tentar mandar mensagem de risco.
-    const mod = ler('services/moderation.ts');
+    //
+    // Os COMENTÁRIOS saem antes da conferência: eles explicam de onde o
+    // produto veio, e essa história é útil para quem for mexer aqui. O que
+    // não pode sobrar é na frase que chega à tela.
+    const mod = ler('services/moderation.ts')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/\/\/.*$/gm, '');
     expect(mod).not.toMatch(/apps? de relacionamento/i);
+  });
+
+  it('as dicas de segurança falam de contratar, não de encontro amoroso', () => {
+    // Aparecem na tela Início. Eram "combine o primeiro encontro em local
+    // público" e "desconfie de quem evita chamada de vídeo".
+    for (const dica of SAFETY_TIPS) {
+      expect(dica).not.toMatch(/encontro|chamada de v[ií]deo|conheceu aqui/i);
+    }
+    expect(SAFETY_TIPS.join(' ')).toMatch(/adiantado|conselho|por escrito/i);
   });
 });
 

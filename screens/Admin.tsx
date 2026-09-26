@@ -3,6 +3,8 @@ import type { AccountStatus, ReportStatus } from '../types';
 import { APP_NAME, REPORT_REASON_LABEL } from '../constants';
 import { CATEGORY_LABEL } from '../services/moderation';
 import { useApp } from '../state/AppContext';
+import * as backend from '../services/backend';
+import { supabaseEnabled } from '../services/supabaseClient';
 import { findUser } from '../state/appState';
 import { Page } from '../components/layout/AppShell';
 import { Banner, Button, Card, Chip, Empty, Icon, Input, Tabs } from '../components/ui';
@@ -71,9 +73,41 @@ export function Admin() {
     .filter((u) => u.role !== 'admin')
     .filter((u) => !query || `${u.name} ${u.email} ${u.city}`.toLowerCase().includes(query.toLowerCase()));
 
+  /**
+   * Toda decisão do painel seguia este molde: `dispatch` e um aviso verde. Só
+   * que `dispatch` mexe na memória DESTE navegador — recarregar a página
+   * desfazia tudo. Uma conta "suspensa" voltava sozinha.
+   *
+   * Agora grava no servidor e só então avisa. Se o servidor recusar, quem
+   * decidiu fica sabendo, em vez de achar que resolveu.
+   */
+  const comServidor = async (
+    acao: () => Promise<void>, aoDarCerto: () => void, sucesso: string,
+  ) => {
+    try {
+      if (supabaseEnabled) await acao();
+      aoDarCerto();
+      toast(sucesso, 'ok');
+    } catch (err) {
+      toast((err as Error).message, 'danger');
+    }
+  };
+
   const setStatus = (id: string, status: AccountStatus) => {
-    dispatch({ type: 'UPDATE_USER', id, patch: { status } });
-    toast(`Conta marcada como ${status}.`, status === 'ativo' ? 'ok' : 'warn');
+    void comServidor(
+      () => backend.definirStatusDaConta(id, status),
+      () => dispatch({ type: 'UPDATE_USER', id, patch: { status } }),
+      `Conta marcada como ${status}.`,
+    );
+  };
+
+  const decidirModeracao = (id: string, status: 'liberado' | 'removido') => {
+    if (!me) return;
+    void comServidor(
+      () => backend.decidirModeracao(id, status, me.id),
+      () => dispatch({ type: 'UPDATE_MODERATION', id, patch: { status } }),
+      status === 'liberado' ? 'Mensagem liberada.' : 'Mensagem removida.',
+    );
   };
 
   const resolveReport = (id: string, status: ReportStatus, note: string) => {
@@ -226,12 +260,12 @@ export function Admin() {
                 <p className="mt-2 text-[12px] text-muted">{item.result.advice}</p>
                 {item.status === 'pendente' ? (
                   <div className="mt-3 flex flex-wrap gap-2">
-                    <Button size="sm" variant="outline" onClick={() => dispatch({ type: 'UPDATE_MODERATION', id: item.id, patch: { status: 'liberado' } })}>
+                    <Button size="sm" variant="outline" onClick={() => decidirModeracao(item.id, 'liberado')}>
                       Liberar (falso positivo)
                     </Button>
                     <Button
                       size="sm" variant="danger"
-                      onClick={() => { dispatch({ type: 'UPDATE_MODERATION', id: item.id, patch: { status: 'removido' } }); if (author) setStatus(author.id, 'suspenso'); }}
+                      onClick={() => { decidirModeracao(item.id, 'removido'); if (author) setStatus(author.id, 'suspenso'); }}
                     >
                       Remover e suspender autor
                     </Button>

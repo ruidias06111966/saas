@@ -518,6 +518,42 @@ export async function saveConsents(userId: string, consents: Consent[]): Promise
   if (error) throw new Error(`Falha ao registrar consentimentos: ${error.message}`);
 }
 
+/**
+ * A decisão do revisor sobre um item da fila.
+ *
+ * Existia a tela, existiam os botões, e a decisão só mexia na memória do
+ * navegador — sumia ao recarregar. A política de UPDATE da tabela já permitia
+ * ao administrador; faltava alguém chamá-la.
+ */
+export async function decidirModeracao(
+  id: string, status: 'liberado' | 'removido', revisorId: string,
+): Promise<void> {
+  const db = requireSupabase();
+  const { error } = await db.from('moderation_queue')
+    .update({ status, reviewed_by: revisorId, reviewed_at: new Date().toISOString() })
+    .eq('id', id);
+  if (error) throw new Error(`Falha ao registrar a decisão: ${error.message}`);
+}
+
+/**
+ * Suspender, banir ou reativar uma conta, a partir do painel.
+ *
+ * Escrita dirigida em vez de `saveUser`: o revisor está mexendo na conta de
+ * OUTRA pessoa, e reenviar a linha inteira sobrescreveria o perfil dela com o
+ * que este navegador tiver em memória.
+ *
+ * Quem autoriza é o banco: a política "admin atualiza qualquer registro" e o
+ * gatilho `campos_privilegiados`, que só deixa `status` mudar para quem é
+ * administrador de verdade. Um usuário comum chamando isto é recusado.
+ */
+export async function definirStatusDaConta(
+  id: string, status: 'ativo' | 'suspenso' | 'banido',
+): Promise<void> {
+  const db = requireSupabase();
+  const { error } = await db.from('users').update({ status }).eq('id', id);
+  if (error) throw new Error(`Falha ao alterar a conta: ${error.message}`);
+}
+
 export async function saveConnection(c: Connection): Promise<void> {
   const db = requireSupabase();
   const [user_a, user_b] = pairOrder(c.userA, c.userB);

@@ -55,6 +55,7 @@ já aplicada é escrever a próxima.
 | `017_o_nome_certo_da_cota_diaria.sql` | ✅ | `daily_usage.contatos` nasce ao lado de `interests`, espelhadas por gatilho. |
 | `018_a_coluna_do_nome_antigo_sai.sql` | ✅ | Aplicada depois de conferir, no pacote PUBLICADO, que ele não cita mais `interests`. |
 | `019_a_foto_deixa_de_ser_recompensa.sql` | ✅ | A foto de perfil seguia o Véu do app de namoro e chegava BORRADA a todo mundo. Passa a seguir a mesma regra do crachá. |
+| `020_a_fila_de_moderacao_que_nunca_recebeu_nada.sql` | ✅ | A etiqueta "em revisão" existia sem fila, sem gatilho e sem política de INSERT. Agora o banco enfileira o que é risco. |
 
 ### O que a lista ensina
 
