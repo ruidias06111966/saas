@@ -53,12 +53,52 @@ describe('o manual existe e é uma página que abre sozinha', () => {
     expect(manual).toContain(':root[data-theme="dark"]');
   });
 
-  it('o aplicativo aponta para ele em três lugares', () => {
-    // Landing é o que importa mais: é a única documentação que alguém pode ler
-    // ANTES de decidir se cria conta.
+  it('o endereço do manual mora num lugar só', () => {
     expect(ler('constants.ts')).toContain("URL_MANUAL = '/manual.html'");
-    expect(ler('screens/Landing.tsx')).toContain('URL_MANUAL');
-    expect(ler('screens/Settings.tsx')).toContain('URL_MANUAL');
+  });
+
+  /**
+   * O arquivo SEM as linhas de `import`.
+   *
+   * Sem isto o teste passa por acidente: apagar o link e deixar o import órfão
+   * ainda casa com "contém URL_MANUAL". Aconteceu — forcei a remoção do link
+   * da barra lateral e os 41 testes passaram. Só conta o USO.
+   */
+  const semImports = (arquivo: string) =>
+    ler(arquivo).split('\n').filter((l) => !/^\s*import\b/.test(l)).join('\n');
+
+  it.each([
+    ['screens/Landing.tsx', 'a entrada, para quem ainda não tem conta'],
+    ['components/layout/AppShell.tsx', 'a barra lateral, dentro do aplicativo'],
+    ['screens/Profile.tsx', 'o perfil, que é o caminho do celular'],
+    ['screens/Settings.tsx', 'as configurações'],
+  ])('%s USA o manual, e não só o importa (%s)', (arquivo) => {
+    expect(semImports(arquivo)).toContain('URL_MANUAL');
+  });
+
+  it('NA ENTRADA ELE NÃO PODE FICAR SÓ NO RODAPÉ', () => {
+    // Foi este o defeito relatado: o manual existia, estava publicado, e o dono
+    // do sistema não o encontrou — porque o único link estava no rodapé, que é
+    // onde ninguém olha. "Publicado" não é "encontrável".
+    const landing = ler('screens/Landing.tsx');
+    const rodape = landing.indexOf('<footer');
+    expect(rodape, 'não achei o rodapé da entrada').toBeGreaterThan(-1);
+    const acimaDoRodape = landing
+      .slice(0, rodape)
+      .split('\n').filter((l) => !/^\s*import\b/.test(l)).join('\n')
+      .split('URL_MANUAL').length - 1;
+    expect(
+      acimaDoRodape,
+      'o manual voltou a aparecer só no rodapé da entrada',
+    ).toBeGreaterThanOrEqual(2);
+  });
+
+  it('o convite da entrada diz para que serve, não só o nome', () => {
+    // "Manual" sozinho não convence ninguém a clicar. A frase tem de dizer o
+    // que a pessoa ganha e que não precisa de conta.
+    const landing = ler('screens/Landing.tsx');
+    expect(landing).toContain('Primeira vez aqui?');
+    expect(landing).toContain('sem precisar de conta');
   });
 });
 

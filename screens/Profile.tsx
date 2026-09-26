@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { URL_MANUAL } from '../constants';
 import { useApp } from '../state/AppContext';
 import { profileCompletion, oQueFalta } from '../services/perfil';
 import { connectionsOf, messagesOf } from '../state/appState';
@@ -159,6 +160,14 @@ export function Profile() {
 
       <div className="mt-8 flex flex-wrap gap-2">
         <Button variant="outline" icon="settings" onClick={() => navigate({ name: 'settings' })}>Configurações e privacidade</Button>
+        {/* No celular a barra lateral não existe, e esta tela é o caminho que
+            sobra até o manual. */}
+        <Button
+          variant="outline" icon="compass"
+          onClick={() => window.open(URL_MANUAL, '_blank', 'noopener,noreferrer')}
+        >
+          Manual
+        </Button>
         {/* No celular este é o ÚNICO caminho para os planos — `premium` não
             está na barra de baixo. Escondê-lo de quem assina deixava a pessoa
             sem nenhuma porta para a própria assinatura. */}

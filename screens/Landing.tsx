@@ -34,6 +34,14 @@ export function Landing() {
           <span className="font-display text-xl font-bold tracking-tight">{APP_NAME}</span>
         </div>
         <div className="flex items-center gap-2">
+          {/* O manual fica no TOPO, e não só no rodapé. Quem chega sem conhecer
+              o produto precisa achá-lo sem rolar a página inteira. */}
+          <a
+            href={URL_MANUAL} target="_blank" rel="noopener noreferrer"
+            className="hidden items-center gap-1.5 rounded-2xl px-3 py-2 text-sm font-medium text-muted transition-colors hover:bg-bg hover:text-ink sm:inline-flex"
+          >
+            <Icon name="compass" size={17} /> Manual
+          </a>
           <Button variant="ghost" size="sm" onClick={() => navigate({ name: 'login' })}>Entrar</Button>
           <Button size="sm" onClick={() => navigate({ name: 'signup' })}>Criar minha conta</Button>
         </div>
@@ -62,6 +70,24 @@ export function Landing() {
             <p className="mt-4 text-xs text-muted">
               Grátis para começar. Maiores de 18 anos. Sem cobrança no cadastro.
             </p>
+            {/* O lugar onde está quem ainda não decidiu. Cartão, e não link de
+                rodapé: perguntar "como isto funciona?" é o passo ANTES de
+                criar conta, e quem não acha a resposta fecha a aba. */}
+            <a
+              href={URL_MANUAL} target="_blank" rel="noopener noreferrer"
+              className="mt-6 flex items-start gap-3 rounded-xl3 border border-line bg-surface p-4 transition-colors hover:border-brand hover:bg-brandSoft"
+            >
+              <span className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-full bg-brandSoft text-brand">
+                <Icon name="compass" size={19} />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold">Primeira vez aqui? Leia o manual</span>
+                <span className="mt-0.5 block text-[13px] leading-relaxed text-muted">
+                  Passo a passo de como criar a conta, publicar um trabalho, enviar propostas e
+                  fechar negócio. Abre sem precisar de conta.
+                </span>
+              </span>
+            </a>
           </div>
 
           {/* Um anúncio como ele aparece no quadro. */}

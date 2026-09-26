@@ -6,7 +6,7 @@ import { useApp } from '../../state/AppContext';
 import { connectionsOf, unreadCount } from '../../state/appState';
 import { cx, firstName } from '../../services/utils';
 import { Avatar } from '../Portrait';
-import { APP_NAME } from '../../constants';
+import { APP_NAME , URL_MANUAL } from '../../constants';
 
 // O menu do mercado. As duas telas pessoais — o que publiquei e onde me
 // ofereci — ficam lado a lado de propósito: são os dois papéis que a mesma
@@ -139,6 +139,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <Icon name="shield" size={19} /> Administração
             </button>
           )}
+          {/* O manual é uma PÁGINA, não uma rota — por isso âncora, e não
+              `navigate`. Em aba nova, para não tirar ninguém do meio do que
+              estava fazendo para ler como se faz. */}
+          <a
+            href={URL_MANUAL} target="_blank" rel="noopener noreferrer"
+            className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium text-muted transition-colors hover:bg-bg hover:text-ink"
+          >
+            <Icon name="compass" size={19} /> Manual
+          </a>
           <button
             type="button" onClick={() => navigate({ name: 'settings' })}
             className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium text-muted transition-colors hover:bg-bg hover:text-ink"
