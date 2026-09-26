@@ -68,8 +68,12 @@ function build(s: Spec, daysAgo: number): User {
     role: s.role ?? 'user',
     status: s.status ?? 'ativo',
     consents: [
+      // Os quatro, iguais aos que o cadastro real grava. `diretrizes` faltava
+      // aqui, e ninguém percebeu enquanto nada dependia disso — até a tela de
+      // reaceite aparecer para todo usuário de demonstração, para sempre.
       { kind: 'termos', version: POLICY_VERSION, acceptedAt: created },
       { kind: 'privacidade', version: POLICY_VERSION, acceptedAt: created },
+      { kind: 'diretrizes', version: POLICY_VERSION, acceptedAt: created },
       { kind: 'maioridade', version: POLICY_VERSION, acceptedAt: created },
     ],
     createdAt: created,

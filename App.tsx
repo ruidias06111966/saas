@@ -24,6 +24,8 @@ import { Premium } from './screens/Premium';
 import { Settings } from './screens/Settings';
 import { Notifications } from './screens/Notifications';
 import { Admin } from './screens/Admin';
+import { ReaceitarPoliticas } from './screens/ReaceitarPoliticas';
+import { precisaReaceitar } from './services/politicas';
 
 function Router() {
   const { route } = useApp();
@@ -70,7 +72,7 @@ function Booting() {
 }
 
 function Chrome() {
-  const { booting, pendingAccount } = useApp();
+  const { booting, pendingAccount, me } = useApp();
   if (booting) return <Booting />;
   // Sessão válida sem perfil: o cadastro ficou pela metade porque a confirmação
   // de e-mail acontece depois. Não há para onde navegar antes de completá-lo —
@@ -83,6 +85,20 @@ function Chrome() {
       </>
     );
   }
+  // As políticas mudaram desde o aceite desta pessoa. Bloqueia ANTES do
+  // AppShell de propósito: um pedido de consentimento que dá para fechar e
+  // seguir usando não é pedido de consentimento. A tela tem saída própria —
+  // sair, baixar os dados, excluir a conta —, porque consentimento obtido sem
+  // saída é consentimento coagido, e a LGPD exige que seja livre.
+  if (precisaReaceitar(me)) {
+    return (
+      <>
+        <ReaceitarPoliticas />
+        <Toasts />
+      </>
+    );
+  }
+
   return (
     <>
       <AppShell><Router /></AppShell>
