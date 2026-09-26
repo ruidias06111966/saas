@@ -482,6 +482,30 @@ export async function saveUser(u: User): Promise<void> {
   if (error) throw new Error(`Falha ao salvar o perfil: ${error.message}`);
 }
 
+/**
+ * Registra consentimentos. O que já estiver lá é DEIXADO EM PAZ.
+ *
+ * `ignoreDuplicates: true` faz `insert ... on conflict do nothing`, e isso
+ * resolve duas coisas de uma vez.
+ *
+ * A PRIMEIRA É UM BUG MEDIDO. A tabela `consents` tem política de INSERT e não
+ * tem de UPDATE. O `upsert` de antes era `on conflict do UPDATE`, e o ramo do
+ * conflito era recusado pelo RLS com 42501:
+ *
+ *     versão nova (sem conflito) ...... funcionava
+ *     versão já aceita (com conflito) . RECUSADA, 42501
+ *
+ * A tela de reaceite nunca chega lá, porque só envia o que está pendente. O
+ * CADASTRO chega: `Signup` grava os quatro de uma vez, e há dois caminhos que
+ * podem rodar isso duas vezes para a mesma conta — a retomada automática e o
+ * botão de concluir. Na segunda vez o cadastro morria com "Falha ao registrar
+ * consentimentos", com a conta já criada e o perfil pela metade.
+ *
+ * A SEGUNDA é que regravar estaria errado de qualquer forma. Consentimento é
+ * um FATO HISTÓRICO: o que vale é quando a pessoa aceitou pela primeira vez
+ * aquela versão. `do update set accepted_at = now()` apagaria justamente a
+ * informação que dá valor ao registro.
+ */
 export async function saveConsents(userId: string, consents: Consent[]): Promise<void> {
   if (!consents.length) return;
   const db = requireSupabase();
@@ -489,7 +513,7 @@ export async function saveConsents(userId: string, consents: Consent[]): Promise
     consents.map((c) => ({
       user_id: userId, kind: c.kind, version: c.version, accepted_at: c.acceptedAt,
     })),
-    { onConflict: 'user_id,kind,version' },
+    { onConflict: 'user_id,kind,version', ignoreDuplicates: true },
   );
   if (error) throw new Error(`Falha ao registrar consentimentos: ${error.message}`);
 }
