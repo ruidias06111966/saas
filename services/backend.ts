@@ -22,7 +22,21 @@ import { dateKey } from './utils';
 export const pairOrder = (x: string, y: string): [string, string] =>
   x < y ? [x, y] : [y, x];
 
-/** As colunas de perfil que valem para os dois caminhos de leitura. */
+/**
+ * As colunas de perfil que valem para os dois caminhos de leitura.
+ *
+ * ⚠️  UMA LISTA, DUAS FONTES — e foi exatamente isso que derrubou o app em
+ * 25/09/2026. Estas colunas são pedidas tanto à TABELA `public.users` quanto à
+ * VIEW `perfis_do_mercado`. A migração 012 recriou a view e deixou de fora
+ * `bio`, `extra_photos` e `plan`, que continuavam nesta lista. O PostgREST
+ * respondeu `42703 — column "bio" does not exist`, `loadSnapshot` levantou
+ * exceção, e o app parou de abrir. Para todo mundo.
+ *
+ * O compilador não pega isso: é uma string que só o servidor interpreta. Quem
+ * pega é `tests/colunas-do-cracha.test.ts`, que compara esta lista com a
+ * definição da view no arquivo de migração. Se você acrescentar uma coluna
+ * aqui, acrescente na view — ou o teste quebra antes do deploy.
+ */
 const CAMPOS_COMUNS = `
   city, state, photo_url, extra_photos, profession, bio,
   verified, reputation, plan, atende_remoto, anos_experiencia

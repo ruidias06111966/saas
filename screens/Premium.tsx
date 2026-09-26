@@ -1,22 +1,56 @@
 import { useEffect, useState } from 'react';
-import { APP_NAME, QUOTAS } from '../constants';
+import { PRECO_PREMIUM, QUOTAS, quantidade } from '../constants';
 import { AvisoDeCortesia } from '../components/AvisoDeCortesia';
 import { useApp } from '../state/AppContext';
 import { Page } from '../components/layout/AppShell';
-import { Banner, Button, Card, Icon } from '../components/ui';
+import { Banner, Button, Card, Icon, SectionTitle } from '../components/ui';
 import { supabaseEnabled } from '../services/supabaseClient';
 import { openBillingPortal, startCheckout } from '../services/billing';
 import { uid } from '../services/utils';
 
-const FEATURES: { label: string; free: string; premium: string }[] = [
-  { label: 'Publicar anúncios', free: 'Ilimitado', premium: 'Ilimitado' },
-  { label: 'Enviar propostas', free: 'Ilimitado', premium: 'Ilimitado' },
-  { label: 'Pedidos de conversa por dia', free: String(QUOTAS.free.dailyContatos), premium: String(QUOTAS.premium.dailyContatos) },
-  { label: 'Sugestões do Copiloto por dia', free: String(QUOTAS.free.dailyAiCalls), premium: String(QUOTAS.premium.dailyAiCalls) },
-  { label: 'Áreas de atuação no perfil', free: 'Até 5', premium: 'Até 5' },
-  { label: 'Filtros avançados na busca de profissionais', free: '—', premium: 'Sim' },
-  { label: 'Selo de verificado', free: 'Mediante análise', premium: 'Mediante análise' },
-  { label: 'Bloquear, denunciar e moderação', free: 'Sim', premium: 'Sim' },
+// ---------------------------------------------------------------------------
+// Os planos.
+//
+// Reescrita em 25/09/2026 porque a versão anterior confundia — e confundir na
+// página de preço é o pior lugar para confundir. Ela listava oito linhas, das
+// quais seis eram iguais nos dois planos, e a diferença real ficava perdida no
+// meio.
+//
+// Agora a tela diz UMA COISA: o que muda é quantas propostas você pode enviar
+// por mês. O resto é igual, e está dito de uma vez, no fim, em uma frase.
+// ---------------------------------------------------------------------------
+
+/** A única diferença que importa. Tudo o mais é igual e não vai para a tabela. */
+const A_DIFERENCA = [
+  {
+    label: 'Enviar propostas',
+    free: `${quantidade(QUOTAS.free.propostasPorMes)} por mês`,
+    premium: 'Ilimitado',
+    porque: 'É o que separa os planos. As três grátis existem para você fechar um trabalho antes de assinar.',
+  },
+  {
+    label: 'Filtros avançados na busca de profissionais',
+    free: '—',
+    premium: 'Sim',
+    porque: 'Refinar a busca por área, cidade e atendimento ao mesmo tempo.',
+  },
+  {
+    label: 'Sugestões do Copiloto por dia',
+    free: quantidade(QUOTAS.free.dailyAiCalls),
+    premium: quantidade(QUOTAS.premium.dailyAiCalls),
+    porque: 'A ajuda para escrever proposta, perfil e mensagem.',
+  },
+];
+
+/** O que é igual nos dois. Fica fora da tabela de propósito. */
+const IGUAL_NOS_DOIS = [
+  'Publicar anúncios, sem limite nenhum',
+  'Ver todos os anúncios abertos',
+  'Ver o perfil de qualquer profissional',
+  'Conversar com quem aceitou falar com você',
+  'Receber propostas nos seus anúncios, e aceitar ou recusar',
+  'Ver o telefone do outro lado quando uma proposta é aceita',
+  'Selo de verificado, bloqueio, denúncia e moderação',
 ];
 
 export function Premium() {
@@ -79,56 +113,64 @@ export function Premium() {
   };
 
   return (
-    <Page title={`${APP_NAME} Premium`} back={back} subtitle="Mais alcance e mais ferramentas — sem mudar as regras do jogo para quem é gratuito.">
+    <Page
+      title="Planos"
+      back={back}
+      subtitle="Publicar anúncio é de graça, sempre. O que se paga é enviar proposta sem limite."
+      maxWidth="max-w-3xl"
+    >
       {/* Antes de qualquer coisa sobre pagar: quem já tem de graça precisa
           saber disso primeiro. Oferecer assinatura a quem está no meio da
           cortesia é o caminho mais curto para a pessoa achar que foi cobrada
           duas vezes. */}
       <AvisoDeCortesia compacto />
 
-      {!supabaseEnabled ? (
-        <Banner tone="info" icon="info" title="Modo demonstração: nada é cobrado">
-          Aqui o botão só troca o plano na tela. No modo online a cobrança é real, pelo Stripe.
-        </Banner>
-      ) : semCobranca ? (
-        <Banner tone="warn" icon="info" title="A cobrança ainda não foi ligada neste projeto">
-          O código está pronto; falta configurar a chave do provedor de pagamento nos segredos do
-          servidor. Enquanto isso, nada é cobrado e nada muda de plano.
-        </Banner>
-      ) : (
-        <Banner tone="info" icon="shield" title="O pagamento acontece no Stripe">
-          Seus dados de cartão não passam por este aplicativo em momento nenhum. O plano só muda
-          depois que o Stripe confirma o pagamento direto com o nosso servidor.
-        </Banner>
-      )}
+      {/* A regra do produto, dita em uma frase antes de qualquer tabela. */}
+      <Card className="mt-4 border-brand/30 p-5">
+        <p className="font-display text-lg font-semibold">Como funciona, em uma frase</p>
+        <p className="mt-2 text-[15px] leading-relaxed">
+          Quem <strong>precisa de um serviço</strong> nunca paga nada: publicar anúncio, receber
+          propostas e escolher são de graça, para sempre. Quem <strong>oferece serviço</strong> envia{' '}
+          <strong>{quantidade(QUOTAS.free.propostasPorMes)} propostas por mês</strong> de graça — e
+          assina só quando quiser enviar mais.
+        </p>
+      </Card>
 
-      <div className="mt-6 grid gap-4 lg:grid-cols-2">
-        <Card className={`p-6 ${!isPremium ? 'border-brand/40' : ''}`}>
+      <div className="mt-5 grid gap-4 sm:grid-cols-2">
+        <Card className={`p-6 ${!isPremium ? 'border-brand/50' : ''}`}>
           <h2 className="font-display text-xl font-bold">Gratuito</h2>
-          <p className="mt-1 text-sm text-muted">Tudo que é preciso para anunciar e ser encontrado.</p>
-          <p className="mt-4 font-display text-3xl font-bold">R$ 0</p>
-          <ul className="mt-4 space-y-2 text-[13px]">
-            {['Perfil profissional completo', 'Publicar anúncios sem limite', 'Enviar propostas sem limite', `${QUOTAS.free.dailyContatos} pedidos de conversa por dia`, 'Termômetro da conversa', 'Bloqueio, denúncia e verificação'].map((t) => (
-              <li key={t} className="flex gap-2"><Icon name="check" size={15} className="mt-0.5 shrink-0 text-sage" />{t}</li>
-            ))}
-          </ul>
-          {!isPremium && <p className="mt-5 text-center text-[13px] font-semibold text-brand">Seu plano atual</p>}
+          <p className="mt-3 font-display text-3xl font-bold">R$ 0</p>
+          <p className="mt-1 text-[13px] text-muted">para sempre</p>
+          <p className="mt-4 text-[15px] font-semibold text-brand">
+            {quantidade(QUOTAS.free.propostasPorMes)} propostas por mês
+          </p>
+          <p className="mt-1 text-[13px] leading-relaxed text-muted">
+            Tudo o mais funciona igual. Se você só publica anúncios e contrata, este plano basta —
+            não há nada que você precise pagar.
+          </p>
+          {!isPremium && (
+            <p className="mt-5 rounded-2xl bg-brandSoft/60 p-2.5 text-center text-[13px] font-semibold text-brand">
+              Seu plano atual
+            </p>
+          )}
         </Card>
 
         <Card className={`relative overflow-hidden p-6 ${isPremium ? 'border-ember/50' : ''}`}>
           <div className="absolute right-0 top-0 rounded-bl-2xl bg-gradient-to-r from-brand to-ember px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-white">
-            Recomendado
+            Para quem vive disso
           </div>
           <h2 className="flex items-center gap-2 font-display text-xl font-bold">
             <Icon name="crown" size={20} className="text-ember" /> Premium
           </h2>
-          <p className="mt-1 text-sm text-muted">Para quem vive disso e precisa de alcance maior.</p>
-          <p className="mt-4 font-display text-3xl font-bold">R$ 29,90<span className="text-base font-medium text-muted">/mês</span></p>
-          <ul className="mt-4 space-y-2 text-[13px]">
-            {[`${QUOTAS.premium.dailyContatos} pedidos de conversa por dia`, 'Filtros avançados na busca de profissionais', 'Copiloto sem limite prático', 'Prioridade no atendimento'].map((t) => (
-              <li key={t} className="flex gap-2"><Icon name="check" size={15} className="mt-0.5 shrink-0 text-ember" />{t}</li>
-            ))}
-          </ul>
+          <p className="mt-3 font-display text-3xl font-bold">
+            {PRECO_PREMIUM}<span className="text-base font-medium text-muted">/mês</span>
+          </p>
+          <p className="mt-1 text-[13px] text-muted">cancela quando quiser</p>
+          <p className="mt-4 text-[15px] font-semibold text-ember">Propostas ilimitadas</p>
+          <p className="mt-1 text-[13px] leading-relaxed text-muted">
+            Faz sentido a partir do momento em que um trabalho fechado paga vários meses. Antes
+            disso, fique no gratuito.
+          </p>
           <Button
             full className="mt-5" loading={ocupado}
             variant={isPremium ? 'outline' : 'primary'} onClick={() => void subscribe()}
@@ -143,30 +185,72 @@ export function Premium() {
         </Card>
       </div>
 
-      <Card className="mt-6 overflow-hidden">
-        <table className="w-full text-[13px]">
-          <thead className="bg-bg text-left">
-            <tr>
-              <th className="p-3 font-semibold">Recurso</th>
-              <th className="p-3 font-semibold">Gratuito</th>
-              <th className="p-3 font-semibold">Premium</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-line">
-            {FEATURES.map((f) => (
-              <tr key={f.label}>
-                <td className="p-3">{f.label}</td>
-                <td className="p-3 text-muted">{f.free}</td>
-                <td className="p-3 font-medium text-ember">{f.premium}</td>
+      <section className="mt-7">
+        <SectionTitle hint="Só três linhas, porque só três coisas mudam.">
+          O que muda entre um e outro
+        </SectionTitle>
+        <Card className="overflow-hidden">
+          <table className="w-full text-[13px]">
+            <thead className="bg-bg text-left">
+              <tr>
+                <th className="p-3 font-semibold">O quê</th>
+                <th className="p-3 font-semibold">Gratuito</th>
+                <th className="p-3 font-semibold">Premium</th>
               </tr>
+            </thead>
+            <tbody className="divide-y divide-line">
+              {A_DIFERENCA.map((f) => (
+                <tr key={f.label}>
+                  <td className="p-3">
+                    {f.label}
+                    <span className="mt-0.5 block text-[11px] leading-relaxed text-muted">{f.porque}</span>
+                  </td>
+                  <td className="p-3 align-top text-muted">{f.free}</td>
+                  <td className="p-3 align-top font-semibold text-ember">{f.premium}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Card>
+      </section>
+
+      <section className="mt-7">
+        <SectionTitle hint="Não está na tabela acima porque não muda de plano para plano.">
+          Igual nos dois planos
+        </SectionTitle>
+        <Card className="p-5">
+          <ul className="grid gap-2 text-[13px] sm:grid-cols-2">
+            {IGUAL_NOS_DOIS.map((t) => (
+              <li key={t} className="flex gap-2">
+                <Icon name="check" size={15} className="mt-0.5 shrink-0 text-sage" />{t}
+              </li>
             ))}
-          </tbody>
-        </table>
-      </Card>
+          </ul>
+        </Card>
+      </section>
+
+      <div className="mt-6">
+        {!supabaseEnabled ? (
+          <Banner tone="info" icon="info" title="Modo demonstração: nada é cobrado">
+            Aqui o botão só troca o plano na tela. No modo online a cobrança é real, pelo Stripe.
+          </Banner>
+        ) : semCobranca ? (
+          <Banner tone="warn" icon="info" title="A cobrança ainda não foi ligada neste projeto">
+            O código está pronto; falta configurar a chave do provedor de pagamento nos segredos do
+            servidor. Enquanto isso, nada é cobrado e nada muda de plano.
+          </Banner>
+        ) : (
+          <Banner tone="info" icon="shield" title="O pagamento acontece no Stripe">
+            Seus dados de cartão não passam por este aplicativo em momento nenhum. O plano só muda
+            depois que o Stripe confirma o pagamento direto com o nosso servidor.
+          </Banner>
+        )}
+      </div>
 
       <p className="mt-5 text-xs leading-relaxed text-muted">
-        Segurança, verificação, moderação e os direitos de LGPD nunca ficam atrás do paywall.
-        Um app de relacionamento que cobra por proteção está cobrando pela coisa errada.
+        Segurança, verificação, moderação e os direitos de LGPD nunca ficam atrás do pagamento.
+        Um aplicativo que cobra por proteção está cobrando pela coisa errada. E o limite de
+        propostas é cobrado pelo servidor, não pela tela — a conta é a mesma para todo mundo.
       </p>
     </Page>
   );

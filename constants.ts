@@ -52,23 +52,52 @@ export const REPORT_REASON_LABEL: Record<string, string> = {
 };
 
 /**
- * Cotas do plano gratuito x premium.
+ * O QUE CADA PLANO DÁ.
  *
- * Saíram `discoverCards` e `seeWhoLiked`: um contava cartas de uma curadoria
- * diária que não existe mais, o outro vendia "veja quem curtiu você". O que
- * sobra é o que faz sentido num mercado — quantas pessoas você aborda por dia.
+ * O modelo decidido em 25/09/2026, e a razão de ser dele:
+ *
+ *   PUBLICAR ANÚNCIO É DE GRAÇA, SEMPRE, PARA TODO MUNDO.
+ *
+ * Não é generosidade: é a economia de qualquer marketplace. Cobra-se do lado
+ * ABUNDANTE e subsidia-se o lado ESCASSO. Em Brasília, na contabilidade e nas
+ * licenças, há muito mais contador procurando cliente do que empresa
+ * procurando contador. Quem publica traz o combustível — cobrar dele é apagar
+ * o fogo e depois reclamar do frio.
+ *
+ * Quem paga é o profissional, e só quando já tirou valor: as três propostas
+ * gratuitas por mês existem para ele fechar uma antes de assinar. Não se vende
+ * acesso a uma sala vazia.
+ *
+ * O LIMITE DE VERDADE ESTÁ NO BANCO, não aqui. O gatilho
+ * `private.cota_de_propostas` recusa a quarta proposta do mês de quem está no
+ * gratuito (migração 016). Estes números servem para a tela avisar ANTES, e
+ * têm de bater com os de lá.
  */
 export interface PlanQuota {
-  /** Quantos pedidos de conversa por dia. */
-  dailyContatos: number;
+  /** Propostas por MÊS. É a única cota que separa os planos de verdade. */
+  propostasPorMes: number;
+  /**
+   * Pedidos de conversa por dia. NÃO é monetização — é anti-spam, e por isso
+   * os dois planos têm um número generoso. Quem dispara mensagem para todo
+   * mundo não fecha negócio com ninguém.
+   */
+  conversasPorDia: number;
+  /** Sugestões do Copiloto por dia. */
   dailyAiCalls: number;
-  advancedFilters: boolean;
+  /** Filtros avançados na busca por profissionais. */
+  filtrosAvancados: boolean;
 }
 
+/** Quanto custa o Premium. Tem de bater com o preço cadastrado no Stripe. */
+export const PRECO_PREMIUM = 'R$ 39,90';
+
 export const QUOTAS: Record<'free' | 'premium', PlanQuota> = {
-  free:    { dailyContatos: 6,  dailyAiCalls: 8,   advancedFilters: false },
-  premium: { dailyContatos: 40, dailyAiCalls: 100, advancedFilters: true },
+  free:    { propostasPorMes: 3,        conversasPorDia: 10, dailyAiCalls: 8,   filtrosAvancados: false },
+  premium: { propostasPorMes: Infinity, conversasPorDia: 40, dailyAiCalls: 100, filtrosAvancados: true },
 };
+
+/** "3" ou "Ilimitado" — o `Infinity` nunca chega cru a uma tela. */
+export const quantidade = (n: number): string => (Number.isFinite(n) ? String(n) : 'Ilimitado');
 
 /**
  * Os degraus de uma conversa, do primeiro "bom dia" ao acordo.
