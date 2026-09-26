@@ -1,5 +1,6 @@
 import { requireSupabase, supabaseEnabled } from './supabaseClient';
 import { readImageAsDataUrl } from './storage';
+import { reportarErro } from './monitoring';
 
 // ---------------------------------------------------------------------------
 // Imagens de perfil.
@@ -179,14 +180,22 @@ export async function resolveImage(caminho?: string): Promise<string | undefined
 
 /**
  * Apaga a imagem. Continua pedindo os CINCO nomes de propósito: as fotos
- * enviadas antes desta mudança têm os quatro borrões guardados, e só este
- * caminho os apaga. Pedir um nome que não existe é um no-op no Storage, então
- * a foto nova (que tem só o original) não paga nada por isso.
+ * enviadas antes da mudança que tirou a `velar` têm os quatro borrões
+ * guardados, e só este caminho os apaga. Pedir um nome que não existe é um
+ * no-op no Storage, então a foto nova (que tem só o original) não paga nada.
+ *
+ * NÃO LANÇA, MAS TAMBÉM NÃO CALA. Quem chama isto está apagando a foto
+ * ANTERIOR depois de a nova já estar salva — falhar aqui não pode derrubar um
+ * perfil que já foi gravado com sucesso. Mas o erro engolido era como as fotos
+ * órfãs se acumulavam sem ninguém saber: seis delas ficaram no bucket sem
+ * nenhum perfil apontando para lá. Agora a falha é absorvida para a pessoa e
+ * reportada para nós.
  */
 export async function removeImage(caminho?: string): Promise<void> {
   if (!caminho || !supabaseEnabled || caminho.startsWith('data:')) return;
   const alvos = caminho.endsWith('.jpg')
     ? [caminho]
     : [0, 1, 2, 3, NIVEL_ORIGINAL].map((n) => `${caminho}-${sufixo(n)}.jpg`);
-  await requireSupabase().storage.from(BUCKET).remove(alvos);
+  const { error } = await requireSupabase().storage.from(BUCKET).remove(alvos);
+  if (error) reportarErro(error, `media.removeImage(${caminho})`);
 }
