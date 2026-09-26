@@ -32,10 +32,10 @@ import { readImageAsDataUrl } from './storage';
 // `private.perfil_visivel`, a MESMA função que decide quem aparece em
 // `perfis_do_mercado`. Não é uma regra parecida — é a mesma, de propósito.
 //
-// A pirâmide ainda é gerada no envio, pela Edge Function `velar`, e ninguém
-// mais a lê. É peso morto: cinco arquivos onde um bastaria, e um envio que
-// falha inteiro se `velar` falhar. Tirar isso mexe no caminho de ENVIO, que é
-// o mais arriscado deste arquivo, então fica para uma mudança própria.
+// A PIRÂMIDE ACABOU DE VEZ. O envio grava um arquivo só, o original, e não
+// chama mais `velar`. Antes eram cinco arquivos por foto, e o envio morria
+// inteiro se a geração dos borrões falhasse — um passo que, sem véu, não
+// protegia mais nada.
 //
 // Modo demo (sem backend) guarda um dataURL só, como sempre guardou.
 // ---------------------------------------------------------------------------
@@ -46,10 +46,15 @@ const URL_TTL_SEGUNDOS = 60 * 60;
 /** O nível 4 é o original; 0..3 são os velados que o servidor gera. */
 export const NIVEL_ORIGINAL = 4;
 
-// A pirâmide continua sendo gerada no envio — ver o cabeçalho. Ninguém mais a
-// lê: desde a 019 o original passa para todo mundo que o crachá já mostra.
+// O nível existe só para MONTAR O NOME do arquivo. Nada mais é gerado: desde
+// a 019 o original passa para todo mundo que o crachá já mostra, e desde que
+// `uploadProfilePhoto` parou de chamar `velar` nenhum arquivo borrado nasce.
 
-const sufixo = (nivel: number) => (nivel >= NIVEL_ORIGINAL ? 'orig' : String(nivel));
+// Exportado para que um teste possa cruzar o nome que o cliente monta com a
+// REGEX que a política do Storage exige (`docs/SUPABASE.sql`). Foi assim que o
+// cliente e o banco discordaram em silêncio na 019; aqui a discordância cai
+// num teste em vez de virar foto borrada.
+export const sufixo = (nivel: number) => (nivel >= NIVEL_ORIGINAL ? 'orig' : String(nivel));
 
 function carregar(file: File): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -84,18 +89,23 @@ function renderizar(img: HTMLImageElement, larguraAlvo: number, qualidade: numbe
 }
 
 /**
- * Sobe a foto de perfil e devolve o caminho-base, sem extensão. O nível concreto
- * é escolhido na leitura, conforme o que o banco autorizar.
+ * Sobe a foto de perfil e devolve o caminho-base, sem extensão.
  *
- * O navegador entrega SÓ o original. Os níveis velados são gerados pela Edge
- * Function `velar`, com service_role — e a política do Storage recusa qualquer
- * escrita do cliente em `-0..3.jpg`. Antes a pirâmide era feita aqui, o que
- * deixava quem sobe escolher o conteúdo do próprio borrão e se revelar mais
- * cedo do que a conversa merecia.
+ * UM ARQUIVO, E SÓ UM. Até aqui, depois de gravar o original, isto chamava a
+ * Edge Function `velar` para gerar quatro versões borradas — e, se ela
+ * falhasse, APAGAVA o original e recusava o envio inteiro.
  *
- * Se a geração falhar, o original é apagado e o erro sobe. É de propósito:
- * meio caminho aqui significaria um retrato sem véu para quem ainda não tem
- * direito a ele, e é melhor não ter foto do que ter a foto errada.
+ * Fazia sentido enquanto o véu existia: meio caminho seria um retrato sem véu
+ * para quem ainda não tinha direito a ele. Depois da migração 019 não existe
+ * mais véu, ninguém lê aqueles arquivos, e a regra passou a custar sem
+ * proteger: quatro arquivos inúteis por foto, e um envio que morria inteiro
+ * por causa de um passo que não servia para nada.
+ *
+ * A política do Storage continua sendo o portão, e não mudou: o dono só
+ * consegue escrever `-orig.jpg`. Nunca pôde escrever os níveis borrados.
+ *
+ * A função `velar` segue publicada e sem ninguém a chamar. Não é risco: ela
+ * exige sessão válida e recusa gerar borrão fora da pasta de quem chama.
  */
 export async function uploadProfilePhoto(file: File, userId: string): Promise<string> {
   if (!supabaseEnabled) return readImageAsDataUrl(file, 720);
@@ -111,11 +121,6 @@ export async function uploadProfilePhoto(file: File, userId: string): Promise<st
   });
   if (error) throw new Error(`Falha ao enviar a imagem: ${error.message}`);
 
-  const { data, error: erroVeu } = await db.functions.invoke('velar', { body: { base } });
-  if (erroVeu || !(data as { ok?: boolean } | null)?.ok) {
-    await db.storage.from(BUCKET).remove([caminhoOriginal]);
-    throw new Error('Não foi possível preparar o véu da sua foto. Tente de novo.');
-  }
   return base;
 }
 
@@ -172,6 +177,12 @@ export async function resolveImage(caminho?: string): Promise<string | undefined
   return undefined;
 }
 
+/**
+ * Apaga a imagem. Continua pedindo os CINCO nomes de propósito: as fotos
+ * enviadas antes desta mudança têm os quatro borrões guardados, e só este
+ * caminho os apaga. Pedir um nome que não existe é um no-op no Storage, então
+ * a foto nova (que tem só o original) não paga nada por isso.
+ */
 export async function removeImage(caminho?: string): Promise<void> {
   if (!caminho || !supabaseEnabled || caminho.startsWith('data:')) return;
   const alvos = caminho.endsWith('.jpg')

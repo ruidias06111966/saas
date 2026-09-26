@@ -32,17 +32,22 @@ screens/            15 telas
 
 ## Os três mecanismos
 
-### 1. Revelação Progressiva
+### 1. Revelação Progressiva — ACABOU (migrações 019 e o envio de foto)
 
-**O Véu é controle de acesso, não efeito visual.** Cada foto de perfil é guardada como
-uma pirâmide de resoluções — 12, 24, 48, 96 px e a original — e o banco decide qual
-nível você pode baixar, a partir do estágio real da conversa entre vocês
-(`private.nivel_permitido`, aplicada como policy no `storage.objects`).
+> **Esta seção descreve um mecanismo que não existe mais.** Está mantida porque
+> explica por que a política de escrita do Storage é como é, e porque a armadilha
+> que ela armou vale ser lembrada. O que vale hoje está em *Como a foto funciona
+> agora*, logo abaixo.
+
+**O Véu era controle de acesso, não efeito visual.** Cada foto de perfil era guardada como
+uma pirâmide de resoluções — 12, 24, 48, 96 px e a original — e o banco decidia qual
+nível você podia baixar, a partir do estágio real da conversa entre vocês
+(`private.nivel_permitido`, aplicada como policy no `storage.objects`). As duas funções
+do véu — `nivel_permitido` e `nivel_do_arquivo` — foram REMOVIDAS na migração 019.
 
 Resolução em vez de desfoque foi escolha deliberada: um arquivo de 12 px **não tem
 detalhe a recuperar**, enquanto um JPEG desfocado ainda carrega mais informação do que
-parece. `Portrait` continua aplicando `blur((1 - reveal) * 26)px`, mas agora isso é só
-suavização por cima de uma imagem que já não contém o rosto.
+parece.
 
 Consequência importante: **o termômetro precisou existir no banco**. `private.termometro`
 espelha `services/conversation.ts` — as duas foram comparadas com a mesma conversa
@@ -61,6 +66,31 @@ fictícios, e manter a descoberta legível mesmo com perfis sem foto.
 **Revelação consensual:** `connection.revealConsent` é um mapa `{ userId: boolean }`. Só
 vale quando os dois lados estão marcados. Um lado sozinho vê "aguardando o aceite".
 Nunca há revelação unilateral.
+
+### Como a foto funciona agora
+
+**A foto é credencial, não recompensa.** Num mercado de serviços, quem contrata precisa
+ver com quem está lidando ANTES de decidir. A regra da foto é a MESMA do crachá, de
+propósito e não por parecença: a policy de leitura do `storage.objects` chama
+`private.perfil_visivel`, a mesma função que decide quem aparece em `perfis_do_mercado`.
+Duas regras parecidas é como elas divergem.
+
+O envio grava **um arquivo, o original**. Não há mais pirâmide: a Edge Function `velar`
+segue publicada e sem nenhum chamador. A política de escrita não mudou nem precisou
+mudar — o dono sempre só pôde escrever `-orig.jpg`; os níveis borrados só nasciam pela
+chave de serviço, dentro da `velar`.
+
+Duas cicatrizes que vale carregar:
+
+- **O pivô chegou ao cliente e não ao banco.** `resolveImage` passou a pedir o original
+  no dia do pivô; a policy continuou liberando só o nível 0 para quem não fosse dono.
+  Não houve erro nenhum — apareceu a foto borrada de todo profissional, para todo mundo,
+  por meses. Não foi visto porque existia UMA conta no sistema: ninguém nunca tinha
+  aberto o perfil de outra pessoa.
+- **A degradação graciosa esconde a falha.** `resolveImage` desce nível a nível até algo
+  passar, transformando "o banco me negou" em "achei uma versão pior". É a mesma armadilha
+  do bug de `grant` descrito mais abaixo. A descida continua lá como rede de segurança
+  para as fotos antigas, e continua sendo o lugar onde um sintoma vai sumir.
 
 ### 2. Curadoria Diária
 
@@ -265,6 +295,9 @@ cada 2 segundos e o indicador some sozinho em 4.
 
 ### Um bug que só apareceu quando o véu foi testado de ponta a ponta
 
+*(História. As duas funções citadas aqui saíram na migração 019 — a lição sobre
+degradação graciosa é que continua valendo, e voltou a valer na própria 019.)*
+
 `private.nivel_do_arquivo()` tinha `revoke execute ... from public, anon` e **nenhum
 `grant` para `authenticated`**. A policy de leitura avalia
 `nivel_do_arquivo(name) <= nivel_permitido(dono)`, e o operando da esquerda vem
@@ -322,7 +355,9 @@ existe.
   deixa alguém tentando de novo do mesmo jeito.
 
 Administrador passa a ver o original de qualquer retrato, porque a comparação exige. É
-poder real, declarado em `nivel_permitido()`.
+poder real, e desde a migração 019 está declarado onde se lê: a chamada a
+`private.is_admin()` dentro da policy "foto de perfil segue o crachá". Antes vinha
+embutido em `nivel_permitido()`, que não existe mais.
 
 ### Cadastro com confirmação de e-mail
 
