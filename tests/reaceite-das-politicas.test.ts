@@ -193,3 +193,45 @@ describe('o bloqueio não pode disparar para quem acabou de entrar', () => {
     expect(iGrava).toBeLessThan(iRecarrega);
   });
 });
+
+describe('gravar consentimento não pode quebrar na segunda vez', () => {
+  // MEDIDO CONTRA O BANCO DE PRODUÇÃO, não deduzido:
+  //
+  //     versão nova (sem conflito) ...... funcionava
+  //     versão já aceita (com conflito) . RECUSADA, 42501
+  //
+  // `consents` tem política de INSERT e não tem de UPDATE. O `upsert` era
+  // `on conflict do UPDATE`, e o ramo do conflito batia no RLS.
+  //
+  // A tela de reaceite nunca chega lá, porque só envia o que está pendente. O
+  // CADASTRO chega: `Signup` grava os quatro de uma vez, e tem dois caminhos
+  // que podem rodar isso duas vezes para a mesma conta — a retomada
+  // automática e o botão de concluir. Na segunda vez o cadastro morria com a
+  // conta já criada e o perfil pela metade.
+
+  const backend = readFileSync(
+    new URL('../services/backend.ts', import.meta.url), 'utf8');
+  const saveConsents = backend.slice(
+    backend.indexOf('export async function saveConsents'),
+    backend.indexOf('export async function saveConnection'));
+
+  it('grava ignorando o que já existe, em vez de sobrescrever', () => {
+    expect(saveConsents).toContain('ignoreDuplicates: true');
+  });
+
+  it('continua declarando a chave do conflito', () => {
+    // Sem `onConflict` o PostgREST usa a chave primária (`id`), que é sempre
+    // nova — e aí cada tentativa criaria uma linha duplicada em vez de não
+    // fazer nada.
+    expect(saveConsents).toContain("onConflict: 'user_id,kind,version'");
+  });
+
+  it('o cadastro grava os consentimentos por esta função', () => {
+    // Se algum dia o Signup passar a gravar direto, sai de baixo desta
+    // proteção sem ninguém perceber.
+    const signup = readFileSync(
+      new URL('../screens/Signup.tsx', import.meta.url), 'utf8');
+    expect(signup).toContain('backend.saveConsents');
+    expect(signup).not.toMatch(/from\('consents'\)/);
+  });
+});
