@@ -54,12 +54,20 @@ já aplicada é escrever a próxima.
 | `016_a_cota_de_propostas.sql` | ✅ | 3 propostas/mês no plano gratuito. |
 | `017_o_nome_certo_da_cota_diaria.sql` | ✅ | `daily_usage.contatos` nasce ao lado de `interests`, espelhadas por gatilho. |
 | `018_a_coluna_do_nome_antigo_sai.sql` | ❌ **não** | **Só depois** de o cliente que usa `contatos` estar no ar, com folga para as abas antigas. |
+| `019_a_foto_deixa_de_ser_recompensa.sql` | ✅ | A foto de perfil seguia o Véu do app de namoro e chegava BORRADA a todo mundo. Passa a seguir a mesma regra do crachá. |
 
 ### O que a lista ensina
 
-Cinco das dezoito são correção de outra da mesma lista — 010, 011 e 014/015. Em
-todas, o SQL foi conferido e passou; o que não foi conferido é se a CONSULTA QUE
-O CLIENTE FAZ continuava de pé. Duas delas derrubaram produção.
+Cinco das dezenove são correção de outra da mesma lista — 010, 011, 014/015 e
+019. Em todas, o SQL foi conferido e passou; o que não foi conferido é se a
+CONSULTA QUE O CLIENTE FAZ continuava de pé. Duas derrubaram produção.
+
+A 019 é a variante mais traiçoeira: não derrubou nada. O cliente foi pivotado,
+a política do Storage não, e a foto de todo profissional chegava borrada aos
+outros — sem erro em lugar nenhum, porque o cliente descia de nível até algo
+passar. Passou meses assim, e só apareceu quando um teste usou DUAS contas.
+Enquanto houver uma conta só no sistema, nada que envolva duas pessoas está
+sendo testado por ninguém.
 
 Daí a regra que vale mais que qualquer cabeçalho: **verificar a migração não é
 verificar o app**. Antes de aplicar, simule o `select` e o `upsert` que o cliente

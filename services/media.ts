@@ -2,25 +2,42 @@ import { requireSupabase, supabaseEnabled } from './supabaseClient';
 import { readImageAsDataUrl } from './storage';
 
 // ---------------------------------------------------------------------------
-// Imagens e o Véu.
+// Imagens de perfil.
 //
-// O Véu NÃO é blur de CSS. Cada foto de perfil vira uma pirâmide de resoluções,
-// e o banco decide qual nível você tem direito de baixar, a partir do estágio
-// real da conversa entre vocês (ver private.nivel_permitido em docs/SUPABASE.sql).
+// O VÉU ACABOU — e a migração 019 é o que o encerrou de verdade.
 //
-// Por que resolução em vez de desfoque: um arquivo de 12 pixels de largura não
-// tem detalhe a recuperar — a informação não está nos bytes. Um JPEG desfocado
-// ainda carrega mais do que parece, e quem tivesse a URL poderia tentar
-// reconstruir. O desfoque de CSS continua, mas agora é só suavização visual
-// por cima de uma imagem que já não contém o rosto.
+// Era o diferencial do app de relacionamentos: a foto subia como pirâmide de
+// resoluções (12, 24, 48, 96 px e o original) e o banco liberava um nível de
+// cada vez, conforme a conversa avançava. A foto era a recompensa.
 //
-// Os níveis velados (12, 24, 48 e 96 px) são gerados no SERVIDOR, pela Edge
-// Function `velar` — ver supabase/functions/velar/index.ts. O navegador entrega
-// só o original, e a política do Storage recusa qualquer escrita dele nos
-// níveis velados. Este arquivo, portanto, apenas envia e lê.
+// Num mercado de serviços isso é o contrário do que se quer: o rosto de quem
+// presta serviço é credencial. Quem contrata precisa ver com quem está lidando
+// ANTES de decidir, não depois.
 //
-// Modo demo (sem backend) guarda um dataURL só e o véu volta a ser cosmético:
-// não há servidor para fazer valer o portão, e isso está documentado na UI.
+// O QUE DEU ERRADO, E POR QUE DEMOROU A APARECER
+//
+// Este arquivo foi pivotado no dia do pivô — `resolveImage` passou a pedir o
+// original. A POLÍTICA DO STORAGE não foi, e continuou liberando só o nível 0
+// para quem não fosse dono. Como `resolveImage` desce nível a nível até algo
+// passar, não havia erro nenhum: aparecia a foto borrada, e pronto.
+//
+// Ninguém viu porque havia UMA conta no sistema. Ninguém nunca tinha olhado o
+// perfil de outra pessoa. É a mesma armadilha da 014 e da 015 — o cliente e o
+// banco discordando em silêncio —, e desta vez a pista estava aqui mesmo, num
+// comentário que dizia "não há mais véu" enquanto o véu continuava de pé.
+//
+// COMO ESTÁ AGORA
+//
+// A foto segue a mesma regra do crachá: a política do Storage chama
+// `private.perfil_visivel`, a MESMA função que decide quem aparece em
+// `perfis_do_mercado`. Não é uma regra parecida — é a mesma, de propósito.
+//
+// A pirâmide ainda é gerada no envio, pela Edge Function `velar`, e ninguém
+// mais a lê. É peso morto: cinco arquivos onde um bastaria, e um envio que
+// falha inteiro se `velar` falhar. Tirar isso mexe no caminho de ENVIO, que é
+// o mais arriscado deste arquivo, então fica para uma mudança própria.
+//
+// Modo demo (sem backend) guarda um dataURL só, como sempre guardou.
 // ---------------------------------------------------------------------------
 
 const BUCKET = 'midia';
@@ -29,11 +46,8 @@ const URL_TTL_SEGUNDOS = 60 * 60;
 /** O nível 4 é o original; 0..3 são os velados que o servidor gera. */
 export const NIVEL_ORIGINAL = 4;
 
-// A pirâmide de níveis desfocados continua sendo GERADA no envio, e por um
-// motivo só: as fotos que já estão no bucket foram salvas assim, e o caminho
-// guardado em `users.photo_url` não tem extensão — quem resolve o arquivo é
-// esta camada. Parar de gerar agora deixaria as antigas resolvendo e as novas
-// não. O que mudou é a LEITURA: ninguém mais pede um nível velado.
+// A pirâmide continua sendo gerada no envio — ver o cabeçalho. Ninguém mais a
+// lê: desde a 019 o original passa para todo mundo que o crachá já mostra.
 
 const sufixo = (nivel: number) => (nivel >= NIVEL_ORIGINAL ? 'orig' : String(nivel));
 
@@ -135,10 +149,13 @@ async function assinar(caminho: string): Promise<string | undefined> {
 /**
  * Resolve a imagem exibível.
  *
- * Desde o pivô pede sempre o ORIGINAL — não há mais véu. A descida pelos
- * níveis continua como rede de segurança para as fotos antigas, cujo original
- * pode não existir no bucket; o portão continua sendo do banco, e o cliente
- * apenas obedece ao que ele devolve.
+ * Pede o ORIGINAL primeiro. A descida pelos níveis continua como rede de
+ * segurança para fotos antigas cujo original possa não estar no bucket.
+ *
+ * ATENÇÃO ao mexer aqui: foi esta descida que escondeu o bug da 019 por
+ * semanas. Ela transforma "o banco me negou" em "achei uma versão pior", sem
+ * erro nenhum. Se um dia a foto voltar a aparecer borrada, é aqui que o
+ * sintoma some — e a causa vai estar na política do Storage, não neste laço.
  */
 export async function resolveImage(caminho?: string): Promise<string | undefined> {
   if (!caminho) return undefined;
