@@ -1,7 +1,26 @@
 // ---------------------------------------------------------------------------
 // QICONEXÃO — geração do Véu no servidor.
 //
-// O QUE ESTA FUNÇÃO FECHA
+// NINGUÉM CHAMA MAIS ESTA FUNÇÃO. Leia isto antes do resto.
+//
+// O Véu era do app de relacionamentos: a foto ia sendo revelada conforme a
+// conversa avançava. Num mercado de serviços é o contrário do que se quer — o
+// rosto de quem presta serviço é credencial, e quem contrata precisa ver ANTES
+// de decidir. A migração 019 encerrou o véu no banco, e `services/media.ts`
+// parou de chamar esta função: o envio grava um arquivo só, o original.
+//
+// Ela segue publicada de propósito, e não é risco: exige sessão válida e recusa
+// gerar borrão fora da pasta de quem chama. O pior que um chamador consegue é
+// criar quatro arquivos borrados na PRÓPRIA pasta, que nada lê — `resolveImage`
+// começa no original. Fica aqui porque o dia em que for apagada é um dia de
+// decisão, não de limpeza automática.
+//
+// O texto abaixo descreve o mundo com véu. Está mantido porque explica POR QUE
+// a política de escrita do Storage é como é: o cliente só consegue escrever
+// `-orig.jpg`, e essa regra continua valendo — é ela que faz a remoção desta
+// chamada não mexer em permissão nenhuma.
+//
+// O QUE ESTA FUNÇÃO FECHAVA
 // O Véu é uma pirâmide de resoluções: 12, 24, 48 e 96 pixels de largura, mais o
 // original. O Storage decide qual nível cada pessoa pode baixar, a partir do
 // estágio real da conversa (private.nivel_permitido).

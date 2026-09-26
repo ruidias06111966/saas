@@ -101,6 +101,23 @@ migração 019 a política do Storage chama `private.perfil_visivel`, **a mesma 
 decide quem aparece em `perfis_do_mercado`: não uma regra parecida, a mesma. Duas regras
 parecidas é como elas divergem, e foi assim que o bug da foto borrada nasceu.
 
+O envio grava **um arquivo, o original** (#33). A Edge Function `velar` segue publicada
+e sem nenhum chamador. A política de escrita não mudou nem precisou mudar — o dono sempre
+só pôde escrever `-orig.jpg`; os níveis borrados só nasciam pela chave de serviço, dentro
+da `velar`.
+
+Duas cicatrizes que vale carregar:
+
+- **O pivô chegou ao cliente e não ao banco.** `resolveImage` passou a pedir o original
+  no dia do pivô; a policy continuou liberando só o nível 0 para quem não fosse dono.
+  Não houve erro nenhum — apareceu a foto borrada de todo profissional, para todo mundo,
+  por meses. Não foi visto porque existia UMA conta no sistema: ninguém nunca tinha
+  aberto o perfil de outra pessoa.
+- **A degradação graciosa esconde a falha.** `resolveImage` desce nível a nível até algo
+  passar, transformando "o banco me negou" em "achei uma versão pior". É a mesma armadilha
+  do bug de `grant` descrito no histórico do véu. A descida continua lá como rede de
+  segurança para as fotos antigas, e continua sendo o lugar onde um sintoma vai sumir.
+
 Sem foto, `GenerativePortrait` desenha um SVG determinístico a partir de `hash32(id)`.
 Mesma pessoa, sempre a mesma arte, e nenhuma foto de pessoa real nos dados fictícios.
 
@@ -295,8 +312,10 @@ existe.
 - **A recusa exige motivo**, que vai inteiro para a pessoa. Recusar sem dizer por quê
   deixa alguém tentando de novo do mesmo jeito.
 
-Administrador vê a foto de qualquer perfil, porque a comparação exige. É poder real,
-declarado na política do Storage (`private.is_admin()`, migração 019).
+Administrador vê a foto de qualquer perfil, porque a comparação exige. É poder real, e
+desde a migração 019 está declarado onde se lê: a chamada a `private.is_admin()` dentro
+da policy "foto de perfil segue o crachá". Antes vinha embutido em `nivel_permitido()`,
+que não existe mais.
 
 ### Cadastro com confirmação de e-mail
 
@@ -494,8 +513,8 @@ nesta lista, foi implementado: ver `docs/PUSH.md`.)
 
 As duas seções abaixo descrevem o mecanismo central do app de relacionamentos, que não
 existe mais. Ficam como registro porque as lições valem para qualquer controle de acesso.
-A Edge Function `velar` ainda gera as versões reduzidas no envio, mas desde a 019 a
-leitura da foto não depende delas.
+As duas funções do véu — `nivel_permitido` e `nivel_do_arquivo` — foram removidas na
+019, e desde o #33 o envio não chama mais a `velar`: grava só o original.
 
 #### O véu é gerado no servidor
 

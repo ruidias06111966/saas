@@ -66,7 +66,7 @@ que está em "modo local". Nenhuma tela quebra em nenhuma combinação.
 | `stripe-webhook` | muda o plano depois do pagamento | **não** — confere a assinatura do Stripe |
 | `notificar` | avisa no celular que chegou mensagem, sem o conteúdo | exige |
 | `decidir-verificacao` | concede o selo de verificado e apaga a selfie | exige, e só administrador |
-| `velar` | gera versões reduzidas da foto no envio — herança do app antigo; desde a migração 019 a leitura da foto não depende delas | exige |
+| `velar` | herança do app antigo: gerava versões borradas da foto. Continua publicada, mas sem nenhum chamador desde que o envio passou a gravar só o original | exige |
 
 O webhook é a única sem JWT, e não poderia ser diferente: o Stripe não tem sessão no app.
 Em troca, a primeira coisa que ela faz é conferir a assinatura criptográfica do evento com
