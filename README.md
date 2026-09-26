@@ -1,10 +1,10 @@
 # QICONEXÃO
 
-**Antes de escolher alguém, conheça alguém.**
+**Quem sabe fazer, e quem precisa.**
 
-Aplicativo web de relacionamentos em que a conversa vem antes da aparência. Não é um
-clone de Tinder com outra paleta: a foto de um desconhecido entra velada e só se revela
-conforme a conversa evolui de verdade.
+Aplicativo web que liga quem precisa de um serviço profissional (contador, engenheiro,
+advogado, alvará, laudo) a quem sabe fazê-lo, na mesma região. Quem precisa publica de
+graça, recebe propostas sigilosas e escolhe; o telefone só é liberado depois do acordo.
 
 [![CI](https://github.com/ruidias06111966/saas/actions/workflows/ci.yml/badge.svg)](https://github.com/ruidias06111966/saas/actions/workflows/ci.yml) ![etapa](https://img.shields.io/badge/status-MVP%20funcional-6E4C9B) ![stack](https://img.shields.io/badge/React%2019-TypeScript-1F1A2E) ![ia](https://img.shields.io/badge/Gemini-opcional-CA6A43)
 
