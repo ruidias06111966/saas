@@ -39,6 +39,12 @@ export const MIN_AGE = 18;
 export const URL_PRIVACIDADE = '/privacidade.html';
 export const URL_TERMOS = '/termos.html';
 export const URL_DIRETRIZES = '/diretrizes.html';
+/**
+ * O manual de utilização. Mesma natureza das três acima: página estática, abre
+ * sem login, e por isso serve para quem ainda NÃO tem conta — é a única
+ * documentação que alguém pode ler antes de decidir se se cadastra.
+ */
+export const URL_MANUAL = '/manual.html';
 
 export const REPORT_REASON_LABEL: Record<string, string> = {
   perfil_falso: 'Perfil falso',

@@ -1,0 +1,378 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Manual de Utilização — QICONEXÃO</title>
+<meta name="description" content="Como criar a conta, publicar um trabalho, enviar propostas e fechar negócio no QICONEXÃO. Passo a passo, em linguagem simples." />
+<meta name="robots" content="index, follow" />
+<link rel="icon" href="/icones/favicon.ico" />
+<style>
+  /* Mesmo bloco das outras duas páginas públicas, de propósito: cada uma
+     precisa renderizar sozinha, mesmo que um arquivo externo não carregue. */
+  :root{
+    --fundo:#faf7f4; --papel:#fff; --tinta:#1c1917; --suave:#57534e;
+    --linha:#e7e2dc; --marca:#9a3f5f; --marca-fraca:#fdf2f6; --aviso:#fff8e6; --aviso-linha:#e8d9a8;
+    --perigo:#fdf0ee; --perigo-linha:#e8bdb3;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --fundo:#17140f; --papel:#201c17; --tinta:#f5f1ec; --suave:#b3aaa0;
+      --linha:#332d26; --marca:#e88aa8; --marca-fraca:#2a1a21; --aviso:#2a2415; --aviso-linha:#4d4224;
+      --perigo:#2d1a16; --perigo-linha:#5a332a;
+    }
+  }
+  :root[data-theme="dark"]{
+    --fundo:#17140f; --papel:#201c17; --tinta:#f5f1ec; --suave:#b3aaa0;
+    --linha:#332d26; --marca:#e88aa8; --marca-fraca:#2a1a21; --aviso:#2a2415; --aviso-linha:#4d4224;
+    --perigo:#2d1a16; --perigo-linha:#5a332a;
+  }
+  *{box-sizing:border-box}
+  body{background:var(--fundo); color:var(--tinta); margin:0;
+    font:16px/1.65 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    -webkit-text-size-adjust:100%}
+  .folha{max-width:46rem; margin:0 auto; padding:16px; padding-block:40px}
+  header{border-bottom:1px solid var(--linha); padding-bottom:24px; margin-bottom:8px}
+  .marca{display:inline-flex; align-items:center; gap:10px; text-decoration:none; color:inherit}
+  .marca b{font-size:1.05rem; letter-spacing:.02em}
+  .bolhas{width:26px;height:26px;flex:none}
+  h1{font-size:1.75rem; line-height:1.25; margin:22px 0 6px}
+  h2{font-size:1.15rem; margin:38px 0 10px; padding-top:14px; border-top:1px solid var(--linha)}
+  h3{font-size:1rem; margin:22px 0 6px}
+  .sub{color:var(--suave); font-size:.92rem; margin:0}
+  a{color:var(--marca)}
+  ul{padding-left:1.15rem}
+  li{margin:.35rem 0}
+  .cartao{background:var(--papel); border:1px solid var(--linha); border-radius:14px; padding:16px 18px; margin:18px 0}
+  .nota{background:var(--aviso); border:1px solid var(--aviso-linha); border-radius:14px; padding:14px 16px; margin:18px 0; font-size:.95rem}
+  .perigo{background:var(--perigo); border:1px solid var(--perigo-linha); border-radius:14px; padding:16px 18px; margin:18px 0}
+  .tabela-rolante{overflow-x:auto; margin:16px 0; border:1px solid var(--linha); border-radius:14px; background:var(--papel)}
+  table{border-collapse:collapse; width:100%; font-size:.9rem; min-width:32rem}
+  th,td{text-align:left; padding:10px 14px; border-bottom:1px solid var(--linha); vertical-align:top}
+  th{font-weight:600; background:var(--marca-fraca)}
+  tr:last-child td{border-bottom:0}
+  footer{margin-top:44px; padding-top:22px; border-top:1px solid var(--linha); color:var(--suave); font-size:.88rem}
+  .destaque{font-weight:600}
+</style>
+<style>
+  /* Só o manual precisa disto: numeração de passos e o índice. */
+  ol.passos{counter-reset:p; list-style:none; padding-left:0}
+  ol.passos>li{counter-increment:p; position:relative; padding-left:2.6rem; margin:0 0 18px}
+  ol.passos>li::before{content:counter(p); position:absolute; left:0; top:-1px;
+    width:1.85rem; height:1.85rem; border-radius:50%; background:var(--marca); color:#fff;
+    font-size:.9rem; font-weight:700; display:grid; place-items:center}
+  ol.passos>li b{display:block; margin-bottom:2px}
+  nav.indice{background:var(--papel); border:1px solid var(--linha); border-radius:14px; padding:14px 18px; margin:22px 0}
+  nav.indice ol{margin:.4rem 0 0; padding-left:1.15rem; font-size:.95rem}
+  nav.indice li{margin:.3rem 0}
+  .dois{display:grid; gap:14px; margin:18px 0}
+  @media (min-width:38rem){ .dois{grid-template-columns:1fr 1fr} }
+  .dois>div{background:var(--papel); border:1px solid var(--linha); border-radius:14px; padding:16px 18px}
+  .dois h3{margin-top:0}
+  .chave{background:var(--marca-fraca); border:1px solid var(--linha); border-left:4px solid var(--marca);
+    border-radius:10px; padding:14px 16px; margin:18px 0}
+  code{background:var(--marca-fraca); border:1px solid var(--linha); border-radius:6px;
+    padding:.1rem .35rem; font-size:.88em}
+</style>
+</head>
+<body>
+<div class="folha">
+
+<header>
+  <a class="marca" href="/">
+    <svg class="bolhas" viewBox="0 0 40 40" aria-hidden="true">
+      <path d="M4 13a7 7 0 0 1 7-7h11a7 7 0 0 1 0 14h-7l-6 5v-5a7 7 0 0 1-5-7z" fill="currentColor" opacity=".38"/>
+      <path d="M16 24a7 7 0 0 1 7-7h6a7 7 0 0 1 0 14h-4l-6 5v-5a7 7 0 0 1-3-7z" fill="currentColor"/>
+    </svg>
+    <b>QICONEXÃO</b>
+  </a>
+  <h1>Manual de Utilização</h1>
+  <p class="sub">Versão 2026.2 · 26 de setembro de 2026 · Endereço do sistema: <a href="https://conexao.qidominios.com.br">conexao.qidominios.com.br</a></p>
+</header>
+
+<p>Este manual serve para quem está entrando agora. Ele explica o que o QICONEXÃO faz, como criar a conta e como usar os dois lados do sistema: <span class="destaque">quem precisa de um trabalho feito</span> e <span class="destaque">quem faz o trabalho</span>.</p>
+
+<p>Não é preciso saber nada de informática. Se em algum ponto travar, o endereço para pedir ajuda está no fim.</p>
+
+<nav class="indice">
+  <b>Neste manual</b>
+  <ol>
+    <li><a href="#o-que-e">O que é o QICONEXÃO</a></li>
+    <li><a href="#entrar">Criar a conta e entrar</a></li>
+    <li><a href="#preciso">Preciso de alguém: publicar um trabalho</a></li>
+    <li><a href="#faco">Faço o trabalho: enviar propostas</a></li>
+    <li><a href="#telefone">O telefone: a regra mais importante</a></li>
+    <li><a href="#conversar">Conversar</a></li>
+    <li><a href="#buscar">Procurar profissionais</a></li>
+    <li><a href="#planos">Quanto custa</a></li>
+    <li><a href="#seguranca">Segurança</a></li>
+    <li><a href="#dados">Seus dados e seus direitos</a></li>
+    <li><a href="#problemas">Se algo não funcionar</a></li>
+  </ol>
+</nav>
+
+<h2 id="o-que-e">1. O que é o QICONEXÃO</h2>
+
+<p>É um lugar onde quem precisa de um serviço encontra quem sabe fazer. Contador, engenheiro, eletricista, advogado, designer, quem cuida de alvará — trabalho de verdade, gente de verdade.</p>
+
+<p>O sistema funciona em torno de <span class="destaque">anúncios</span> e <span class="destaque">propostas</span>:</p>
+
+<div class="dois">
+  <div>
+    <h3>Você precisa de algo</h3>
+    <p>Publica um anúncio dizendo o que precisa. Os profissionais mandam propostas. Você escolhe uma.</p>
+    <p class="sub">Publicar é de graça, sempre, sem limite.</p>
+  </div>
+  <div>
+    <h3>Você faz o trabalho</h3>
+    <p>Olha os anúncios abertos, encontra o que combina com você e manda uma proposta com preço e prazo.</p>
+    <p class="sub">Três propostas por mês de graça. Mais que isso, o plano pago.</p>
+  </div>
+</div>
+
+<div class="chave">
+  <p><span class="destaque">A mesma conta serve para os dois lados.</span> Você não escolhe "sou cliente" ou "sou profissional" no cadastro. Hoje você contrata um contador; amanhã alguém contrata você. É a mesma conta, sem trocar nada.</p>
+</div>
+
+<h2 id="entrar">2. Criar a conta e entrar</h2>
+
+<p>Abra <a href="https://conexao.qidominios.com.br">conexao.qidominios.com.br</a> no navegador do celular ou do computador. Não precisa instalar nada.</p>
+
+<h3>O cadastro tem quatro etapas</h3>
+
+<ol class="passos">
+  <li><b>Conta</b> Seu nome, e-mail, senha e a cidade onde você está. Só o essencial.</li>
+  <li><b>Seu trabalho</b> Como você se apresenta ("Contadora", "Engenheiro civil"), uma descrição curta, quantos anos de experiência, se atende à distância, e o telefone.</li>
+  <li><b>Suas áreas</b> Até <span class="destaque">cinco áreas</span> de atuação, escolhidas de uma lista. Cinco é o limite de propósito: quem diz que faz tudo não é procurado para nada.</li>
+  <li><b>Foto e termos</b> A foto de perfil e o aceite dos Termos, da Privacidade e das Diretrizes.</li>
+</ol>
+
+<div class="nota">
+  <p><span class="destaque">Nada é gravado no servidor até você confirmar o e-mail.</span> Ao terminar as quatro etapas, o sistema envia um link para o e-mail que você informou. Enquanto você não abrir esse link, o cadastro fica guardado apenas no navegador que você usou.</p>
+  <p>Por isso: <span class="destaque">confirme no mesmo aparelho e no mesmo navegador</span> em que preencheu. Se confirmar em outro, terá de preencher o perfil de novo.</p>
+</div>
+
+<h3>O telefone no cadastro</h3>
+
+<p>O telefone é pedido no cadastro, mas <span class="destaque">ninguém o vê</span>. Ele fica guardado e só é mostrado quando uma proposta é aceita — e só para as duas pessoas daquele negócio. A seção 5 explica isso em detalhe.</p>
+
+<h3>Promoção de lançamento: 60 dias de Premium</h3>
+
+<p>Quem criar a conta <span class="destaque">até 10 de dezembro de 2026</span> recebe <span class="destaque">60 dias do plano Premium sem pagar nada</span>. Não é preciso pedir nem cadastrar cartão — é concedido no momento do cadastro, e o aplicativo mostra quantos dias faltam.</p>
+
+<p>Quando os 60 dias terminam, a conta volta ao plano gratuito sozinha. Nada é cobrado.</p>
+
+<h3>Esqueci a senha</h3>
+
+<p>Na tela de entrada há "Esqueci minha senha". Você informa o e-mail, recebe um link e escolhe uma senha nova. A senha também pode ser trocada depois em <span class="destaque">Configurações</span>.</p>
+
+<h2 id="preciso">3. Preciso de alguém: publicar um trabalho</h2>
+
+<p>No menu, <span class="destaque">Publicar</span>. Publicar é de graça para todo mundo, em qualquer plano, sem limite de quantidade.</p>
+
+<h3>O que preencher</h3>
+
+<div class="tabela-rolante">
+<table>
+  <tr><th>Campo</th><th>O que é</th><th>Exigência</th></tr>
+  <tr><td>Título</td><td>Uma linha dizendo o que você precisa</td><td>De 8 a 120 caracteres</td></tr>
+  <tr><td>Descrição</td><td>O detalhe: o que é, onde, quando, o que está incluído</td><td>No mínimo 30 caracteres</td></tr>
+  <tr><td>Categoria</td><td>A área do trabalho, escolhida da lista</td><td>Obrigatória</td></tr>
+  <tr><td>Como é feito</td><td><span class="destaque">Remoto</span>, <span class="destaque">Presencial</span> ou <span class="destaque">Híbrido</span></td><td>Obrigatório</td></tr>
+  <tr><td>Cidade e estado</td><td>Onde o trabalho acontece</td><td>Obrigatórios quando não é remoto</td></tr>
+  <tr><td>Orçamento</td><td><span class="destaque">Valor fechado</span>, <span class="destaque">Por hora</span> ou <span class="destaque">A combinar</span></td><td>Obrigatório</td></tr>
+  <tr><td>Prazo</td><td>Em quantos dias você precisa</td><td>Opcional</td></tr>
+</table>
+</div>
+
+<p>Um título de menos de 8 caracteres ou uma descrição de menos de 30 são recusados. Não é burocracia: anúncio vago não recebe proposta boa, porque o profissional não tem como calcular preço.</p>
+
+<h3>Depois de publicar</h3>
+
+<ol class="passos">
+  <li><b>As propostas chegam</b> Em <span class="destaque">Meus anúncios</span> você vê quantas propostas cada anúncio recebeu. Só você vê as propostas do seu anúncio — nenhum profissional vê a proposta de outro.</li>
+  <li><b>Você compara</b> Cada proposta traz a mensagem, o valor e o prazo que o profissional ofereceu. Dá para abrir o perfil de cada um antes de decidir.</li>
+  <li><b>Você aceita uma</b> Ao aceitar, o telefone do profissional aparece para você, e o seu aparece para ele. É o momento em que o negócio sai do sistema e vai para a vida real.</li>
+  <li><b>Você encerra o anúncio</b> Quando resolver, encerre. Assim para de receber propostas para algo que já está resolvido — e não faz ninguém perder proposta à toa.</li>
+</ol>
+
+<div class="nota">
+  <p><span class="destaque">Responder rápido é do seu interesse.</span> Um anúncio com propostas esperando decisão aparece em primeiro lugar na sua tela inicial de propósito: profissional que não recebe resposta vai trabalhar em outro lugar.</p>
+</div>
+
+<h2 id="faco">4. Faço o trabalho: enviar propostas</h2>
+
+<p>No menu, <span class="destaque">Anúncios</span>. Ali estão todos os trabalhos abertos. Qualquer pessoa, em qualquer plano, vê todos.</p>
+
+<h3>Como mandar uma proposta</h3>
+
+<ol class="passos">
+  <li><b>Abra o anúncio</b> Leia com atenção: o que é, onde, qual o orçamento, qual o prazo.</li>
+  <li><b>Escreva a mensagem</b> No mínimo 20 caracteres. Diga o que você faria e por que você. Mensagem genérica perde para mensagem específica, sempre.</li>
+  <li><b>Informe valor e prazo</b> Os dois são opcionais, mas quem informa tem muito mais chance: quem publicou quer comparar, e não pode comparar o que não foi dito.</li>
+  <li><b>Envie</b> Quem publicou é avisado na hora.</li>
+</ol>
+
+<h3>Acompanhar</h3>
+
+<p>Em <span class="destaque">Minhas propostas</span> você vê onde se ofereceu e em que pé está cada uma:</p>
+
+<div class="tabela-rolante">
+<table>
+  <tr><th>O que aparece</th><th>Significa</th></tr>
+  <tr><td>Aguardando resposta</td><td>Quem publicou ainda não decidiu</td></tr>
+  <tr><td>Aceita</td><td>Você foi escolhido. O telefone das duas partes aparece</td></tr>
+  <tr><td>Não escolhida</td><td>Quem publicou escolheu outra pessoa</td></tr>
+  <tr><td>Retirada por você</td><td>Você desistiu dessa proposta</td></tr>
+</table>
+</div>
+
+<h3>O limite de propostas</h3>
+
+<p>No plano gratuito são <span class="destaque">3 propostas por mês</span>. No Premium, <span class="destaque">ilimitadas</span>.</p>
+
+<p>A tela avisa quantas faltam antes de você escrever, para não perder o trabalho de redigir. E o limite é cobrado pelo servidor, não pela tela: não existe jeito de mandar a quarta no plano gratuito.</p>
+
+<div class="chave">
+  <p><span class="destaque">Por que três, e por que grátis?</span> Para você fechar um trabalho antes de pagar qualquer coisa. Ninguém deve assinar um serviço para descobrir se ele funciona.</p>
+</div>
+
+<h2 id="telefone">5. O telefone: a regra mais importante</h2>
+
+<p>Esta é a regra que mais gera dúvida, então está sozinha numa seção:</p>
+
+<div class="chave">
+  <p><span class="destaque">O telefone de ninguém aparece em lugar nenhum</span> — não no perfil, não no anúncio, não na busca, não na conversa.</p>
+  <p>Ele aparece <span class="destaque">só quando uma proposta é aceita</span>, e <span class="destaque">só para as duas pessoas daquele negócio</span>.</p>
+</div>
+
+<p>Quem decide isso é o servidor, não a tela do aplicativo. O pedido do telefone é recusado se não houver uma proposta aceita, e é recusado se quem pergunta não for uma das duas partes. Não há caminho pelo navegador que contorne isso.</p>
+
+<p>Por que assim: o telefone é o dado que transforma um cadastro em lista de telemarketing. Quem publica um anúncio quer propostas, não ligações de quem passou pela página.</p>
+
+<h2 id="conversar">6. Conversar</h2>
+
+<p>Além das propostas, existe a conversa direta — útil para tirar uma dúvida antes de propor, ou para conversar com alguém que você achou na busca.</p>
+
+<ol class="passos">
+  <li><b>Peça para conversar</b> No perfil da pessoa, <span class="destaque">Pedir para conversar</span>.</li>
+  <li><b>A outra pessoa aceita</b> Ninguém recebe mensagem de quem não aceitou falar. Enquanto não aceitar, não há conversa.</li>
+  <li><b>Vocês conversam</b> A conversa fica em <span class="destaque">Conversas</span>.</li>
+</ol>
+
+<h3>O termômetro da conversa</h3>
+
+<p>Cada conversa mostra em que ponto está: <span class="destaque">Primeiro contato</span> → <span class="destaque">Conversando</span> → <span class="destaque">Entendendo</span> → <span class="destaque">Alinhando</span> → <span class="destaque">Pronto</span>. Não é enfeite: mede se a conversa anda de verdade, quem responde e quem fala sozinho. "Pronto" quer dizer que está na hora de fechar o combinado.</p>
+
+<h3>O Copiloto</h3>
+
+<p>Uma ajuda para escrever: sugere como melhorar o perfil, como redigir uma proposta, como responder uma mensagem. São 8 sugestões por dia no plano gratuito e 100 no Premium. É sugestão — você aceita, edita ou ignora.</p>
+
+<h3>Se aparecer um aviso na sua mensagem</h3>
+
+<p>Ao escrever coisas como "WhatsApp", "meu número" ou "me chama no Instagram", pode aparecer um aviso na tela. <span class="destaque">Ele não bloqueia nada e ninguém mais o vê</span> — é um lembrete de que combinar por fora deixa o combinado sem registro aqui.</p>
+
+<p>Mensagem é bloqueada apenas em casos graves: golpe claro, conteúdo sexual, ódio, assédio, suspeita de menor de idade.</p>
+
+<h2 id="buscar">7. Procurar profissionais</h2>
+
+<p>Em <span class="destaque">Profissionais</span> você procura por área, por estado ou por palavra, dentro das áreas cadastradas no sistema.</p>
+
+<p>A diferença entre os planos aqui: no Premium é possível combinar vários filtros ao mesmo tempo (área, cidade e forma de atendimento). No gratuito, um por vez.</p>
+
+<h2 id="planos">8. Quanto custa</h2>
+
+<div class="chave">
+  <p><span class="destaque">Publicar anúncio é de graça, para todo mundo, sempre, sem limite.</span></p>
+  <p>Quem paga é o profissional que quer mandar mais de três propostas por mês. Ou seja: <span class="destaque">quem contrata não paga; quem quer ser contratado em volume paga.</span></p>
+</div>
+
+<div class="tabela-rolante">
+<table>
+  <tr><th>&nbsp;</th><th>Gratuito</th><th>Premium — R$ 39,90/mês</th></tr>
+  <tr><td>Publicar anúncios</td><td>Sem limite</td><td>Sem limite</td></tr>
+  <tr><td><span class="destaque">Enviar propostas</span></td><td><span class="destaque">3 por mês</span></td><td><span class="destaque">Ilimitado</span></td></tr>
+  <tr><td>Filtros avançados na busca</td><td>—</td><td>Sim</td></tr>
+  <tr><td>Sugestões do Copiloto por dia</td><td>8</td><td>100</td></tr>
+  <tr><td>Pedidos de conversa por dia</td><td>10</td><td>40</td></tr>
+</table>
+</div>
+
+<p>Tudo o mais é igual nos dois planos: ver todos os anúncios, ver qualquer perfil, conversar com quem aceitou, publicar sem limite.</p>
+
+<p>O limite de pedidos de conversa por dia não é para vender plano — é para travar quem dispara mensagem para todo mundo. Por isso os dois números são altos.</p>
+
+<p>A assinatura é mensal e pode ser cancelada quando você quiser, em <span class="destaque">Configurações</span>. Não há multa nem prazo mínimo.</p>
+
+<h2 id="seguranca">9. Segurança</h2>
+
+<h3>O que o sistema faz por você</h3>
+
+<ul>
+  <li><span class="destaque">Seu endereço exato nunca aparece.</span> Só a cidade e uma faixa aproximada de distância.</li>
+  <li><span class="destaque">Seu telefone só sai com proposta aceita</span>, como explicado na seção 5.</li>
+  <li><span class="destaque">Ninguém conversa com você sem sua permissão.</span></li>
+  <li><span class="destaque">Propostas são sigilosas.</span> Nenhum profissional vê a proposta de outro.</li>
+  <li><span class="destaque">Bloquear e denunciar</span> estão disponíveis a qualquer momento, em qualquer perfil ou conversa.</li>
+</ul>
+
+<h3>Verificação de perfil</h3>
+
+<p>Você pode pedir a verificação do seu perfil. O sistema sorteia uma pose, você tira uma selfie na hora fazendo aquela pose, e a equipe confere. A pose sorteada é o que impede usar uma foto antiga.</p>
+
+<p>A selfie vai direto para o servidor e é vista somente por quem administra — nem você a relê depois. Verificado não é obrigatório, mas dá mais confiança a quem vai te contratar.</p>
+
+<h3>O que é a sua parte</h3>
+
+<div class="perigo">
+  <p><span class="destaque">Nenhum sistema substitui cuidado.</span> Estas cinco recomendações valem para todo negócio fechado aqui:</p>
+  <ul>
+    <li>Nunca pague o serviço inteiro adiantado. Combine contra entrega, ou em etapas.</li>
+    <li>Profissão que exige conselho (CREA, CRC, OAB, CRM): peça o número e confira no site do conselho.</li>
+    <li>Deixe por escrito o que foi combinado — preço, prazo e o que está incluído.</li>
+    <li>Seu endereço exato nunca é exibido — só a cidade e uma faixa de distância.</li>
+    <li>Se algo parecer estranho, você pode bloquear e denunciar a qualquer momento.</li>
+  </ul>
+</div>
+
+<h2 id="dados">10. Seus dados e seus direitos</h2>
+
+<p>Em <span class="destaque">Configurações</span> → <span class="destaque">Seus direitos (LGPD)</span> você pode, a qualquer momento e sem pedir a ninguém:</p>
+
+<ul>
+  <li><span class="destaque">Baixar todos os seus dados</span> num arquivo.</li>
+  <li><span class="destaque">Excluir sua conta.</span> Apaga de verdade, não desativa. Não pode ser desfeito.</li>
+  <li><span class="destaque">Ver e desfazer bloqueios.</span></li>
+  <li><span class="destaque">Escolher o que outras pessoas veem</span> sobre você.</li>
+</ul>
+
+<p>O detalhe do que é guardado, por quanto tempo e por quê está na <a href="/privacidade.html">Política de Privacidade</a>.</p>
+
+<h2 id="problemas">11. Se algo não funcionar</h2>
+
+<div class="tabela-rolante">
+<table>
+  <tr><th>O que acontece</th><th>O que fazer</th></tr>
+  <tr><td>Troquei a foto e ela não mudou</td><td>A foto só vale depois de apertar <span class="destaque">Salvar</span> no fim da tela. Ao escolher a foto, ela aparece na tela mas ainda não foi gravada.</td></tr>
+  <tr><td>"Imagem acima de 8 MB"</td><td>A foto do celular é grande demais. Use uma foto menor, ou reduza antes de enviar.</td></tr>
+  <tr><td>"Imagem inválida"</td><td>O navegador não conseguiu abrir o arquivo. Costuma acontecer com formatos que o navegador não lê — tire uma foto nova ou escolha outra.</td></tr>
+  <tr><td>Não recebi o e-mail de confirmação</td><td>Veja a caixa de spam. E confirme no <span class="destaque">mesmo navegador</span> em que preencheu o cadastro.</td></tr>
+  <tr><td>A tela parece antiga ou estranha</td><td>Recarregue forçando: <code>Ctrl</code>+<code>Shift</code>+<code>R</code> no computador. No celular, feche a aba e abra de novo.</td></tr>
+  <tr><td>Não consigo enviar proposta</td><td>Você provavelmente usou as 3 do mês no plano gratuito. A tela informa quantas faltam.</td></tr>
+  <tr><td>Meu anúncio não recebe propostas</td><td>Revise o título e a descrição. Anúncio vago não recebe proposta porque ninguém sabe orçar. Diga o que é, onde e qual o orçamento.</td></tr>
+</table>
+</div>
+
+<h2>Em uma frase</h2>
+
+<p>Publique o que você precisa, ou mande proposta no que você sabe fazer. Quando alguém aceitar, os telefones aparecem e vocês combinam o resto como gente. <span class="destaque">O sistema é isso</span> — o resto é trabalho.</p>
+
+<footer>
+  <p><span class="destaque">QICONEXÃO</span> · Manual de Utilização versão 2026.2 · 26 de setembro de 2026<br>
+  Dúvidas e suporte: <a href="mailto:qidominio@gmail.com">qidominio@gmail.com</a></p>
+  <p><a href="/">Ir para o aplicativo</a> · <a href="/termos.html">Termos de Uso</a> · <a href="/privacidade.html">Política de Privacidade</a> · <a href="/diretrizes.html">Diretrizes da Comunidade</a></p>
+</footer>
+
+</div>
+</body>
+</html>
