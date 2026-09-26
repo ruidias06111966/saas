@@ -5,7 +5,8 @@ import { Page } from '../components/layout/AppShell';
 import { Banner, Button, Card, Chip, Field, Icon, Input, SectionTitle, Select, Textarea, Toggle } from '../components/ui';
 import { Portrait } from '../components/Portrait';
 import { blurCoord } from '../services/utils';
-import { uploadProfilePhoto } from '../services/media';
+import { removeImage, uploadProfilePhoto } from '../services/media';
+import { readImageAsDataUrl } from '../services/storage';
 import { NOMES_DE_CIDADE, UFS, coordenadasDe } from '../services/localizacao';
 import { type Categoria, listarCategorias } from '../services/mercado';
 
@@ -20,6 +21,23 @@ import { type Categoria, listarCategorias } from '../services/mercado';
 // `no_maximo_cinco_especialidades` recusa a sexta. Esta tela apenas impede de
 // chegar lá, para a pessoa não escrever o perfil inteiro e levar um erro no
 // fim. A regra que VALE é a de lá.
+//
+// A FOTO SÓ VAI PARA O SERVIDOR QUANDO SE APERTA SALVAR.
+//
+// Antes, escolher o arquivo já o enviava na hora, e o perfil só passava a
+// apontar para ele depois do Salvar. Duas consequências, as duas vistas em
+// produção:
+//
+//   • quem escolhia a foto e saía da tela sem salvar deixava o arquivo no
+//     bucket sem ninguém apontando para ele — seis fotos de pessoas reais
+//     ficaram guardadas assim;
+//   • a tela já mostrava a foto nova antes de qualquer gravação, então parecia
+//     ter salvo. Foi exatamente esse o relato: "troquei e não mudou".
+//
+// Agora escolher a foto só monta a PRÉVIA, no navegador, e guarda o arquivo.
+// O envio acontece dentro de `save()`, e a foto anterior é apagada DEPOIS de o
+// perfil já estar gravado apontando para a nova — nunca antes. Se a gravação
+// falhar, a pessoa continua com a foto que tinha.
 // ---------------------------------------------------------------------------
 
 const MAX_AREAS = 5;
@@ -29,6 +47,11 @@ export function ProfileEdit() {
   const [d, setD] = useState<User | null>(me);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [salvando, setSalvando] = useState(false);
+  /**
+   * Foto escolhida e ainda não enviada. `previa` é um dataURL montado aqui no
+   * navegador, só para a tela; `arquivo` é o que sobe no Salvar.
+   */
+  const [fotoNova, setFotoNova] = useState<{ arquivo: File; previa: string } | null>(null);
 
   useEffect(() => {
     listarCategorias().then(setCategorias).catch((e) => toast((e as Error).message, 'danger'));
@@ -58,12 +81,28 @@ export function ProfileEdit() {
   const save = async () => {
     setSalvando(true);
     try {
+      // O que o SERVIDOR tem hoje — não `d.photo`, que já pode ter sido
+      // esvaziado pelo botão Remover nesta mesma tela.
+      const anterior = me.photo;
+
+      // O envio da foto vem primeiro: se ele falhar, nada é gravado e a pessoa
+      // fica exatamente como estava, com a foto antiga no lugar.
+      const foto = fotoNova ? await uploadProfilePhoto(fotoNova.arquivo, d.id) : d.photo;
+
       // A coordenada é DEDUZIDA da cidade, e mudar de cidade tem de mudá-la.
       // Antes ela era calculada só no cadastro: quem se mudava trocava o nome
       // na tela e continuava sendo oferecido a quem estava perto do endereço
       // antigo, para sempre e sem meio de corrigir.
       const [lat, lng] = coordenadasDe(d.city, d.state);
-      await saveProfile({ ...d, approxLat: blurCoord(lat), approxLng: blurCoord(lng) });
+      await saveProfile({ ...d, photo: foto, approxLat: blurCoord(lat), approxLng: blurCoord(lng) });
+
+      // SÓ AGORA a anterior sai. Esta linha vem depois do `saveProfile` de
+      // propósito: apagar antes e falhar na gravação deixaria a pessoa sem
+      // foto nenhuma. `removeImage` não lança — ela reporta —, então uma falha
+      // ao apagar não desfaz um perfil que já foi salvo.
+      if (anterior && anterior !== foto) await removeImage(anterior);
+
+      setFotoNova(null);
       toast('Perfil atualizado.', 'ok');
       back();
     } catch (err) {
@@ -85,22 +124,40 @@ export function ProfileEdit() {
             Foto
           </SectionTitle>
           <div className="flex items-center gap-5">
-            <Portrait seed={d.id} photo={d.photo} name={d.name} className="h-28 w-28" />
+            <Portrait
+              seed={d.id} photo={fotoNova?.previa ?? d.photo} name={d.name} className="h-28 w-28"
+            />
             <div className="space-y-2">
               <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-line px-4 py-2 text-[13px] font-semibold hover:bg-bg">
-                <Icon name="image" size={16} /> {d.photo ? 'Trocar foto' : 'Enviar foto'}
+                <Icon name="image" size={16} /> {fotoNova || d.photo ? 'Trocar foto' : 'Enviar foto'}
                 <input
                   type="file" accept="image/*" className="hidden"
                   onChange={async (e) => {
-                    const file = e.target.files?.[0];
-                    if (!file) return;
-                    try { set('photo', await uploadProfilePhoto(file, d.id)); }
-                    catch (err) { toast((err as Error).message, 'danger'); }
+                    const arquivo = e.target.files?.[0];
+                    // Zerado para que escolher o MESMO arquivo outra vez volte
+                    // a disparar o onChange.
+                    e.target.value = '';
+                    if (!arquivo) return;
+                    try {
+                      // Valida e reduz aqui, no navegador. As mensagens de erro
+                      // são as mesmas do envio ("Imagem acima de 8 MB", "Imagem
+                      // inválida"), e chegam agora, na hora de escolher, em vez
+                      // de só quando a pessoa aperta Salvar.
+                      setFotoNova({ arquivo, previa: await readImageAsDataUrl(arquivo, 720) });
+                    } catch (err) { toast((err as Error).message, 'danger'); }
                   }}
                 />
               </label>
-              {d.photo && (
-                <Button size="sm" variant="ghost" icon="trash" onClick={() => set('photo', undefined)}>Remover</Button>
+              {(fotoNova || d.photo) && (
+                <Button
+                  size="sm" variant="ghost" icon="trash"
+                  onClick={() => { setFotoNova(null); set('photo', undefined); }}
+                >
+                  Remover
+                </Button>
+              )}
+              {fotoNova && (
+                <p className="text-[12px] text-muted">Aperte Salvar para a foto valer.</p>
               )}
             </div>
           </div>
