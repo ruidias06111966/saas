@@ -1,6 +1,11 @@
 # PROMPT-MESTRE — QICONEXÃO
 ### Versão melhorada, pronta para colar no Google AI Studio (Build) ou no Lovable
 
+> **Documento histórico.** Este é o prompt da primeira versão do QICONEXÃO, quando o
+> produto era um aplicativo de relacionamentos. O produto mudou para conexões entre quem
+> precisa de um serviço profissional e quem sabe fazê-lo; o app e o site seguem a proposta
+> atual ("quem sabe fazer, e quem precisa").
+
 > Como usar: cole **tudo** o que está entre as linhas `>>>` e `<<<` como primeira
 > mensagem. Se a ferramenta truncar, use `PROMPT-ETAPAS.md`, que quebra este mesmo
 > conteúdo em 9 blocos encadeados.
@@ -17,7 +22,7 @@ própria, e o seu trabalho é implementar essa tese sem diluí-la.
 
 ## 0. A tese, e a anti-tese
 
-**Tese:** *"Antes de escolher alguém, conheça alguém."* O gargalo dos aplicativos de
+**Tese:** *"Quem sabe fazer, e quem precisa."* O gargalo dos aplicativos de
 relacionamento não é a falta de perfis — é a quantidade de conexões que morrem sem
 nunca virar conversa. O QICONEXÃO otimiza para **conversas que acontecem de verdade**,
 não para tempo de tela.
