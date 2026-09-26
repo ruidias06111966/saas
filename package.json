@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "CONEXAO - aplicativo de relacionamentos baseado em conversa, compatibilidade explicavel e revelacao progressiva.",
+  "description": "QICONEXÃO - mercado regional de serviços profissionais: quem precisa publica, quem sabe fazer propõe, e o contato só é liberado depois do acordo.",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vitest run && vite build",
