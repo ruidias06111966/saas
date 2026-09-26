@@ -382,7 +382,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const message: Message = {
       id: newId(), connectionId, senderId: me.id, kind, text: trimmed,
       createdAt: new Date().toISOString(),
-      ...(result && result.level !== 'ok' ? { moderation: result } : {}),
+      // SÓ `risco` marca a mensagem. `atencao` (falar em WhatsApp, telefone,
+      // link) vira conselho para quem escreve e some — ver services/moderation.
+      //
+      // Antes qualquer nível marcava, e a etiqueta "em revisão" aparecia para
+      // OS DOIS lados, para sempre, sobre uma revisão que não existia.
+      ...(result && result.level === 'risco' ? { moderation: result } : {}),
       ...extra,
     };
     dispatch({ type: 'SEND_MESSAGE', message });
@@ -395,16 +400,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // novo termômetro é o servidor.
     if (kind !== 'sistema' && !hasFullHistory(state, connectionId)) refreshHealth(connectionId);
 
-    if (result && result.level !== 'ok') {
-      dispatch({
-        type: 'ADD_MODERATION',
-        item: {
-          id: newId(), messageId: message.id, connectionId, authorId: me.id,
-          excerpt: trimmed.slice(0, 240), result, status: 'pendente',
-          createdAt: new Date().toISOString(),
-        },
-      });
-    }
+    // A FILA DE MODERAÇÃO É DO BANCO, não daqui.
+    //
+    // Este bloco fazia um `dispatch` que só mexia na memória deste navegador —
+    // nunca gravava no servidor, e nem poderia: `moderation_queue` não tem
+    // política de INSERT. Ao recarregar a página o item sumia, e a tela de
+    // Administração esteve vazia desde sempre.
+    //
+    // Agora quem enfileira é um gatilho em `messages` (migração 020), quando a
+    // mensagem é gravada como `risco`. O servidor não esquece, e a fila passa a
+    // refletir o que foi GRAVADO, não o que este código achou que ia gravar.
+    // O item chega aqui na próxima carga, como todo o resto.
 
     const conn = state.connections.find((c) => c.id === connectionId);
     if (conn && conn.status === 'encerrada') {

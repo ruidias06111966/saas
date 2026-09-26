@@ -14,6 +14,23 @@ interface Rule {
   advice: string;
 }
 
+// ---------------------------------------------------------------------------
+// DOIS PESOS, DE PROPÓSITO.
+//
+// `risco`   marca a mensagem, aparece para os dois lados, e o BANCO enfileira
+//           para revisão humana (gatilho da migração 020).
+// `atencao` NÃO marca nada. É conselho para quem está escrevendo, mostrado uma
+//           vez, e some.
+//
+// A diferença nasceu de um caso real: o dono escreveu que combinaria o telefone
+// pelo WhatsApp, a mensagem ganhou "em revisão" e a etiqueta nunca saiu — nem
+// podia, porque não existia fila nenhuma. E os DOIS lados viam a etiqueta.
+//
+// Num mercado de serviços, combinar contato depois de uma proposta aceita é o
+// objetivo do produto. Tratar isso como suspeita era herança do app de
+// relacionamentos.
+// ---------------------------------------------------------------------------
+
 const RULES: Rule[] = [
   {
     category: 'financeiro',
@@ -25,7 +42,14 @@ const RULES: Rule[] = [
     category: 'contato_externo',
     level: 'atencao',
     pattern: /\b(whats?app|zap|telegram|meu n[úu]mero|me chama no|instagram|\+?55\s?\(?\d{2}\)?\s?9?\d{4}[-\s]?\d{4})\b/i,
-    advice: 'Levar a conversa para fora do app cedo demais remove suas proteções. Tudo bem esperar mais um pouco.',
+    // Num mercado de serviços, combinar o telefone é o OBJETIVO — existe até
+    // uma função no banco só para revelar o contato depois de uma proposta
+    // aceita. O texto antigo ("levar a conversa para fora do app remove suas
+    // proteções") era do app de relacionamentos e brigava com o produto.
+    //
+    // Continua sendo `atencao`, e `atencao` não marca mais a mensagem: vira
+    // um conselho para quem escreve, e mais nada. Ver `sendMessage`.
+    advice: 'Combinando por fora, o combinado não fica registrado aqui. Se der problema depois, o que estiver escrito nesta conversa é o que existe.',
   },
   {
     category: 'sexual_explicito',
@@ -87,10 +111,18 @@ export const CATEGORY_LABEL: Record<RiskCategory, string> = {
 };
 
 /** Dicas de segurança rotativas exibidas no início de cada conversa. */
+/**
+ * As dicas da tela Início. Eram de encontro amoroso — "combine o primeiro
+ * encontro em local público", "desconfie de quem evita chamada de vídeo" —, e
+ * passaram despercebidas no pivô porque ninguém as lê com atenção.
+ *
+ * Agora falam do risco que este produto tem de verdade: pagar adiantado a quem
+ * você não sabe quem é, e contratar quem diz ser habilitado sem ser.
+ */
 export const SAFETY_TIPS = [
-  'Nunca envie dinheiro, Pix ou códigos de verificação para alguém que você conheceu aqui.',
-  'Combine o primeiro encontro em local público e conte para alguém de confiança.',
+  'Nunca pague o serviço inteiro adiantado. Combine contra entrega, ou em etapas.',
+  'Profissão que exige conselho (CREA, CRC, OAB, CRM): peça o número e confira no site do conselho.',
+  'Deixe por escrito o que foi combinado — preço, prazo e o que está incluído.',
   'Seu endereço exato nunca é exibido — só a cidade e uma faixa de distância.',
   'Se algo parecer estranho, você pode bloquear e denunciar a qualquer momento.',
-  'Desconfie de quem tem pressa para sair do app ou evita chamada de vídeo.',
 ];
