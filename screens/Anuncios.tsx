@@ -4,8 +4,9 @@ import { Page } from '../components/layout/AppShell';
 import { Button, Card, Chip, Empty, Field, Icon, Input, Select } from '../components/ui';
 import { UFS } from '../services/localizacao';
 import {
-  type Anuncio, type Categoria, type FiltroBusca, type Modalidade,
-  MODALIDADE_LABEL, POR_PAGINA, buscarAnuncios, faixaDeOrcamento, listarCategorias, ondeFica,
+  type Anuncio, type Categoria, type FiltroBusca, type Modalidade, type TipoAnuncio,
+  MODALIDADE_LABEL, OUTRA_PONTA, POR_PAGINA, buscarAnuncios, faixaDeOrcamento,
+  listarCategorias, ondeFica,
 } from '../services/mercado';
 
 // ---------------------------------------------------------------------------
@@ -19,7 +20,45 @@ import {
 // A busca por texto vai para a mesma configuração do banco, que ignora
 // acentos: quem digita "construcao" encontra "construção". Ver
 // services/mercado.ts e a migração 008.
+//
+// DUAS ÁREAS, UMA TELA
+//
+// A pessoa chega com uma de duas perguntas, e a tela tem de responder a
+// certa na primeira olhada:
+//
+//   PROCURAR SERVIÇO → "preciso de alguém"  → vê quem OFERECE
+//   OFERECER SERVIÇO → "quero trabalho"     → vê quem PROCURA
+//
+// Em cada área ela publica o SEU lado e vê o lado OPOSTO. É por isso que
+// `MOLDURA` guarda `publica` e a lista usa `OUTRA_PONTA`: confundir os dois
+// mostraria à pessoa exatamente o que ela não veio ver.
 // ---------------------------------------------------------------------------
+
+/** Tudo o que muda entre as duas áreas do mercado. */
+const MOLDURA: Record<TipoAnuncio, {
+  titulo: string; vazioTitulo: string; vazioTexto: string; botao: string;
+}> = {
+  // Área PROCURAR: eu publico uma procura, e vejo as ofertas dos outros.
+  procurando: {
+    titulo: 'Procurar serviço',
+    vazioTitulo: 'Ninguém se ofereceu ainda',
+    vazioTexto: 'Nenhum profissional publicou serviço nesta categoria por enquanto. Publique o que você precisa — quem souber fazer encontra você.',
+    botao: 'Publicar o que preciso',
+  },
+  // Área OFERECER: eu publico o meu serviço, e vejo quem está procurando.
+  oferecendo: {
+    titulo: 'Oferecer serviço',
+    vazioTitulo: 'Ninguém está procurando ainda',
+    vazioTexto: 'Nenhum pedido aberto nesta categoria por enquanto. Publique o que você faz — quem precisar encontra você.',
+    botao: 'Oferecer meu serviço',
+  },
+};
+
+/** A etiqueta que o cartão mostra. É o que responde "isto é o quê?" de longe. */
+export const ETIQUETA: Record<TipoAnuncio, { texto: string; icone: 'search' | 'handshake'; classe: string }> = {
+  procurando: { texto: 'PROCURANDO', icone: 'search', classe: 'bg-brandSoft text-brand' },
+  oferecendo: { texto: 'OFERECENDO', icone: 'handshake', classe: 'bg-ember/12 text-ember' },
+};
 
 const quando = (iso: string) => {
   const dias = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
@@ -33,6 +72,12 @@ function CartaoDoAnuncio({ a, onAbrir }: { a: Anuncio; onAbrir: () => void }) {
   return (
     <Card className="transition-shadow hover:shadow-lift">
       <button type="button" className="w-full p-5 text-left" onClick={onAbrir}>
+      <div className="mb-2 flex items-center gap-2">
+        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold tracking-[0.08em] ${ETIQUETA[a.tipo].classe}`}>
+          <Icon name={ETIQUETA[a.tipo].icone} size={11} /> {ETIQUETA[a.tipo].texto}
+        </span>
+      </div>
+
       <div className="flex items-start justify-between gap-3">
         <h3 className="font-display text-base font-semibold leading-snug">{a.titulo}</h3>
         <span className="shrink-0 text-[11px] text-muted">{quando(a.createdAt)}</span>
@@ -51,11 +96,19 @@ function CartaoDoAnuncio({ a, onAbrir }: { a: Anuncio; onAbrir: () => void }) {
   );
 }
 
-export function Anuncios() {
+/**
+ * @param area O lado do mercado em que a pessoa está. Ela PUBLICA deste lado e
+ *             VÊ o lado oposto — quem procura vê ofertas, quem oferece vê
+ *             procuras.
+ */
+export function Anuncios({ area }: { area: TipoAnuncio }) {
   const { navigate, toast } = useApp();
+  const m = MOLDURA[area];
+  /** O que a pessoa VÊ é sempre o contrário do que ela publica. */
+  const vendo = OUTRA_PONTA[area];
 
   const [categorias, setCategorias] = useState<Categoria[]>([]);
-  const [filtro, setFiltro] = useState<FiltroBusca>({});
+  const [filtro, setFiltro] = useState<FiltroBusca>({ tipo: vendo });
   const [texto, setTexto] = useState('');
   const [anuncios, setAnuncios] = useState<Anuncio[]>([]);
   const [total, setTotal] = useState(0);
@@ -64,6 +117,10 @@ export function Anuncios() {
   useEffect(() => {
     listarCategorias().then(setCategorias).catch(() => {});
   }, []);
+
+  // Trocar de área pelo menu, sem recarregar a página, tem de trocar a lista.
+  // Sem isto a pessoa clica em "Oferecer serviço" e continua vendo ofertas.
+  useEffect(() => { setFiltro((f) => ({ ...f, tipo: vendo, pagina: 0 })); }, [vendo]);
 
   useEffect(() => {
     let vivo = true;
@@ -82,17 +139,20 @@ export function Anuncios() {
   }, [categorias]);
 
   const mudar = (p: Partial<FiltroBusca>) => setFiltro((f) => ({ ...f, ...p, pagina: 0 }));
+  // `tipo` fica de fora: não é um filtro que a pessoa escolheu, é a área em que
+  // ela está. Contá-lo faria "Limpar filtros" aparecer sempre, e limpá-lo
+  // misturaria os dois quadros.
   const temFiltro = !!(filtro.texto || filtro.categoriaId || filtro.uf || filtro.cidade || filtro.modalidade);
   const pagina = filtro.pagina ?? 0;
   const paginas = Math.ceil(total / POR_PAGINA);
 
   return (
     <Page
-      title="Encontrar trabalho"
+      title={m.titulo}
       subtitle={carregando ? 'Procurando…' : `${total} anúncio(s) aberto(s).`}
       action={
-        <Button size="sm" icon="plus" onClick={() => navigate({ name: 'publicar' })}>
-          Publicar
+        <Button size="sm" icon="plus" onClick={() => navigate({ name: 'publicar', tipo: area })}>
+          {m.botao}
         </Button>
       }
       maxWidth="max-w-4xl"
@@ -157,7 +217,7 @@ export function Anuncios() {
         <div className="mb-4">
           <Button
             size="sm" variant="ghost"
-            onClick={() => { setTexto(''); setFiltro({}); }}
+            onClick={() => { setTexto(''); setFiltro({ tipo: vendo }); }}
           >
             Limpar filtros
           </Button>
@@ -171,13 +231,13 @@ export function Anuncios() {
       ) : anuncios.length === 0 ? (
         <Empty
           icon="search"
-          title={temFiltro ? 'Nada com esses filtros' : 'O quadro ainda está vazio'}
+          title={temFiltro ? 'Nada com esses filtros' : m.vazioTitulo}
           body={temFiltro
             ? 'Tente outras palavras, ou limpe os filtros para ver tudo o que está aberto.'
-            : 'Ninguém publicou nada por enquanto. Você pode ser o primeiro — quem publica costuma receber as melhores respostas justamente quando o quadro está calmo.'}
+            : m.vazioTexto}
           action={temFiltro
-            ? <Button size="sm" variant="outline" onClick={() => { setTexto(''); setFiltro({}); }}>Limpar filtros</Button>
-            : <Button size="sm" icon="plus" onClick={() => navigate({ name: 'publicar' })}>Publicar um anúncio</Button>}
+            ? <Button size="sm" variant="outline" onClick={() => { setTexto(''); setFiltro({ tipo: vendo }); }}>Limpar filtros</Button>
+            : <Button size="sm" icon="plus" onClick={() => navigate({ name: 'publicar', tipo: area })}>{m.botao}</Button>}
         />
       ) : (
         <>

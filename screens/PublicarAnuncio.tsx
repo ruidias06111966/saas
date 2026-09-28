@@ -4,12 +4,29 @@ import { Page } from '../components/layout/AppShell';
 import { Banner, Button, Card, Chip, Field, Input, Select, SectionTitle, Textarea } from '../components/ui';
 import { NOMES_DE_CIDADE, UFS } from '../services/localizacao';
 import {
-  type Categoria, type Modalidade, type RascunhoAnuncio, type TipoOrcamento,
+  type Categoria, type Modalidade, type RascunhoAnuncio, type TipoAnuncio, type TipoOrcamento,
   MODALIDADE_LABEL, listarCategorias, publicarAnuncio,
 } from '../services/mercado';
 
 // ---------------------------------------------------------------------------
-// Publicar o que você precisa.
+// Publicar — dos dois lados do mercado.
+//
+// UMA TELA, DUAS FACES, E POR QUE NÃO SÃO DUAS TELAS
+//
+// Quem PROCURA e quem OFERECE preenchem exatamente os mesmos campos: título,
+// categoria, descrição, lugar, modalidade e valor. O que muda é a MOLDURA — o
+// título da página, o texto de ajuda, os exemplos e o botão.
+//
+// Duas telas quase iguais é como elas divergem: uma ganha um campo novo, a
+// outra não, e seis meses depois ninguém sabe qual está certa. Foi assim que a
+// foto e o crachá passaram a discordar (migração 019). Então aqui é uma tela
+// só, e tudo o que difere vive em `TEXTOS`, num lugar onde dá para ler as duas
+// versões lado a lado.
+//
+// A ÚNICA DIFERENÇA DE VERDADE é o prazo: "preciso de contador até outubro"
+// tem prazo; "ofereço contabilidade" não tem — o que teria prazo é o serviço,
+// que ainda nem foi combinado. O banco RECUSA prazo numa oferta (restrição
+// `prazo_so_em_procura`, migração 021), e a tela nem mostra o campo.
 //
 // O banco recusa anúncio fraco: título de oito caracteres, descrição de trinta,
 // lugar obrigatório quando o trabalho exige presença, faixa de orçamento que
@@ -20,6 +37,54 @@ import {
 //
 // Ver o comentário das restrições em supabase/migrations/008.
 // ---------------------------------------------------------------------------
+
+/**
+ * Tudo o que muda entre procurar e oferecer. Se um dia as duas faces
+ * precisarem de campos diferentes, é aqui que a diferença aparece primeiro —
+ * e é aqui que se decide se ainda vale uma tela só.
+ */
+const TEXTOS: Record<TipoAnuncio, {
+  titulo: string; subtitulo: string; secao: string; dicaSecao: string;
+  rotuloTitulo: string; dicaTitulo: string; exemploTitulo: string;
+  dicaDescricao: string; exemploDescricao: string;
+  secaoValor: string; dicaValor: string; rotuloOrcamento: string;
+  botao: string; publicando: string; sucesso: string;
+}> = {
+  procurando: {
+    titulo: 'O que você precisa?',
+    subtitulo: 'Publique gratuitamente o serviço que você está procurando. Quem souber fazer responde, e você escolhe.',
+    secao: 'O trabalho',
+    dicaSecao: 'Título e categoria são o que aparece na busca. Sejam específicos.',
+    rotuloTitulo: 'O que você precisa',
+    dicaTitulo: '"Contador para MEI em Goiânia" funciona melhor do que "Preciso de ajuda".',
+    exemploTitulo: 'Contador para abertura de MEI',
+    dicaDescricao: 'diga o que precisa, para quando, e o que já tentou.',
+    exemploDescricao: 'Explique o serviço com detalhe. Quanto mais claro o pedido, melhores as propostas — e menos tempo você perde respondendo perguntas.',
+    secaoValor: 'Quanto e quando',
+    dicaValor: 'Anúncio com valor recebe mais propostas, e propostas mais sérias.',
+    rotuloOrcamento: 'Como você paga',
+    botao: 'Publicar o que preciso',
+    publicando: 'Publicando…',
+    sucesso: 'Anúncio publicado. Ele fica aberto por 30 dias.',
+  },
+  oferecendo: {
+    titulo: 'O que você oferece?',
+    subtitulo: 'Publique gratuitamente o seu serviço e encontre pessoas que precisam dele.',
+    secao: 'O seu serviço',
+    dicaSecao: 'Título e categoria são o que aparece na busca. Diga o que você faz, não quem você é.',
+    rotuloTitulo: 'O que você faz',
+    dicaTitulo: '"Contador para Simples Nacional e MEI" funciona melhor do que "Serviços contábeis".',
+    exemploTitulo: 'Contador para Simples Nacional e MEI',
+    dicaDescricao: 'diga o que faz, para quem, e o que está incluído.',
+    exemploDescricao: 'Explique o seu serviço com detalhe: o que faz, para que tipo de cliente, o que está incluído e o que não está. Quem lê decide se te chama pelo que está escrito aqui.',
+    secaoValor: 'Quanto você cobra',
+    dicaValor: 'Anúncio com valor recebe mais contatos, e contatos mais sérios. "A combinar" também é uma resposta.',
+    rotuloOrcamento: 'Como você cobra',
+    botao: 'Oferecer meu serviço',
+    publicando: 'Publicando…',
+    sucesso: 'Seu serviço está publicado. Ele fica aberto por 30 dias.',
+  },
+};
 
 const MIN_TITULO = 8;
 const MIN_DESCRICAO = 30;
@@ -32,7 +97,8 @@ const ORCAMENTO_LABEL: Record<TipoOrcamento, string> = {
   a_combinar: 'A combinar',
 };
 
-const vazio: RascunhoAnuncio = {
+const vazio = (tipo: TipoAnuncio): RascunhoAnuncio => ({
+  tipo,
   titulo: '',
   descricao: '',
   categoriaId: '',
@@ -40,13 +106,14 @@ const vazio: RascunhoAnuncio = {
   cidade: '',
   uf: '',
   orcamentoTipo: 'a_combinar',
-};
+});
 
-export function PublicarAnuncio() {
+export function PublicarAnuncio({ tipo }: { tipo: TipoAnuncio }) {
   const { me, navigate, back, toast } = useApp();
+  const t = TEXTOS[tipo];
 
   const [categorias, setCategorias] = useState<Categoria[]>([]);
-  const [d, setD] = useState<RascunhoAnuncio>(vazio);
+  const [d, setD] = useState<RascunhoAnuncio>(() => vazio(tipo));
   const [min, setMin] = useState('');
   const [max, setMax] = useState('');
   const [prazo, setPrazo] = useState('');
@@ -68,6 +135,13 @@ export function PublicarAnuncio() {
     }));
   }, [me?.city, me?.state]);
 
+  // Se a pessoa entrar por "procurar" e depois por "oferecer" sem recarregar,
+  // o rascunho tem de acompanhar — senão publicaria do lado errado.
+  useEffect(() => {
+    setD((atual) => (atual.tipo === tipo ? atual : { ...atual, tipo }));
+    if (tipo === 'oferecendo') setPrazo('');
+  }, [tipo]);
+
   const grupos = useMemo(() => {
     const m = new Map<string, Categoria[]>();
     for (const c of categorias) m.set(c.grupo, [...(m.get(c.grupo) ?? []), c]);
@@ -79,6 +153,8 @@ export function PublicarAnuncio() {
 
   const precisaDeLugar = d.modalidade !== 'remoto';
   const temFaixa = d.orcamentoTipo !== 'a_combinar';
+  /** Prazo é do trabalho a fazer. Quem se oferece não tem prazo a declarar. */
+  const temPrazo = tipo === 'procurando';
   const nMin = min ? Number(min) : undefined;
   const nMax = max ? Number(max) : undefined;
 
@@ -91,7 +167,7 @@ export function PublicarAnuncio() {
   if (precisaDeLugar && !d.cidade?.trim()) problemas.push('Trabalho presencial ou híbrido precisa de cidade.');
   if (precisaDeLugar && !d.uf) problemas.push('Trabalho presencial ou híbrido precisa de estado.');
   if (temFaixa && nMin != null && nMax != null && nMax < nMin) problemas.push('O valor máximo não pode ser menor que o mínimo.');
-  if (prazo && (Number(prazo) < 1 || Number(prazo) > 3650)) problemas.push('O prazo precisa estar entre 1 e 3650 dias.');
+  if (temPrazo && prazo && (Number(prazo) < 1 || Number(prazo) > 3650)) problemas.push('O prazo precisa estar entre 1 e 3650 dias.');
 
   const publicar = async () => {
     if (!me) return;
@@ -103,9 +179,9 @@ export function PublicarAnuncio() {
         ...d,
         orcamentoMin: temFaixa ? nMin : undefined,
         orcamentoMax: temFaixa ? nMax : undefined,
-        prazoDias: prazo ? Number(prazo) : undefined,
+        prazoDias: temPrazo && prazo ? Number(prazo) : undefined,
       });
-      toast('Anúncio publicado. Ele fica aberto por 30 dias.', 'ok');
+      toast(t.sucesso, 'ok');
       navigate({ name: 'anuncio', id });
     } catch (e) {
       toast((e as Error).message, 'danger');
@@ -118,26 +194,24 @@ export function PublicarAnuncio() {
 
   return (
     <Page
-      title="Publicar um anúncio"
-      subtitle="Descreva o que você precisa. Quem souber fazer responde com uma proposta, e você escolhe."
+      title={t.titulo}
+      subtitle={t.subtitulo}
       back={back}
       maxWidth="max-w-2xl"
     >
       <div className="space-y-5">
         <Card className="space-y-4 p-5">
-          <SectionTitle hint="Título e categoria são o que aparece na busca. Sejam específicos.">
-            O trabalho
-          </SectionTitle>
+          <SectionTitle hint={t.dicaSecao}>{t.secao}</SectionTitle>
 
           <Field
-            label="Título"
+            label={t.rotuloTitulo}
             required
-            hint={`${d.titulo.trim().length}/${MAX_TITULO} — "Contador para MEI em Goiânia" funciona melhor do que "Preciso de ajuda".`}
+            hint={`${d.titulo.trim().length}/${MAX_TITULO} — ${t.dicaTitulo}`}
           >
             <Input
               value={d.titulo} maxLength={MAX_TITULO}
               onChange={(e) => set('titulo', e.target.value)}
-              placeholder="Contador para abertura de MEI"
+              placeholder={t.exemploTitulo}
             />
           </Field>
 
@@ -155,12 +229,12 @@ export function PublicarAnuncio() {
           <Field
             label="Descrição"
             required
-            hint={`${d.descricao.trim().length}/${MAX_DESCRICAO} — diga o que precisa, para quando, e o que já tentou.`}
+            hint={`${d.descricao.trim().length}/${MAX_DESCRICAO} — ${t.dicaDescricao}`}
           >
             <Textarea
               rows={6} value={d.descricao} maxLength={MAX_DESCRICAO}
               onChange={(e) => set('descricao', e.target.value)}
-              placeholder="Explique o serviço com detalhe. Quanto mais claro o pedido, melhores as propostas — e menos tempo você perde respondendo perguntas."
+              placeholder={t.exemploDescricao}
             />
           </Field>
         </Card>
@@ -197,11 +271,9 @@ export function PublicarAnuncio() {
         </Card>
 
         <Card className="space-y-4 p-5">
-          <SectionTitle hint="Anúncio com valor recebe mais propostas, e propostas mais sérias.">
-            Quanto e quando
-          </SectionTitle>
+          <SectionTitle hint={t.dicaValor}>{t.secaoValor}</SectionTitle>
 
-          <Field label="Como você paga">
+          <Field label={t.rotuloOrcamento}>
             <Select
               value={d.orcamentoTipo}
               onChange={(e) => set('orcamentoTipo', e.target.value as TipoOrcamento)}
@@ -229,12 +301,14 @@ export function PublicarAnuncio() {
             </div>
           )}
 
-          <Field label="Prazo desejado" hint="Em dias. Opcional.">
-            <Input
-              type="number" min={1} max={3650} value={prazo}
-              onChange={(e) => setPrazo(e.target.value)} placeholder="15"
-            />
-          </Field>
+          {temPrazo && (
+            <Field label="Prazo desejado" hint="Em dias. Opcional.">
+              <Input
+                type="number" min={1} max={3650} value={prazo}
+                onChange={(e) => setPrazo(e.target.value)} placeholder="15"
+              />
+            </Field>
+          )}
         </Card>
 
         {tentou && problemas.length > 0 && (
@@ -247,7 +321,7 @@ export function PublicarAnuncio() {
 
         <div className="flex flex-wrap items-center gap-3">
           <Button onClick={publicar} loading={enviando} icon="send">
-            {enviando ? 'Publicando…' : 'Publicar anúncio'}
+            {enviando ? t.publicando : t.botao}
           </Button>
           <span className="text-xs text-muted">Fica aberto por 30 dias. Você pode encerrar antes.</span>
         </div>

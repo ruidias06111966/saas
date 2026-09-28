@@ -18,6 +18,23 @@ import { requireSupabase } from './supabaseClient';
 // resultado. É uma diferença deliberada, não um descuido.
 // ---------------------------------------------------------------------------
 
+/**
+ * As duas pontas do mercado.
+ *
+ * `procurando` — alguém PRECISA de um serviço e publica o que precisa.
+ * `oferecendo` — alguém FAZ um serviço e publica o que sabe fazer.
+ *
+ * Um anúncio é sempre um dos dois, nunca os dois. É o campo que decide em qual
+ * quadro ele aparece, qual etiqueta o cartão mostra, e qual botão a pessoa vê.
+ */
+export type TipoAnuncio = 'procurando' | 'oferecendo';
+
+/** O tipo OPOSTO. Em "quero contratar" a pessoa vê quem oferece, e vice-versa. */
+export const OUTRA_PONTA: Record<TipoAnuncio, TipoAnuncio> = {
+  procurando: 'oferecendo',
+  oferecendo: 'procurando',
+};
+
 export type Modalidade = 'remoto' | 'presencial' | 'hibrido';
 export type TipoOrcamento = 'fechado' | 'por_hora' | 'a_combinar';
 export type StatusAnuncio = 'rascunho' | 'aberto' | 'fechado' | 'concluido' | 'cancelado';
@@ -32,6 +49,8 @@ export interface Categoria {
 export interface Anuncio {
   id: string;
   autorId: string;
+  /** Procura ou oferta. Decide o quadro, a etiqueta e o botão. */
+  tipo: TipoAnuncio;
   autorNome?: string;
   titulo: string;
   descricao: string;
@@ -68,6 +87,8 @@ export interface Proposta {
 }
 
 export interface FiltroBusca {
+  /** Sem isto os dois quadros mostram a mesma lista, que é o defeito a evitar. */
+  tipo?: TipoAnuncio;
   texto?: string;
   categoriaId?: string;
   uf?: string;
@@ -84,7 +105,7 @@ export const POR_PAGINA = 20;
 // menos administração — e administração é justamente quem testaria e não veria
 // defeito nenhum. Os nomes vêm de `perfis_do_mercado`, em `nomesDe()`.
 const COLUNAS_ANUNCIO = `
-  id, autor_id, titulo, descricao, categoria_id, modalidade, cidade, uf,
+  id, autor_id, tipo_anuncio, titulo, descricao, categoria_id, modalidade, cidade, uf,
   orcamento_tipo, orcamento_min, orcamento_max, prazo_dias, status,
   created_at, expires_at,
   categoria:categorias ( nome )
@@ -95,6 +116,7 @@ function paraAnuncio(r: any): Anuncio {
   return {
     id: r.id,
     autorId: r.autor_id,
+    tipo: r.tipo_anuncio,
     titulo: r.titulo,
     descricao: r.descricao,
     categoriaId: r.categoria_id,
@@ -201,6 +223,7 @@ export async function buscarAnuncios(
       config: 'public.portugues_sem_acento',
     });
   }
+  if (f.tipo) q = q.eq('tipo_anuncio', f.tipo);
   if (f.categoriaId) q = q.eq('categoria_id', f.categoriaId);
   if (f.uf) q = q.eq('uf', f.uf);
   if (f.cidade) q = q.ilike('cidade', `%${f.cidade}%`);
@@ -228,6 +251,7 @@ export async function lerAnuncio(id: string): Promise<Anuncio | null> {
 // ------------------------------ publicar -----------------------------------
 
 export interface RascunhoAnuncio {
+  tipo: TipoAnuncio;
   titulo: string;
   descricao: string;
   categoriaId: string;
@@ -245,6 +269,7 @@ export async function publicarAnuncio(autorId: string, r: RascunhoAnuncio): Prom
     .from('anuncios')
     .insert({
       autor_id: autorId,
+      tipo_anuncio: r.tipo,
       titulo: r.titulo.trim(),
       descricao: r.descricao.trim(),
       categoria_id: r.categoriaId,
@@ -256,7 +281,10 @@ export async function publicarAnuncio(autorId: string, r: RascunhoAnuncio): Prom
       orcamento_tipo: r.orcamentoTipo,
       orcamento_min: r.orcamentoTipo === 'a_combinar' ? null : (r.orcamentoMin ?? null),
       orcamento_max: r.orcamentoTipo === 'a_combinar' ? null : (r.orcamentoMax ?? null),
-      prazo_dias: r.prazoDias ?? null,
+      // O banco RECUSA prazo numa oferta (`prazo_so_em_procura`, migração 021).
+      // Zerar aqui evita que a pessoa leve um erro do Postgres na cara; a regra
+      // que VALE continua sendo a de lá.
+      prazo_dias: r.tipo === 'oferecendo' ? null : (r.prazoDias ?? null),
     })
     .select('id').single();
   if (error) throw new Error(`Não foi possível publicar: ${error.message}`);

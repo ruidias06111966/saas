@@ -170,7 +170,7 @@ export function Home() {
       <section className="mb-6">
         <SectionTitle
           hint="O que apareceu de mais recente no quadro."
-          action={<Button size="sm" variant="ghost" onClick={() => navigate({ name: 'anuncios' })}>Ver tudo</Button>}
+          action={<Button size="sm" variant="ghost" onClick={() => navigate({ name: 'oferecer' })}>Ver tudo</Button>}
         >
           Trabalho disponível
         </SectionTitle>
@@ -184,7 +184,7 @@ export function Home() {
             icon="search"
             title="O quadro ainda está vazio"
             body="Ninguém publicou nada por enquanto. Você pode ser o primeiro — e quem publica num quadro calmo costuma receber as melhores respostas."
-            action={<Button size="sm" icon="plus" onClick={() => navigate({ name: 'publicar' })}>Publicar um anúncio</Button>}
+            action={<Button size="sm" icon="plus" onClick={() => navigate({ name: 'publicar', tipo: 'procurando' })}>Publicar o que preciso</Button>}
           />
         ) : (
           <div className="space-y-3">

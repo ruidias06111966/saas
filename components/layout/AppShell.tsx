@@ -23,7 +23,10 @@ import { APP_NAME , URL_MANUAL } from '../../constants';
 // quem procura profissional no celular normalmente chegou por um anúncio.
 const NAV: { route: Route['name']; label: string; icon: IconName; soDesktop?: true }[] = [
   { route: 'home', label: 'Início', icon: 'home' },
-  { route: 'anuncios', label: 'Trabalhos', icon: 'search' },
+  // Os DOIS lados do mercado, lado a lado no menu. Um item só com um filtro
+  // escondido não responde a pergunta que a pessoa traz.
+  { route: 'procurar', label: 'Procurar', icon: 'search' },
+  { route: 'oferecer', label: 'Oferecer', icon: 'handshake' },
   { route: 'meusAnuncios', label: 'Publiquei', icon: 'edit' },
   { route: 'minhasPropostas', label: 'Propostas', icon: 'send' },
   { route: 'profissionais', label: 'Quem faz', icon: 'users', soDesktop: true },
@@ -55,7 +58,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const isActive = (name: Route['name']) =>
     route.name === name ||
     (name === 'chats' && route.name === 'chat') ||
-    (name === 'anuncios' && route.name === 'anuncio') ||
+    // Abrir um anúncio mantém aceso o menu de onde a pessoa veio. Como um
+    // anúncio pode ser dos dois tipos, ambos acendem — melhor do que apagar os
+    // dois e a pessoa perder de vista onde está.
+    ((name === 'procurar' || name === 'oferecer') && route.name === 'anuncio') ||
     (name === 'meusAnuncios' && route.name === 'publicar') ||
     (name === 'profissionais' && route.name === 'person') ||
     (name === 'profile' && route.name === 'profileEdit');

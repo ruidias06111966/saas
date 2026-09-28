@@ -3,7 +3,7 @@ import { useApp } from '../state/AppContext';
 import { Page } from '../components/layout/AppShell';
 import { Banner, Button, Card, Chip, Field, Input, SectionTitle, Textarea } from '../components/ui';
 import {
-  type Anuncio as TAnuncio, type Proposta,
+  type Anuncio as TAnuncio, type Proposta, type TipoAnuncio,
   dinheiro, enviarProposta, faixaDeOrcamento, lerAnuncio, minhasPropostas, ondeFica,
   propostasRestantes, responderProposta, propostasDoAnuncio, STATUS_PROPOSTA_LABEL,
 } from '../services/mercado';
@@ -18,7 +18,45 @@ import {
 
 const MIN_MENSAGEM = 20;
 
-function Formulario({ anuncioId, onEnviada }: { anuncioId: string; onEnviada: () => void }) {
+/**
+ * Responder a um anúncio tem dois sentidos, e o mesmo nome para os dois seria
+ * errado dos dois lados.
+ *
+ * Num anúncio de PROCURA quem responde é profissional: ele PROPÕE fazer o
+ * trabalho. Num anúncio de OFERTA quem responde é cliente: ele quer CONTRATAR.
+ * A linha gravada em `propostas` é a mesma — muda o que a tela chama e o que
+ * ela pede.
+ */
+const RESPOSTA: Record<TipoAnuncio, {
+  secao: string; dica: string; botao: string; enviando: string;
+  dicaMensagem: string; exemplo: string; rotuloValor: string; minha: string;
+}> = {
+  procurando: {
+    secao: 'Enviar proposta',
+    dica: 'Quem publicou vê o seu nome, a sua mensagem e, se preencher, o valor e o prazo.',
+    botao: 'Enviar proposta',
+    enviando: 'Enviando…',
+    dicaMensagem: 'Diga como você resolveria, e por que você.',
+    exemplo: 'Explique como você faria este trabalho, o que já fez parecido, e o que precisa saber para começar.',
+    rotuloValor: 'Quanto você cobra',
+    minha: 'Sua proposta',
+  },
+  oferecendo: {
+    secao: 'Tenho interesse',
+    dica: 'O profissional vê o seu nome, a sua mensagem e, se preencher, quanto você pretende gastar.',
+    botao: 'Quero contratar',
+    enviando: 'Enviando…',
+    dicaMensagem: 'Diga o que você precisa, e para quando.',
+    exemplo: 'Explique o que você precisa que seja feito, para quando, e qualquer detalhe que ajude a pessoa a responder.',
+    rotuloValor: 'Quanto pretende gastar',
+    minha: 'Seu contato',
+  },
+};
+
+function Formulario({ anuncioId, tipo, onEnviada }: {
+  anuncioId: string; tipo: TipoAnuncio; onEnviada: () => void;
+}) {
+  const t = RESPOSTA[tipo];
   const { me, navigate, toast } = useApp();
   const [mensagem, setMensagem] = useState('');
   const [valor, setValor] = useState('');
@@ -71,9 +109,7 @@ function Formulario({ anuncioId, onEnviada }: { anuncioId: string; onEnviada: ()
 
   return (
     <Card className="space-y-4 p-5">
-      <SectionTitle hint="Quem publicou vê o seu nome, a sua mensagem e, se preencher, o valor e o prazo.">
-        Enviar proposta
-      </SectionTitle>
+      <SectionTitle hint={t.dica}>{t.secao}</SectionTitle>
 
       {restantes !== null && Number.isFinite(restantes) && (
         <Banner tone={restantes <= 1 ? 'warn' : 'info'} icon="send">
@@ -88,17 +124,17 @@ function Formulario({ anuncioId, onEnviada }: { anuncioId: string; onEnviada: ()
         label="Sua mensagem"
         required
         hint={curta
-          ? `Faltam ${MIN_MENSAGEM - mensagem.trim().length} caracteres. Diga como você faria e o que já fez parecido.`
+          ? `Faltam ${MIN_MENSAGEM - mensagem.trim().length} caracteres. ${t.dicaMensagem}`
           : `${mensagem.trim().length} caracteres`}
       >
         <Textarea
           rows={5} value={mensagem} onChange={(e) => setMensagem(e.target.value)}
-          placeholder="Explique como você resolveria e cite algo parecido que já fez. Propostas genéricas quase nunca são escolhidas."
+          placeholder={t.exemplo}
         />
       </Field>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Quanto você cobra" hint="Opcional, mas ajuda muito a ser escolhido.">
+        <Field label={t.rotuloValor} hint="Opcional, mas ajuda muito a ser escolhido.">
           <Input
             type="number" min={0} step={50} value={valor}
             onChange={(e) => setValor(e.target.value)} placeholder="R$"
@@ -113,7 +149,7 @@ function Formulario({ anuncioId, onEnviada }: { anuncioId: string; onEnviada: ()
       </div>
 
       <Button onClick={enviar} disabled={curta || enviando} icon="send">
-        {enviando ? 'Enviando…' : 'Enviar proposta'}
+        {enviando ? t.enviando : t.botao}
       </Button>
     </Card>
   );
@@ -263,7 +299,7 @@ export function Anuncio({ id }: { id: string }) {
         </div>
       ) : minha ? (
         <div className="mt-8">
-          <SectionTitle>Sua proposta</SectionTitle>
+          <SectionTitle>{RESPOSTA[anuncio.tipo].minha}</SectionTitle>
           <Card className="mt-4 space-y-3 p-5">
             <div className="flex flex-wrap items-center gap-2">
               <Chip size="sm" tone={minha.status === 'aceita' ? 'sage' : 'neutral'}>
@@ -291,7 +327,7 @@ export function Anuncio({ id }: { id: string }) {
         </div>
       ) : aberto ? (
         <div className="mt-8">
-          <Formulario anuncioId={anuncio.id} onEnviada={recarregar} />
+          <Formulario anuncioId={anuncio.id} tipo={anuncio.tipo} onEnviada={recarregar} />
         </div>
       ) : null}
     </Page>
