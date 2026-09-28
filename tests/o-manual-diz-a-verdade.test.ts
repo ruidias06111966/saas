@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { PRECO_PREMIUM, QUOTAS, ETAPAS_DA_CONVERSA } from '../constants';
+import { QUOTAS, ETAPAS_DA_CONVERSA } from '../constants';
 import { SAFETY_TIPS } from '../services/moderation';
 import { MODALIDADE_LABEL, STATUS_PROPOSTA_LABEL } from '../services/mercado';
 
@@ -103,8 +103,19 @@ describe('o manual existe e é uma página que abre sozinha', () => {
 });
 
 describe('o preço e as cotas do manual são os do código', () => {
-  it('o preço do Premium', () => {
-    expect(texto).toContain(PRECO_PREMIUM);
+  it('o manual NÃO repete o preço — diz onde ele está', () => {
+    // Este teste já exigia que o manual citasse a constante PRECO_PREMIUM.
+    // Desde a migração 025 o preço mora na tabela `planos` e muda pelo painel;
+    // um número fixo no manual seria combinar para ele envelhecer.
+    const valores = [...texto.matchAll(/R\$\s?\d+,\d{2}/g)].map((m) => m[0]);
+    expect(valores, `o manual repete preço: ${valores.join(', ')}`).toEqual([]);
+    expect(texto).toContain('Onde ver quanto custa');
+  });
+
+  it('o manual explica que há dois planos, mensal e anual', () => {
+    expect(texto).toContain('Mensal ou anual');
+    expect(texto).toMatch(/uma vez por ano/);
+    expect(texto).toContain('quem já assinou continua pagando o que contratou');
   });
 
   it('o manual diz a REGRA, não uma cota que não existe mais', () => {

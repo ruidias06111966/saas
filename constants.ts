@@ -8,7 +8,7 @@
  */
 export const APP_NAME = 'QICONEXÃO';
 export const APP_TAGLINE = 'Trabalho, negócios e quem sabe fazer.';
-export const POLICY_VERSION = '2026.2';
+export const POLICY_VERSION = '2026.3';
 
 /**
  * ATENÇÃO: esta chave e as irmãs dela (`conexao.auth` em supabaseClient.ts,
@@ -106,8 +106,17 @@ export interface PlanQuota {
   filtrosAvancados: boolean;
 }
 
-/** Quanto custa o Premium. Tem de bater com o preço cadastrado no Stripe. */
-export const PRECO_PREMIUM = 'R$ 39,90';
+// O preço NÃO mora aqui, e a ausência é o conserto.
+//
+// Havia uma constante `PRECO_PREMIUM = 'R$ 39,90'` nesta linha. Era o que a
+// pessoa lia. O que o cartão pagaria eram os 2990 escritos na Edge Function
+// `assinar` — um número diferente, noutro arquivo, que ninguém obrigava a
+// concordar com este. Um teste guardava os Termos contra a tela; a caixa
+// registadora ficou de fora.
+//
+// Desde a migração 025 o preço vive na tabela `planos`, e dela saem TANTO a
+// tela QUANTO o checkout. Não há constante para divergir porque não há
+// constante. Quem precisa do preço chama `planosAVenda()` em services/planos.ts.
 
 /**
  * `free` aqui NÃO é um plano — é a ausência de um. Quem nunca assinou, quem

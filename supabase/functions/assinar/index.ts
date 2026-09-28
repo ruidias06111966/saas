@@ -6,38 +6,40 @@
 // nosso webhook — nunca o navegador de quem pagou, que poderia simplesmente
 // afirmar que pagou.
 //
-// De onde sai o preço é decisão de configuração, e está explicada logo abaixo
-// em PRECO_DO_CATALOGO.
+// De onde sai o preço está explicado logo abaixo: da tabela `planos`, a mesma
+// que a tela de Planos lê. Aqui não há número escrito à mão.
 // ---------------------------------------------------------------------------
 
 import Stripe from 'npm:stripe@17.7.0';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
-const PRECO_CENTAVOS = 2990;
-const MOEDA = 'brl';
 const NOME_DO_PLANO = 'QICONEXÃO Premium';
 
 // ---------------------------------------------------------------------------
-// DOIS MODOS DE PREÇO, e a escolha é de configuração, não de código.
+// DE ONDE SAI O PREÇO — e por que já não sai daqui.
 //
-// SEM `STRIPE_PRICE_ID` (comportamento histórico, e o padrão)
-// O preço vai inline. A intenção era boa: o valor da tela e o valor cobrado
-// saem da mesma constante, e não há como a página dizer R$ 29,90 enquanto a
-// cobrança é outra. O custo apareceu na auditoria de 03/09/2026 — o Stripe cria
-// um Produto e um Preço NOVOS a cada assinatura. Com cem assinantes, cem Preços
-// no painel, e o relatório de receita por produto deixa de fazer sentido.
+// Até 28/09/2026 esta linha era `const PRECO_CENTAVOS = 2990`, enquanto a tela
+// mostrava 'R$ 39,90', vindo de constants.ts. Dois números, dois arquivos,
+// nenhuma regra obrigando-os a concordar: o primeiro virou 39,90 no PR #20, o
+// segundo nasceu 2990 no PR #5 e ficou. Havia teste guardando os Termos contra
+// a tela — o documento ficou protegido, a caixa registadora não. Ninguém foi
+// cobrado a menos porque nenhum pagamento real chegou a acontecer.
 //
-// COM `STRIPE_PRICE_ID`
-// O checkout referencia um Preço do catálogo. Um Produto, um Preço, relatório
-// limpo. Em troca, volta o risco que o inline evitava: catálogo e tela podem
-// divergir sem ninguém notar. A ação `diagnostico` passou a devolver o preço do
-// catálogo justamente para essa divergência ficar visível.
+// Agora o preço vem da tabela `planos`, a MESMA que a tela lê. O navegador
+// manda só o CÓDIGO do plano ('mensal' ou 'anual'); quanto vale cada código é
+// lido aqui. Se o navegador mandasse o valor, quem abrisse o console do
+// navegador pagaria o que quisesse.
 //
-// QUEM JÁ ASSINOU NÃO MUDA. O Stripe mantém cada assinatura no preço que ela
-// contratou. Ligar esta variável não reajusta, não cancela e não recobra
-// ninguém — vale só para checkouts novos.
-// ---------------------------------------------------------------------------
-const PRECO_DO_CATALOGO = Deno.env.get('STRIPE_PRICE_ID')?.trim() || null;
+// CATÁLOGO DO STRIPE, QUANDO HOUVER
+//
+// Quando a linha do plano traz `stripe_price_id`, o checkout usa o Preço do
+// catálogo: um Produto, um Preço, relatório de receita limpo — em vez de um
+// Preço novo a cada assinatura, que era o custo do modo inline apontado na
+// auditoria de 03/09/2026.
+//
+// Mas ANTES de usar, confere se o valor do catálogo bate com `centavos`. Se
+// divergir, o checkout NÃO ABRE. Cobrar um valor diferente do que a tela
+// mostrou é pior do que não vender.
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -65,6 +67,46 @@ function destinoSeguro(bruto: unknown, permitidas: string[]): string | null {
   }
 }
 
+/** Uma linha da tabela `planos`, que é de onde o preço sai. */
+interface LinhaPlano {
+  codigo: string;
+  nome: string;
+  centavos: number;
+  intervalo: string;
+  moeda: string;
+  stripe_price_id: string | null;
+}
+
+const COLUNAS_PLANO = 'codigo, nome, centavos, intervalo, moeda, stripe_price_id';
+
+/**
+ * O plano pedido, lido do banco — nunca do corpo da requisição.
+ *
+ * O navegador escolhe o CÓDIGO; o valor é sempre daqui. Só devolve plano que
+ * está à venda: um plano desativado no painel some do checkout no mesmo
+ * instante em que some da tela.
+ *
+ * NÃO TEM PADRÃO, E ISSO É DE PROPÓSITO.
+ *
+ * Esta função publica-se à parte do site, e o site fica em cache por até dez
+ * minutos. Entre uma publicação e outra existe uma janela em que uma página
+ * ANTIGA — que mostrava outro preço e não sabia mandar `plano` — conversa com
+ * esta função nova. Se aqui houvesse um padrão ('mensal', digamos), essa página
+ * cobraria um valor que ela mesma não mostrou.
+ *
+ * Cobrar mais do que a tela anunciou é o pior resultado possível. Por isso a
+ * ausência do campo é recusa, com um recado que diz o que fazer.
+ */
+async function planoPedido(
+  cliente: ReturnType<typeof createClient>, pedido: unknown,
+): Promise<LinhaPlano | null> {
+  if (pedido !== 'mensal' && pedido !== 'anual') return null;
+  const { data } = await cliente
+    .from('planos').select(COLUNAS_PLANO)
+    .eq('codigo', pedido).eq('ativo', true).maybeSingle();
+  return (data as LinhaPlano | null) ?? null;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
   if (req.method !== 'POST') return responder({ erro: 'Use POST.' }, 405);
@@ -90,7 +132,7 @@ Deno.serve(async (req: Request) => {
   const email = sessao?.user?.email;
   if (erroAuth || !uid) return responder({ erro: 'Sessão inválida.' }, 401);
 
-  let body: { voltarPara?: string; acao?: string; corrigir?: boolean; de?: string };
+  let body: { voltarPara?: string; acao?: string; corrigir?: boolean; de?: string; plano?: string };
   try {
     body = await req.json();
   } catch {
@@ -143,32 +185,53 @@ Deno.serve(async (req: Request) => {
       registrados = await stripe.webhookEndpoints.list({ limit: 20 });
     }
 
-    // O preço do catálogo, quando há um. Sem isto, catálogo e tela poderiam
-    // divergir em silêncio — que é exatamente o risco reintroduzido ao sair do
-    // preço inline.
-    let catalogo: Record<string, unknown> | null = null;
-    if (PRECO_DO_CATALOGO) {
-      try {
-        const p = await stripe.prices.retrieve(PRECO_DO_CATALOGO);
-        catalogo = {
-          id: p.id,
-          ativo: p.active,
-          centavos: p.unit_amount,
-          moeda: p.currency,
-          intervalo: p.recurring?.interval ?? null,
-          confere_com_a_tela:
-            p.unit_amount === PRECO_CENTAVOS && p.currency === MOEDA,
-        };
-      } catch {
-        catalogo = { id: PRECO_DO_CATALOGO, erro: 'o Stripe não conhece este preço' };
+    // Cada plano à venda, confrontado com o Stripe.
+    //
+    // Esta é a pergunta que o diagnóstico antigo respondia errado: ele comparava
+    // o catálogo com uma constante deste arquivo, e a constante já não era o que
+    // a tela mostrava. Agora a comparação é entre o catálogo e a TABELA — a
+    // mesma linha que a tela leu.
+    const { data: linhas } = await comoUsuario
+      .from('planos').select('codigo, nome, centavos, intervalo, moeda, stripe_price_id, ativo').order('ordem');
+
+    const planos = [];
+    for (const linha of (linhas ?? []) as (LinhaPlano & { ativo: boolean })[]) {
+      let catalogo: Record<string, unknown> | null = null;
+      if (linha.stripe_price_id) {
+        try {
+          const preco = await stripe.prices.retrieve(linha.stripe_price_id);
+          catalogo = {
+            id: preco.id,
+            ativo: preco.active,
+            centavos: preco.unit_amount,
+            moeda: preco.currency,
+            intervalo: preco.recurring?.interval ?? null,
+            confere_com_a_tabela:
+              preco.active
+              && preco.unit_amount === linha.centavos
+              && preco.currency === linha.moeda
+              && preco.recurring?.interval === linha.intervalo,
+          };
+        } catch {
+          catalogo = { id: linha.stripe_price_id, erro: 'o Stripe não conhece este preço' };
+        }
       }
+      planos.push({
+        codigo: linha.codigo,
+        nome: linha.nome,
+        a_venda: linha.ativo,
+        centavos_na_tabela: linha.centavos,
+        intervalo: linha.intervalo,
+        origem_do_preco: linha.stripe_price_id
+          ? 'catalogo do Stripe'
+          : 'inline (um Preço novo por assinatura)',
+        catalogo,
+      });
     }
 
     return responder({
       modo: chaveStripe.startsWith('sk_test') ? 'teste' : 'producao',
-      preco_na_tela_centavos: PRECO_CENTAVOS,
-      preco_do_catalogo: catalogo,
-      origem_do_preco: PRECO_DO_CATALOGO ? 'catalogo' : 'inline (um Preço novo por assinatura)',
+      planos,
       segredo_do_webhook_configurado: Boolean(Deno.env.get('STRIPE_WEBHOOK_SECRET')),
       urls_do_app: permitidas,
       endpoint_esperado: esperado,
@@ -287,6 +350,60 @@ Deno.serve(async (req: Request) => {
       return responder({ url: portal.url });
     }
 
+    // O preço sai DAQUI, do banco. O corpo da requisição escolhe o código do
+    // plano e mais nada.
+    if (body.plano !== 'mensal' && body.plano !== 'anual') {
+      // Página em cache, de uma versão anterior. Ela mostrava outro preço, e
+      // adivinhar qual plano ela queria seria cobrar um valor que ela não
+      // anunciou.
+      return responder({
+        erro: 'Esta página é de uma versão anterior. Atualize a página (F5) e tente de novo — '
+            + 'nada foi cobrado.',
+      }, 409);
+    }
+    const plano = await planoPedido(comoUsuario, body.plano);
+    if (!plano) return responder({ erro: 'Este plano não está à venda.' }, 400);
+
+    // Quando há Preço de catálogo, ele só é usado depois de bater com a tabela.
+    // Divergiu, o checkout não abre: cobrar um valor diferente do que a tela
+    // mostrou é pior do que não vender.
+    let item: Stripe.Checkout.SessionCreateParams.LineItem;
+    if (plano.stripe_price_id) {
+      const preco = await stripe.prices.retrieve(plano.stripe_price_id);
+      const confere = preco.active
+        && preco.unit_amount === plano.centavos
+        && preco.currency === plano.moeda
+        && preco.recurring?.interval === plano.intervalo;
+      if (!confere) {
+        console.error('[assinar] catálogo do Stripe diverge da tabela planos', {
+          codigo: plano.codigo,
+          tabela: { centavos: plano.centavos, moeda: plano.moeda, intervalo: plano.intervalo },
+          catalogo: {
+            ativo: preco.active, centavos: preco.unit_amount,
+            moeda: preco.currency, intervalo: preco.recurring?.interval ?? null,
+          },
+        });
+        return responder({
+          erro: 'O preço cadastrado no provedor de pagamento não confere com o preço desta tela. '
+              + 'Por segurança nada foi cobrado. Avise o administrador.',
+        }, 409);
+      }
+      item = { price: plano.stripe_price_id, quantity: 1 };
+    } else {
+      item = {
+        quantity: 1,
+        price_data: {
+          currency: plano.moeda,
+          unit_amount: plano.centavos,
+          recurring: { interval: plano.intervalo as Stripe.Price.Recurring.Interval },
+          product_data: {
+            name: `${NOME_DO_PLANO} — ${plano.nome}`,
+            description: 'Mais alcance e mais ferramentas. Segurança e direitos de LGPD seguem fora do paywall.',
+          },
+        },
+      };
+    }
+
     const checkout = await stripe.checkout.sessions.create({
       mode: 'subscription',
       // Amarra a sessão de pagamento à conta. O webhook lê daqui de quem é o
@@ -294,23 +411,12 @@ Deno.serve(async (req: Request) => {
       client_reference_id: uid,
       customer_email: email ?? undefined,
       locale: 'pt-BR',
-      line_items: [
-        PRECO_DO_CATALOGO
-          ? { price: PRECO_DO_CATALOGO, quantity: 1 }
-          : {
-              quantity: 1,
-              price_data: {
-                currency: MOEDA,
-                unit_amount: PRECO_CENTAVOS,
-                recurring: { interval: 'month' },
-                product_data: {
-                  name: NOME_DO_PLANO,
-                  description: 'Mais alcance e mais ferramentas. Segurança e direitos de LGPD seguem fora do paywall.',
-                },
-              },
-            },
-      ],
-      subscription_data: { metadata: { conexao_user_id: uid } },
+      line_items: [item],
+      // `conexao_plano` é como o webhook sabe QUAL plano foi pago, para
+      // gravar em `subscriptions.plano_codigo` e o painel poder somar receita
+      // mensal e anual separadamente.
+      subscription_data: { metadata: { conexao_user_id: uid, conexao_plano: plano.codigo } },
+      metadata: { conexao_plano: plano.codigo },
       success_url: `${voltar}?assinatura=ok`,
       cancel_url: `${voltar}?assinatura=cancelada`,
     });

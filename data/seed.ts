@@ -158,3 +158,19 @@ export const SEED_USERS: User[] = SPECS.map(([spec, days]) => build(spec, days))
 export const DEMO_USER_ID = 'u_demo';
 export const DEMO_ADMIN_ID = 'u_admin';
 export const DEMO_PASSWORD = 'conexao123';
+
+// ---------------------------------------------------------------------------
+// Os planos, no modo demonstração.
+//
+// No sistema de verdade estes números vêm da tabela `planos`, e são os MESMOS
+// que o Stripe cobra — foi para isso que a migração 025 existiu. Aqui não há
+// servidor nem cobrança, então o valor é escrito à mão.
+//
+// Este é o ÚNICO preço escrito à mão no cliente, e há um teste que garante
+// isso. Mudar o número aqui não muda o que ninguém paga: muda só o que a
+// demonstração mostra.
+// ---------------------------------------------------------------------------
+export const PLANOS_DEMO = [
+  { codigo: 'mensal', nome: 'Mensal', centavos: 4990,  intervalo: 'month', ativo: true, ordem: 1 },
+  { codigo: 'anual',  nome: 'Anual',  centavos: 44900, intervalo: 'year',  ativo: true, ordem: 2 },
+] as const;

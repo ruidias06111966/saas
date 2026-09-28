@@ -61,13 +61,28 @@ Deno.serve(async (req: Request) => {
     return new Response('Erro interno.', { status: 500 });
   }
 
+  /**
+   * Qual dos planos foi pago — 'mensal' ou 'anual'.
+   *
+   * Vem do metadado que a função `assinar` gravou na assinatura ao criar o
+   * checkout, e não de nenhum valor que o Stripe calcule: o que interessa ao
+   * painel é qual PLANO a pessoa escolheu na nossa tela.
+   *
+   * Nulo quando não houver (assinatura anterior à migração 025). Nulo é um
+   * estado legítimo na coluna, e significa "não sei" — não significa mensal.
+   */
+  const codigoDoPlano = (meta: Stripe.Metadata | null | undefined): string | null => {
+    const bruto = meta?.conexao_plano;
+    return bruto === 'mensal' || bruto === 'anual' ? bruto : null;
+  };
+
   const aplicar = async (
     uid: string, plano: 'free' | 'premium', status: string,
-    idNoProvedor: string, expira: string | null,
+    idNoProvedor: string, expira: string | null, codigo: string | null = null,
   ) => {
     const { error } = await db.rpc('aplicar_assinatura_stripe', {
       dono: uid, novo_plano: plano, novo_status: status,
-      id_no_provedor: idNoProvedor, expira,
+      id_no_provedor: idNoProvedor, expira, codigo_do_plano: codigo,
     });
     if (error) throw error;
   };
@@ -90,7 +105,7 @@ Deno.serve(async (req: Request) => {
         if (!uid) { console.error('[stripe-webhook] checkout sem client_reference_id'); break; }
         if (s.payment_status !== 'paid' && s.status !== 'complete') break;
         const idAssinatura = typeof s.subscription === 'string' ? s.subscription : s.subscription?.id;
-        await aplicar(uid, 'premium', 'ativa', idAssinatura ?? s.id, null);
+        await aplicar(uid, 'premium', 'ativa', idAssinatura ?? s.id, null, codigoDoPlano(s.metadata));
         break;
       }
 
@@ -107,6 +122,7 @@ Deno.serve(async (req: Request) => {
           viva ? 'ativa' : (assin.status === 'canceled' ? 'cancelada' : 'expirada'),
           assin.id,
           fim ? new Date(fim * 1000).toISOString() : null,
+          codigoDoPlano(assin.metadata),
         );
         break;
       }
