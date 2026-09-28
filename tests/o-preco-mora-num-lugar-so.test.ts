@@ -49,6 +49,21 @@ function semComentarios(codigo: string): string {
     .replace(/(^|[^:])\/\/.*$/gm, '$1');
 }
 
+/**
+ * O SQL sem comentários.
+ *
+ * Existe por causa de uma passagem acidental: comentei `revoke update ...` e o
+ * teste continuou verde, porque `-- revoke update ...` CONTÉM `revoke update
+ * ...`. É a sexta vez nesta sessão, e literalmente a mesma causa da primeira —
+ * a busca encontra, fora do lugar pretendido, o que devia achar dentro dele.
+ *
+ * Não é um analisador de SQL: dois traços dentro de uma string seriam tratados
+ * como comentário. Não há nenhum nesta migração, e se houver um dia o efeito é
+ * um teste que falha pedindo atenção, não um que passa escondendo defeito.
+ */
+const semComentariosSQL = (sql: string): string =>
+  sql.replace(/--.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, ' ');
+
 /** Todo arquivo de código do cliente e das funções, exceto testes. */
 function arquivosDeCodigo(): string[] {
   const achados: string[] = [];
@@ -234,7 +249,7 @@ describe('o webhook registra QUAL plano foi pago', () => {
 });
 
 describe('a migração 025 tranca o que o painel não pode mexer', () => {
-  const sql = ler('supabase/migrations/025_um_preco_so_para_a_tela_e_para_a_caixa.sql');
+  const sql = semComentariosSQL(ler('supabase/migrations/025_um_preco_so_para_a_tela_e_para_a_caixa.sql'));
 
   /** O mesmo recorte delimitado usado na etapa anterior, pela mesma razão. */
   const policy = (nome: string): string => {
@@ -260,8 +275,16 @@ describe('a migração 025 tranca o que o painel não pode mexer', () => {
     expect(sql).not.toMatch(/create policy[^;]*on public\.planos for delete/i);
   });
 
+  // Estes dois `revoke` não vieram de raciocínio: vieram de testar contra a API
+  // de verdade. Sem eles, apagar um plano e mudar o preço como anônimo
+  // devolviam 200 com lista vazia — a RLS filtrava em SILÊNCIO. Silêncio é o
+  // pior jeito de negar: não aparece em log nem em tela.
   it('o privilégio de tabela também nega INSERT e DELETE', () => {
     expect(sql).toContain('revoke insert, delete, truncate on public.planos from anon, authenticated');
+  });
+
+  it('quem não entrou não muda preço nem com a RLS aberta', () => {
+    expect(sql).toContain('revoke update on public.planos from anon;');
   });
 
   it('código, intervalo e moeda são fixos depois de criados', () => {

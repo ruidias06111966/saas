@@ -74,11 +74,16 @@ on conflict (codigo) do nothing;
 -- configuração que não está neste arquivo. Nem INSERT nem DELETE, para ninguém.
 grant select on public.planos to anon, authenticated;
 grant update on public.planos to authenticated;
--- O projeto concede INSERT e DELETE por omissão a tabelas novas. O ensaio
--- mostrou o efeito: apagar um plano não dava erro, dava "0 linhas" — a RLS
--- filtrava em silêncio. Revogar aqui faz a tentativa falhar com voz alta, e
--- deixa a regra escrita em dois lugares em vez de um.
+-- O projeto concede tudo por omissão a tabelas novas. O ensaio mostrou o
+-- efeito: apagar um plano não dava erro, dava "0 linhas" — a RLS filtrava em
+-- silêncio. Revogar aqui faz a tentativa falhar com voz alta, e deixa a regra
+-- escrita em dois lugares em vez de um.
 revoke insert, delete, truncate on public.planos from anon, authenticated;
+-- E `anon` não muda preço nem com a RLS aberta. Esta linha nasceu de um teste
+-- contra a API de verdade: o anônimo tentou mudar o preço e recebeu 200 com
+-- lista vazia, em vez de erro. O ensaio dentro do banco não pegou porque lá eu
+-- olhava a linha, não o código HTTP.
+revoke update on public.planos from anon;
 
 alter table public.planos enable row level security;
 
