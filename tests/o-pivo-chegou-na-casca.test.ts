@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { POLICY_VERSION, PRECO_PREMIUM, QUOTAS } from '../constants';
+import { POLICY_VERSION, QUOTAS } from '../constants';
 import { SAFETY_TIPS } from '../services/moderation';
 
 // ---------------------------------------------------------------------------
@@ -206,21 +206,27 @@ describe('os documentos públicos descrevem o serviço que existe', () => {
     expect(html).toContain(`Versão ${POLICY_VERSION}`);
   });
 
-  it('o preço nos Termos é o preço que o app cobra', () => {
-    // O contrato dizia R$ 29,90 enquanto o app cobrava R$ 39,90. Dois números
-    // para a mesma coisa é como eles divergem — e aqui a divergência está num
-    // documento que responde pelo dono perante o consumidor.
+  it('os Termos NÃO repetem o preço — apontam para onde ele vive', () => {
+    // Este teste já foi o contrário: exigia que os Termos citassem a constante
+    // PRECO_PREMIUM. Guardava o documento contra a TELA, e deixava de fora a
+    // função que cobra — que tinha outro número. Desde a migração 025 o preço
+    // mora na tabela `planos` e muda pelo painel; um número fixo aqui seria
+    // combinar para o contrato envelhecer.
     const termos = ler('public/termos.html');
-    const numero = PRECO_PREMIUM.replace(/[^\d,]/g, '');
-    expect(termos, `os Termos não citam ${PRECO_PREMIUM}`).toContain(numero);
-
-    const outros = [...termos.matchAll(/R\$\s?(\d{1,3},\d{2})\s?\/\s?mês/g)].map((m) => m[1]);
-    expect(new Set(outros), 'há mais de um preço mensal nos Termos').toEqual(new Set([numero]));
+    const valores = [...termos.matchAll(/R\$\s?\d+,\d{2}/g)].map((m) => m[0]);
+    expect(valores, `os Termos repetem preço: ${valores.join(', ')}`).toEqual([]);
+    expect(termos).toContain('os valores vigentes aparecem na tela');
   });
 
-  it('a cota de propostas nos Termos é a mesma do banco e da tela', () => {
+  it('os Termos dizem a regra nova: responder a anúncio alheio exige plano', () => {
+    // A cota de "3 por mês" morreu na migração 022. Se ela voltar ao contrato,
+    // voltou a um modelo que o banco já não aplica.
     const termos = ler('public/termos.html');
-    expect(termos).toContain(`${QUOTAS.free.propostasPorMes} por mês`);
+    expect(QUOTAS.free.podeResponder).toBe(false);
+    expect(QUOTAS.premium.podeResponder).toBe(true);
+    expect(termos).toContain('Responder ao anúncio de outra pessoa');
+    expect(termos).not.toMatch(/\b3 por m[êe]s\b/);
+    expect(termos).not.toContain('três propostas gratuitas');
   });
 
   it('os Termos dizem que publicar anúncio não custa nada', () => {

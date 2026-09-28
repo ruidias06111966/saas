@@ -1,3 +1,4 @@
+import type { CodigoPlano } from './planos';
 import { requireSupabase, supabaseEnabled } from './supabaseClient';
 
 // ---------------------------------------------------------------------------
@@ -24,18 +25,29 @@ export interface Subscription {
 /** Onde o Stripe deve devolver a pessoa depois do pagamento. */
 const voltarPara = (): string => `${window.location.origin}${window.location.pathname}`;
 
-async function chamar(acao?: 'gerenciar'): Promise<{ url?: string; indisponivel?: boolean }> {
+async function chamar(
+  acao?: 'gerenciar',
+  plano?: CodigoPlano,
+): Promise<{ url?: string; indisponivel?: boolean }> {
   const { data, error } = await requireSupabase().functions.invoke('assinar', {
-    body: { voltarPara: voltarPara(), ...(acao ? { acao } : {}) },
+    body: { voltarPara: voltarPara(), ...(acao ? { acao } : {}), ...(plano ? { plano } : {}) },
   });
   const corpo = data as { url?: string; indisponivel?: boolean; erro?: string } | null;
   if (error || corpo?.erro) throw new Error(corpo?.erro ?? error?.message ?? 'Falha ao abrir o pagamento.');
   return corpo ?? {};
 }
 
-/** Abre o checkout. Devolve false quando a cobrança ainda não foi configurada. */
-export async function startCheckout(): Promise<boolean> {
-  const r = await chamar();
+/**
+ * Abre o checkout do plano escolhido. Devolve false quando a cobrança ainda não
+ * foi configurada.
+ *
+ * O que vai daqui é o CÓDIGO do plano ('mensal' ou 'anual'), nunca o valor. Se
+ * o navegador mandasse o preço, quem soubesse abrir o console pagaria o que
+ * quisesse. Quanto custa cada código é o servidor que lê, na tabela `planos` —
+ * a mesma de onde a tela leu para mostrar.
+ */
+export async function startCheckout(plano: CodigoPlano): Promise<boolean> {
+  const r = await chamar(undefined, plano);
   if (r.indisponivel || !r.url) return false;
   window.location.href = r.url;
   return true;

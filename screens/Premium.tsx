@@ -1,5 +1,9 @@
 import { useEffect, useState } from 'react';
-import { PRECO_PREMIUM, QUOTAS, quantidade } from '../constants';
+import { QUOTAS, quantidade } from '../constants';
+import {
+  type CodigoPlano, type Plano,
+  economiaAnual, emReais, equivalenteMensal, planosAVenda, porPeriodo,
+} from '../services/planos';
 import { AvisoDeCortesia } from '../components/AvisoDeCortesia';
 import { useApp } from '../state/AppContext';
 import { Page } from '../components/layout/AppShell';
@@ -23,10 +27,10 @@ import { uid } from '../services/utils';
 /** A única diferença que importa. Tudo o mais é igual e não vai para a tabela. */
 const A_DIFERENCA = [
   {
-    label: 'Enviar propostas',
-    free: `${quantidade(QUOTAS.free.propostasPorMes)} por mês`,
-    premium: 'Ilimitado',
-    porque: 'É o que separa os planos. As três grátis existem para você fechar um trabalho antes de assinar.',
+    label: 'Responder a anúncios de outras pessoas',
+    free: 'Não',
+    premium: 'Sim, sem limite',
+    porque: 'É o que separa os planos. Publicar continua de graça, dos dois lados.',
   },
   {
     label: 'Filtros avançados na busca de profissionais',
@@ -57,6 +61,15 @@ export function Premium() {
   const { me, dispatch, back, toast, refresh } = useApp();
   const [ocupado, setOcupado] = useState(false);
   const [semCobranca, setSemCobranca] = useState(false);
+  /**
+   * `null` = ainda perguntando ao servidor. Lista vazia = perguntamos e não
+   * veio nada. Os dois estados são diferentes na tela, porque "carregando" e
+   * "não consegui" são notícias diferentes — e nenhuma das duas é um preço
+   * inventado para preencher o buraco.
+   */
+  const [planos, setPlanos] = useState<Plano[] | null>(null);
+
+  useEffect(() => { planosAVenda().then(setPlanos).catch(() => setPlanos([])); }, []);
 
   // A volta do Stripe traz ?assinatura=ok. O plano em si quem muda é o
   // webhook, então aqui só recarregamos para ler o que o servidor decidiu.
@@ -79,8 +92,9 @@ export function Premium() {
 
   if (!me) return null;
   const isPremium = me.plan === 'premium';
+  const economia = planos ? economiaAnual(planos) : null;
 
-  const subscribe = async () => {
+  const subscribe = async (codigo: CodigoPlano) => {
     // Modo demo: não há servidor para cobrar nem para autorizar. Continua
     // simulando, e a tela diz que é simulação.
     if (!supabaseEnabled) {
@@ -103,7 +117,7 @@ export function Premium() {
         await openBillingPortal();
         return;
       }
-      const abriu = await startCheckout();
+      const abriu = await startCheckout(codigo);
       if (!abriu) setSemCobranca(true);
     } catch (err) {
       toast((err as Error).message, 'danger');
@@ -129,24 +143,27 @@ export function Premium() {
       <Card className="mt-4 border-brand/30 p-5">
         <p className="font-display text-lg font-semibold">Como funciona, em uma frase</p>
         <p className="mt-2 text-[15px] leading-relaxed">
-          Quem <strong>precisa de um serviço</strong> nunca paga nada: publicar anúncio, receber
-          propostas e escolher são de graça, para sempre. Quem <strong>oferece serviço</strong> envia{' '}
-          <strong>{quantidade(QUOTAS.free.propostasPorMes)} propostas por mês</strong> de graça — e
-          assina só quando quiser enviar mais.
+          <strong>Paga quem bate na porta dos outros.</strong> Publicar é de graça, sempre — o que
+          você precisa e o que você oferece. E se alguém responder a um anúncio <strong>seu</strong>,
+          responder de volta não custa nada.
+        </p>
+        <p className="mt-2 text-[15px] leading-relaxed">
+          O plano é para <strong>responder ao anúncio de outra pessoa</strong>: enviar proposta,
+          demonstrar interesse, pedir contato.
         </p>
       </Card>
 
-      <div className="mt-5 grid gap-4 sm:grid-cols-2">
+      <div className="mt-5 grid gap-4 sm:grid-cols-3">
         <Card className={`p-6 ${!isPremium ? 'border-brand/50' : ''}`}>
-          <h2 className="font-display text-xl font-bold">Gratuito</h2>
+          <h2 className="font-display text-xl font-bold">Sem plano</h2>
           <p className="mt-3 font-display text-3xl font-bold">R$ 0</p>
-          <p className="mt-1 text-[13px] text-muted">para sempre</p>
+          <p className="mt-1 text-[13px] text-muted">publicar é sempre de graça</p>
           <p className="mt-4 text-[15px] font-semibold text-brand">
-            {quantidade(QUOTAS.free.propostasPorMes)} propostas por mês
+            Publique e receba respostas
           </p>
           <p className="mt-1 text-[13px] leading-relaxed text-muted">
-            Tudo o mais funciona igual. Se você só publica anúncios e contrata, este plano basta —
-            não há nada que você precise pagar.
+            Você publica o que precisa e o que oferece, vê todos os anúncios, e responde de graça a
+            quem procurar você. O que não dá é responder ao anúncio de outra pessoa.
           </p>
           {!isPremium && (
             <p className="mt-5 rounded-2xl bg-brandSoft/60 p-2.5 text-center text-[13px] font-semibold text-brand">
@@ -155,36 +172,82 @@ export function Premium() {
           )}
         </Card>
 
-        <Card className={`relative overflow-hidden p-6 ${isPremium ? 'border-ember/50' : ''}`}>
-          <div className="absolute right-0 top-0 rounded-bl-2xl bg-gradient-to-r from-brand to-ember px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-white">
-            Para quem vive disso
-          </div>
-          <h2 className="flex items-center gap-2 font-display text-xl font-bold">
-            <Icon name="crown" size={20} className="text-ember" /> Premium
-          </h2>
-          <p className="mt-3 font-display text-3xl font-bold">
-            {PRECO_PREMIUM}<span className="text-base font-medium text-muted">/mês</span>
-          </p>
-          <p className="mt-1 text-[13px] text-muted">cancela quando quiser</p>
-          <p className="mt-4 text-[15px] font-semibold text-ember">Propostas ilimitadas</p>
-          <p className="mt-1 text-[13px] leading-relaxed text-muted">
-            Faz sentido a partir do momento em que um trabalho fechado paga vários meses. Antes
-            disso, fique no gratuito.
-          </p>
+        {/* Os dois planos pagos vêm do BANCO. Não há preço escrito aqui: o
+            número desta tela é o mesmo que o Stripe vai cobrar porque é lido
+            do mesmo lugar. Enquanto a resposta não chega, a tela diz que está
+            carregando — nunca um valor de reserva. */}
+        {planos === null && (
+          <Card className="p-6 sm:col-span-2">
+            <p className="text-[14px] text-muted">Carregando os preços…</p>
+          </Card>
+        )}
+
+        {planos !== null && planos.length === 0 && (
+          <Card className="p-6 sm:col-span-2">
+            <p className="text-[15px] font-semibold">Não consegui carregar os preços agora.</p>
+            <p className="mt-1 text-[13px] leading-relaxed text-muted">
+              Tente de novo daqui a pouco. Nada foi cobrado, e publicar continua de graça.
+            </p>
+          </Card>
+        )}
+
+        {(planos ?? []).map((p) => {
+          const mensalDoAnual = equivalenteMensal(p);
+          return (
+            <Card key={p.codigo} className={`relative overflow-hidden p-6 ${isPremium ? 'border-ember/50' : ''}`}>
+              {p.codigo === 'anual' && economia !== null && (
+                <div className="absolute right-0 top-0 rounded-bl-2xl bg-gradient-to-r from-brand to-ember px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-white">
+                  Economiza {emReais(economia)}
+                </div>
+              )}
+              <h2 className="flex items-center gap-2 font-display text-xl font-bold">
+                <Icon name="crown" size={20} className="text-ember" /> {p.nome}
+              </h2>
+              <p className="mt-3 font-display text-3xl font-bold">
+                {emReais(p.centavos)}
+                <span className="text-base font-medium text-muted">{porPeriodo(p)}</span>
+              </p>
+              <p className="mt-1 text-[13px] text-muted">
+                {mensalDoAnual !== null
+                  ? `sai a ${emReais(mensalDoAnual)} por mês`
+                  : 'cancela quando quiser'}
+              </p>
+              <p className="mt-4 text-[15px] font-semibold text-ember">
+                Responda a quantos anúncios quiser
+              </p>
+              <p className="mt-1 text-[13px] leading-relaxed text-muted">
+                Faz sentido a partir do momento em que um trabalho fechado paga vários meses. Até
+                lá, publique de graça e espere quem vier até você.
+              </p>
+              {!isPremium && (
+                <Button
+                  full className="mt-5" loading={ocupado}
+                  onClick={() => void subscribe(p.codigo)}
+                >
+                  Assinar o {p.nome}
+                </Button>
+              )}
+            </Card>
+          );
+        })}
+      </div>
+
+      {isPremium && (
+        <Card className="mt-4 p-5">
+          <p className="text-[15px] font-semibold">Seu plano está ativo.</p>
           <Button
-            full className="mt-5" loading={ocupado}
-            variant={isPremium ? 'outline' : 'primary'} onClick={() => void subscribe()}
+            full className="mt-3" variant="outline" loading={ocupado}
+            onClick={() => void subscribe('mensal')}
           >
-            {isPremium ? 'Gerenciar assinatura' : 'Assinar o Premium'}
+            Gerenciar assinatura
           </Button>
-          {isPremium && supabaseEnabled && (
+          {supabaseEnabled && (
             <p className="mt-2 text-center text-[11px] text-muted">
               Cancelar, trocar o cartão e ver recibos acontecem no portal do Stripe.
             </p>
           )}
         </Card>
-      </div>
-
+      )}
       <section className="mt-7">
         <SectionTitle hint="Só três linhas, porque só três coisas mudam.">
           O que muda entre um e outro
@@ -194,8 +257,8 @@ export function Premium() {
             <thead className="bg-bg text-left">
               <tr>
                 <th className="p-3 font-semibold">O quê</th>
-                <th className="p-3 font-semibold">Gratuito</th>
-                <th className="p-3 font-semibold">Premium</th>
+                <th className="p-3 font-semibold">Sem plano</th>
+                <th className="p-3 font-semibold">Com plano</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line">

@@ -4,6 +4,8 @@ import { connectionWith, findUser } from '../state/appState';
 import { suggestOpeners } from '../services/geminiService';
 import { Page } from '../components/layout/AppShell';
 import { Banner, Button, Card, Chip, Icon, SectionTitle } from '../components/ui';
+import { PlanoNecessario } from '../components/PlanoNecessario';
+import { possoConversarCom } from '../services/mercado';
 import { Portrait } from '../components/Portrait';
 import { CopilotPanel } from '../components/Copilot';
 import { ReportDialog } from '../components/ReportDialog';
@@ -25,7 +27,8 @@ import { type Categoria, listarCategorias } from '../services/mercado';
 // ---------------------------------------------------------------------------
 
 export function PersonProfile({ id }: { id: string }) {
-  const { me, state, back, navigate, expressInterest, blockUser, toast, canUseAi, spendAi } = useApp();
+  const { me, state, back, navigate, expressInterest, blockUser, toast, canUseAi, spendAi, mode } = useApp();
+  const [precisaDePlano, setPrecisaDePlano] = useState(false);
   const other = findUser(state, id);
   const [openers, setOpeners] = useState<string[]>([]);
   const [loadingOpeners, setLoadingOpeners] = useState(false);
@@ -59,7 +62,22 @@ export function PersonProfile({ id }: { id: string }) {
     setLoadingOpeners(false);
   };
 
-  const pedirConversa = () => {
+  /**
+   * PERGUNTA ANTES DE GRAVAR.
+   *
+   * `expressInterest` grava na memória primeiro e manda ao servidor depois.
+   * Sem esta pergunta, quem não tem plano veria "Pedido enviado" enquanto o
+   * banco recusa em silêncio — e ficaria esperando resposta de um pedido que
+   * nunca existiu. Era o defeito dos botões do painel administrativo.
+   *
+   * A pergunta vai ao servidor e é a MESMA que a policy faz, com a exceção
+   * inclusa: quem já veio até mim não me custa nada.
+   */
+  const pedirConversa = async () => {
+    if (mode === 'online' && !(await possoConversarCom(other.id))) {
+      setPrecisaDePlano(true);
+      return;
+    }
     const r = expressInterest(other.id);
     if (!r.ok) { toast(r.reason ?? 'Não foi possível enviar o pedido.', 'danger'); return; }
     toast(
@@ -110,7 +128,7 @@ export function PersonProfile({ id }: { id: string }) {
           ) : iAsked ? (
             <Button variant="outline" disabled icon="clock">Pedido enviado</Button>
           ) : (
-            <Button icon="chat" onClick={pedirConversa}>Pedir para conversar</Button>
+            <Button icon="chat" onClick={() => void pedirConversa()}>Pedir para conversar</Button>
           )}
           <Button variant="ghost" icon="flag" onClick={() => setReporting(true)}>Denunciar</Button>
           <Button
@@ -160,6 +178,13 @@ export function PersonProfile({ id }: { id: string }) {
       )}
 
       <ReportDialog open={reporting} onClose={() => setReporting(false)} target={other} />
+
+      <PlanoNecessario.Janela
+        aberta={precisaDePlano}
+        acao="conversar com esta pessoa"
+        onFechar={() => setPrecisaDePlano(false)}
+      />
+
     </Page>
   );
 }

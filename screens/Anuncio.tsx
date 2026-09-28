@@ -2,10 +2,11 @@ import { useEffect, useState } from 'react';
 import { useApp } from '../state/AppContext';
 import { Page } from '../components/layout/AppShell';
 import { Banner, Button, Card, Chip, Field, Input, SectionTitle, Textarea } from '../components/ui';
+import { PlanoNecessario } from '../components/PlanoNecessario';
 import {
   type Anuncio as TAnuncio, type Proposta, type TipoAnuncio,
   dinheiro, enviarProposta, faixaDeOrcamento, lerAnuncio, minhasPropostas, ondeFica,
-  propostasRestantes, responderProposta, propostasDoAnuncio, STATUS_PROPOSTA_LABEL,
+  temPlanoAtivo, responderProposta, propostasDoAnuncio, STATUS_PROPOSTA_LABEL,
 } from '../services/mercado';
 
 // ---------------------------------------------------------------------------
@@ -57,19 +58,21 @@ function Formulario({ anuncioId, tipo, onEnviada }: {
   anuncioId: string; tipo: TipoAnuncio; onEnviada: () => void;
 }) {
   const t = RESPOSTA[tipo];
-  const { me, navigate, toast } = useApp();
+  const { me, toast } = useApp();
   const [mensagem, setMensagem] = useState('');
   const [valor, setValor] = useState('');
   const [prazo, setPrazo] = useState('');
   const [enviando, setEnviando] = useState(false);
-  // `null` = ainda não sabemos. Mostrar "0 restantes" antes de perguntar ao
-  // servidor assustaria quem tem cota de sobra.
-  const [restantes, setRestantes] = useState<number | null>(null);
+  /**
+   * `null` = ainda não perguntamos. Mostrar o bloqueio antes de saber
+   * assustaria quem tem plano — e este aviso existe para poupar trabalho, não
+   * para criar susto.
+   */
+  const [temPlano, setTemPlano] = useState<boolean | null>(null);
 
-  useEffect(() => { propostasRestantes().then(setRestantes).catch(() => setRestantes(Infinity)); }, []);
+  useEffect(() => { temPlanoAtivo().then(setTemPlano).catch(() => setTemPlano(true)); }, []);
 
   const curta = mensagem.trim().length < MIN_MENSAGEM;
-  const semCota = restantes === 0;
 
   const enviar = async () => {
     if (!me || curta) return;
@@ -89,36 +92,21 @@ function Formulario({ anuncioId, tipo, onEnviada }: {
     }
   };
 
-  if (semCota) {
+  // Só bloqueia depois de SABER que não tem plano. Enquanto `null`, o
+  // formulário aparece normalmente — quem recusa de verdade é o banco.
+  if (temPlano === false) {
     return (
-      <Card className="space-y-4 p-5">
-        <SectionTitle>Suas propostas do mês acabaram</SectionTitle>
-        <p className="text-sm leading-relaxed text-muted">
-          No plano gratuito você envia três propostas por mês. Elas voltam quando o mês virar —
-          ou você assina o Premium e envia sem limite.
-        </p>
-        <div className="flex flex-wrap gap-2">
-          <Button icon="crown" onClick={() => navigate({ name: 'premium' })}>Ver os planos</Button>
-        </div>
-        <p className="text-[11px] leading-relaxed text-muted">
-          Publicar anúncio continua de graça, sem limite nenhum.
-        </p>
-      </Card>
+      <PlanoNecessario.Cartao
+        acao={tipo === 'procurando'
+          ? 'enviar uma proposta neste anúncio'
+          : 'entrar em contato com este profissional'}
+      />
     );
   }
 
   return (
     <Card className="space-y-4 p-5">
       <SectionTitle hint={t.dica}>{t.secao}</SectionTitle>
-
-      {restantes !== null && Number.isFinite(restantes) && (
-        <Banner tone={restantes <= 1 ? 'warn' : 'info'} icon="send">
-          Esta é a sua <strong>{4 - restantes}ª de 3</strong> propostas gratuitas deste mês.{' '}
-          {restantes === 1
-            ? 'É a última — vale escolher bem o anúncio.'
-            : `Depois desta, sobram ${restantes - 1}.`}
-        </Banner>
-      )}
 
       <Field
         label="Sua mensagem"
