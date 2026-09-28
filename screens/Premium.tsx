@@ -23,10 +23,10 @@ import { uid } from '../services/utils';
 /** A única diferença que importa. Tudo o mais é igual e não vai para a tabela. */
 const A_DIFERENCA = [
   {
-    label: 'Enviar propostas',
-    free: `${quantidade(QUOTAS.free.propostasPorMes)} por mês`,
-    premium: 'Ilimitado',
-    porque: 'É o que separa os planos. As três grátis existem para você fechar um trabalho antes de assinar.',
+    label: 'Responder a anúncios de outras pessoas',
+    free: 'Não',
+    premium: 'Sim, sem limite',
+    porque: 'É o que separa os planos. Publicar continua de graça, dos dois lados.',
   },
   {
     label: 'Filtros avançados na busca de profissionais',
@@ -129,24 +129,27 @@ export function Premium() {
       <Card className="mt-4 border-brand/30 p-5">
         <p className="font-display text-lg font-semibold">Como funciona, em uma frase</p>
         <p className="mt-2 text-[15px] leading-relaxed">
-          Quem <strong>precisa de um serviço</strong> nunca paga nada: publicar anúncio, receber
-          propostas e escolher são de graça, para sempre. Quem <strong>oferece serviço</strong> envia{' '}
-          <strong>{quantidade(QUOTAS.free.propostasPorMes)} propostas por mês</strong> de graça — e
-          assina só quando quiser enviar mais.
+          <strong>Paga quem bate na porta dos outros.</strong> Publicar é de graça, sempre — o que
+          você precisa e o que você oferece. E se alguém responder a um anúncio <strong>seu</strong>,
+          responder de volta não custa nada.
+        </p>
+        <p className="mt-2 text-[15px] leading-relaxed">
+          O plano é para <strong>responder ao anúncio de outra pessoa</strong>: enviar proposta,
+          demonstrar interesse, pedir contato.
         </p>
       </Card>
 
       <div className="mt-5 grid gap-4 sm:grid-cols-2">
         <Card className={`p-6 ${!isPremium ? 'border-brand/50' : ''}`}>
-          <h2 className="font-display text-xl font-bold">Gratuito</h2>
+          <h2 className="font-display text-xl font-bold">Sem plano</h2>
           <p className="mt-3 font-display text-3xl font-bold">R$ 0</p>
-          <p className="mt-1 text-[13px] text-muted">para sempre</p>
+          <p className="mt-1 text-[13px] text-muted">publicar é sempre de graça</p>
           <p className="mt-4 text-[15px] font-semibold text-brand">
-            {quantidade(QUOTAS.free.propostasPorMes)} propostas por mês
+            Publique e receba respostas
           </p>
           <p className="mt-1 text-[13px] leading-relaxed text-muted">
-            Tudo o mais funciona igual. Se você só publica anúncios e contrata, este plano basta —
-            não há nada que você precise pagar.
+            Você publica o que precisa e o que oferece, vê todos os anúncios, e responde de graça a
+            quem procurar você. O que não dá é responder ao anúncio de outra pessoa.
           </p>
           {!isPremium && (
             <p className="mt-5 rounded-2xl bg-brandSoft/60 p-2.5 text-center text-[13px] font-semibold text-brand">
@@ -166,10 +169,12 @@ export function Premium() {
             {PRECO_PREMIUM}<span className="text-base font-medium text-muted">/mês</span>
           </p>
           <p className="mt-1 text-[13px] text-muted">cancela quando quiser</p>
-          <p className="mt-4 text-[15px] font-semibold text-ember">Propostas ilimitadas</p>
+          <p className="mt-4 text-[15px] font-semibold text-ember">
+            Responda a quantos anúncios quiser
+          </p>
           <p className="mt-1 text-[13px] leading-relaxed text-muted">
-            Faz sentido a partir do momento em que um trabalho fechado paga vários meses. Antes
-            disso, fique no gratuito.
+            Faz sentido a partir do momento em que um trabalho fechado paga vários meses. Até lá,
+            publique de graça e espere quem vier até você.
           </p>
           <Button
             full className="mt-5" loading={ocupado}
@@ -194,8 +199,8 @@ export function Premium() {
             <thead className="bg-bg text-left">
               <tr>
                 <th className="p-3 font-semibold">O quê</th>
-                <th className="p-3 font-semibold">Gratuito</th>
-                <th className="p-3 font-semibold">Premium</th>
+                <th className="p-3 font-semibold">Sem plano</th>
+                <th className="p-3 font-semibold">Com plano</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line">

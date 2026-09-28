@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { PRECO_PREMIUM, QUOTAS, ETAPAS_DA_CONVERSA, quantidade } from '../constants';
+import { PRECO_PREMIUM, QUOTAS, ETAPAS_DA_CONVERSA } from '../constants';
 import { SAFETY_TIPS } from '../services/moderation';
 import { MODALIDADE_LABEL, STATUS_PROPOSTA_LABEL } from '../services/mercado';
 
@@ -107,14 +107,19 @@ describe('o preço e as cotas do manual são os do código', () => {
     expect(texto).toContain(PRECO_PREMIUM);
   });
 
-  it('as propostas por mês no plano gratuito', () => {
-    expect(texto).toContain(`${QUOTAS.free.propostasPorMes} propostas por mês`);
-    expect(texto).toContain(`${QUOTAS.free.propostasPorMes} por mês`);
+  it('o manual diz a REGRA, não uma cota que não existe mais', () => {
+    // A migração 022 trocou "3 por mês" por "tem plano ou não tem".
+    expect(QUOTAS.free.podeResponder).toBe(false);
+    expect(QUOTAS.premium.podeResponder).toBe(true);
+    expect(texto).toContain('Responder ao anúncio de outra pessoa');
+    expect(texto).not.toMatch(/\b3 propostas por m[êe]s\b/);
   });
 
-  it('as propostas do Premium são ilimitadas, e a palavra vem do código', () => {
-    expect(quantidade(QUOTAS.premium.propostasPorMes)).toBe('Ilimitado');
-    expect(texto).toContain('Ilimitado');
+  it('e diz a exceção, que é o que faz a regra funcionar', () => {
+    // Sem isto, quem publicou acharia que precisa pagar para responder a quem
+    // o procurou — e o profissional que pagou receberia silêncio.
+    expect(texto.toLowerCase()).toContain('paga quem bate na porta dos outros');
+    expect(texto).toContain('não custa nada');
   });
 
   it('as sugestões do Copiloto por dia, nos dois planos', () => {
@@ -131,7 +136,9 @@ describe('o preço e as cotas do manual são os do código', () => {
   });
 
   it('diz que publicar é de graça, que é a regra do modelo', () => {
-    expect(texto.toLowerCase()).toContain('publicar anúncio é de graça');
+    // A frase mudou de "publicar anúncio" para "publicar", porque agora são
+    // dois tipos de anúncio. O que não pode mudar é a promessa.
+    expect(texto.toLowerCase()).toMatch(/publicar (an[úu]ncio )?é de graça/);
   });
 });
 
@@ -229,8 +236,9 @@ describe('a promoção de lançamento que o manual anuncia é a que o banco conc
 
   it('os dias de cortesia', () => {
     const dias = Number(sql.match(/select interval '(\d+) days'/)![1]);
-    expect(texto).toContain(`${dias} dias do plano Premium`);
-    expect(texto).toContain(`${dias} dias de Premium`);
+    // Duas menções no manual, as duas com o mesmo número.
+    const mencoes = texto.match(new RegExp(`${dias} dias d[eo] `, 'g')) ?? [];
+    expect(mencoes.length, 'o manual devia citar os dias de cortesia').toBeGreaterThanOrEqual(2);
   });
 
   it('a data em que a promoção termina', () => {

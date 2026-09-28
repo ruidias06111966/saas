@@ -218,9 +218,15 @@ describe('os documentos públicos descrevem o serviço que existe', () => {
     expect(new Set(outros), 'há mais de um preço mensal nos Termos').toEqual(new Set([numero]));
   });
 
-  it('a cota de propostas nos Termos é a mesma do banco e da tela', () => {
+  it('os Termos dizem a regra nova: responder a anúncio alheio exige plano', () => {
+    // A cota de "3 por mês" morreu na migração 022. Se ela voltar ao contrato,
+    // voltou a um modelo que o banco já não aplica.
     const termos = ler('public/termos.html');
-    expect(termos).toContain(`${QUOTAS.free.propostasPorMes} por mês`);
+    expect(QUOTAS.free.podeResponder).toBe(false);
+    expect(QUOTAS.premium.podeResponder).toBe(true);
+    expect(termos).toContain('Responder ao anúncio de outra pessoa');
+    expect(termos).not.toMatch(/\b3 por m[êe]s\b/);
+    expect(termos).not.toContain('três propostas gratuitas');
   });
 
   it('os Termos dizem que publicar anúncio não custa nada', () => {

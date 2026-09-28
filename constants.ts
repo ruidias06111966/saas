@@ -62,7 +62,8 @@ export const REPORT_REASON_LABEL: Record<string, string> = {
  *
  * O modelo decidido em 25/09/2026, e a razão de ser dele:
  *
- *   PUBLICAR ANÚNCIO É DE GRAÇA, SEMPRE, PARA TODO MUNDO.
+ *   PUBLICAR ANÚNCIO É DE GRAÇA, SEMPRE, PARA TODO MUNDO —
+ *   E PAGA QUEM BATE NA PORTA DOS OUTROS.
  *
  * Não é generosidade: é a economia de qualquer marketplace. Cobra-se do lado
  * ABUNDANTE e subsidia-se o lado ESCASSO. Em Brasília, na contabilidade e nas
@@ -70,18 +71,29 @@ export const REPORT_REASON_LABEL: Record<string, string> = {
  * procurando contador. Quem publica traz o combustível — cobrar dele é apagar
  * o fogo e depois reclamar do frio.
  *
- * Quem paga é o profissional, e só quando já tirou valor: as três propostas
- * gratuitas por mês existem para ele fechar uma antes de assinar. Não se vende
- * acesso a uma sala vazia.
+ * Quem paga é quem RESPONDE ao anúncio de outra pessoa. Quem publicou responde
+ * de graça dentro do próprio anúncio, sempre — se não fosse assim, o
+ * profissional que pagou receberia silêncio, e cancelaria. O lado que paga só
+ * continua pagando enquanto o outro lado responde.
  *
- * O LIMITE DE VERDADE ESTÁ NO BANCO, não aqui. O gatilho
- * `private.cota_de_propostas` recusa a quarta proposta do mês de quem está no
- * gratuito (migração 016). Estes números servem para a tela avisar ANTES, e
- * têm de bater com os de lá.
+ * O PORTÃO DE VERDADE ESTÁ NO BANCO, não aqui. As policies de `propostas` e
+ * `connections` chamam `private.tem_plano_ativo` e `private.pode_iniciar_conversa`
+ * (migração 022). Não há URL, JavaScript alterado ou chamada direta que passe.
+ * O que está aqui serve para a tela AVISAR ANTES, e tem de bater com o de lá.
  */
 export interface PlanQuota {
-  /** Propostas por MÊS. É a única cota que separa os planos de verdade. */
-  propostasPorMes: number;
+  /**
+   * Pode RESPONDER a um anúncio de outra pessoa?
+   *
+   * Era `propostasPorMes: number` — três por mês no gratuito. A migração 022
+   * acabou com essa cota: agora não há "quantas sobram", há plano ativo ou não
+   * há. Guardar um número aqui seria descrever uma regra que não existe mais,
+   * e é assim que uma tela passa a mentir sem ninguém perceber.
+   *
+   * PUBLICAR nunca esteve e nunca estará nesta lista. É de graça, sempre, dos
+   * dois lados do mercado.
+   */
+  podeResponder: boolean;
   /**
    * Pedidos de conversa por dia. NÃO é monetização — é anti-spam, e por isso
    * os dois planos têm um número generoso. Quem dispara mensagem para todo
@@ -97,9 +109,14 @@ export interface PlanQuota {
 /** Quanto custa o Premium. Tem de bater com o preço cadastrado no Stripe. */
 export const PRECO_PREMIUM = 'R$ 39,90';
 
+/**
+ * `free` aqui NÃO é um plano — é a ausência de um. Quem nunca assinou, quem
+ * cancelou e quem deixou vencer caem todos aqui. O nome sobrevive porque é o
+ * valor de `users.plan` no banco; o significado mudou na migração 022.
+ */
 export const QUOTAS: Record<'free' | 'premium', PlanQuota> = {
-  free:    { propostasPorMes: 3,        conversasPorDia: 10, dailyAiCalls: 8,   filtrosAvancados: false },
-  premium: { propostasPorMes: Infinity, conversasPorDia: 40, dailyAiCalls: 100, filtrosAvancados: true },
+  free:    { podeResponder: false, conversasPorDia: 10, dailyAiCalls: 8,   filtrosAvancados: false },
+  premium: { podeResponder: true,  conversasPorDia: 40, dailyAiCalls: 100, filtrosAvancados: true },
 };
 
 /** "3" ou "Ilimitado" — o `Infinity` nunca chega cru a uma tela. */

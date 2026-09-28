@@ -369,11 +369,46 @@ export async function minhasPropostas(profissionalId: string): Promise<Proposta[
  * Devolve `Infinity` para quem é Premium — inclusive para quem está nos 60
  * dias de cortesia de lançamento.
  */
-export async function propostasRestantes(): Promise<number> {
-  const { data, error } = await requireSupabase().rpc('propostas_restantes');
-  // Sem resposta, não bloqueia ninguém: quem recusa de verdade é o gatilho.
-  if (error || typeof data !== 'number') return Infinity;
-  return data > 1_000_000 ? Infinity : data;
+/**
+ * Esta pessoa tem plano ativo?
+ *
+ * Substitui `propostasRestantes()`, que contava uma cota mensal que deixou de
+ * existir na migração 022. Agora não há "quantas sobram": há plano, ou não há.
+ *
+ * A resposta vem da MESMA função que o portão do banco usa
+ * (`private.tem_plano_ativo`, via o RPC da 023). Perguntar de outro jeito —
+ * lendo `users.plan`, ou buscando a assinatura e interpretando a data aqui —
+ * seria uma segunda implementação da mesma regra, e duas regras parecidas
+ * divergem. Foi o defeito da 014, da 015 e da 019.
+ *
+ * ISTO NÃO LIBERA NADA. Serve só para a tela AVISAR ANTES, poupando a pessoa
+ * de escrever uma proposta inteira para levar um "não" no fim. Quem recusa de
+ * verdade é a policy e o gatilho.
+ *
+ * Em caso de falha devolve `true`: um erro de rede não pode fabricar um
+ * bloqueio que o banco não aplicaria. Se a pessoa não tiver plano mesmo, o
+ * envio falha com a mensagem do gatilho, que está em português.
+ */
+export async function temPlanoAtivo(): Promise<boolean> {
+  const { data, error } = await requireSupabase().rpc('meu_plano_esta_ativo');
+  if (error || typeof data !== 'boolean') return true;
+  return data;
+}
+
+/**
+ * Posso iniciar conversa com esta pessoa?
+ *
+ * Devolve exatamente `private.pode_iniciar_conversa` — a MESMA função que a
+ * policy de `connections` chama. A pergunta tem de ser a inteira, não "tem
+ * plano?": a regra tem uma exceção, e quem já veio até mim não me custa nada.
+ *
+ * Em caso de falha devolve `true`, como `temPlanoAtivo`: um erro de rede não
+ * pode fabricar um bloqueio que o banco não aplicaria.
+ */
+export async function possoConversarCom(outro: string): Promise<boolean> {
+  const { data, error } = await requireSupabase().rpc('posso_conversar_com', { outro });
+  if (error || typeof data !== 'boolean') return true;
+  return data;
 }
 
 export async function enviarProposta(
@@ -391,7 +426,7 @@ export async function enviarProposta(
     // O banco recusa a segunda proposta pela chave única. Traduzir aqui evita
     // mostrar jargão do Postgres a quem só quis responder duas vezes.
     if (error.code === '23505') throw new Error('Você já enviou uma proposta neste anúncio.');
-    // P0100 é a cota do mês, e a mensagem do gatilho já está em português e já
+    // P0100 é a falta de plano, e a mensagem do gatilho já está em português e já
     // diz o que fazer. Repassar a dele é melhor do que inventar outra aqui —
     // se o limite mudar no banco, a frase muda junto.
     if (error.code === 'P0100') throw new Error(error.message);

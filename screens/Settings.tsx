@@ -7,7 +7,6 @@ import { aiEnabled } from '../services/geminiService';
 import { POLICY_VERSION, URL_DIRETRIZES, URL_MANUAL, URL_PRIVACIDADE, URL_TERMOS } from '../constants';
 import { Page } from '../components/layout/AppShell';
 import { Banner, Button, Card, Chip, Field, Icon, Input, Modal, SectionTitle, Toggle } from '../components/ui';
-import { QUOTAS, quantidade } from '../constants';
 import { firstName } from '../services/utils';
 import { redefinirSenha } from '../services/auth';
 import { desligarPush, estadoDoPush, ligarPush, type EstadoDoPush } from '../services/push';
@@ -78,8 +77,8 @@ export function Settings() {
           </SectionTitle>
           <p className="mt-2 text-sm leading-relaxed text-muted">
             {me.plan === 'premium'
-              ? 'Publicar anúncio é de graça para todo mundo. O Premium é o que libera enviar propostas sem limite.'
-              : `No plano gratuito você envia ${quantidade(QUOTAS.free.propostasPorMes)} propostas por mês. Publicar anúncio não tem limite nenhum, nem custo.`}
+              ? 'Publicar é de graça para todo mundo. O plano é o que libera responder ao anúncio de outras pessoas.'
+              : 'Publicar é de graça, sempre — e responder a quem procurar você também. Para responder ao anúncio de outra pessoa é preciso um plano ativo.'}
           </p>
           <Button
             className="mt-4" variant="outline" icon="crown" full
