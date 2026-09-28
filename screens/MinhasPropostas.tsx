@@ -132,7 +132,7 @@ export function MinhasPropostas() {
       title="Minhas propostas"
       subtitle="Onde você se ofereceu, e no que deu."
       action={
-        <Button size="sm" icon="search" variant="outline" onClick={() => navigate({ name: 'anuncios' })}>
+        <Button size="sm" icon="search" variant="outline" onClick={() => navigate({ name: 'oferecer' })}>
           Ver anúncios
         </Button>
       }
@@ -146,7 +146,7 @@ export function MinhasPropostas() {
           icon="send"
           title="Você ainda não enviou propostas"
           body="Procure no quadro de anúncios um trabalho que você sabe fazer e se ofereça. Propostas específicas ganham das genéricas quase sempre."
-          action={<Button size="sm" icon="search" onClick={() => navigate({ name: 'anuncios' })}>Procurar trabalho</Button>}
+          action={<Button size="sm" icon="search" onClick={() => navigate({ name: 'oferecer' })}>Procurar trabalho</Button>}
         />
       ) : (
         <>
@@ -168,7 +168,7 @@ export function MinhasPropostas() {
               title={VAZIO[aba].titulo}
               body={VAZIO[aba].corpo}
               action={aba !== 'encerradas'
-                ? <Button size="sm" icon="search" onClick={() => navigate({ name: 'anuncios' })}>Procurar trabalho</Button>
+                ? <Button size="sm" icon="search" onClick={() => navigate({ name: 'oferecer' })}>Procurar trabalho</Button>
                 : undefined}
             />
           ) : (

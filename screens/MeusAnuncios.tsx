@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useApp } from '../state/AppContext';
 import { Page } from '../components/layout/AppShell';
-import { Button, Card, Chip, Empty, Modal, Tabs } from '../components/ui';
+import { Button, Card, Chip, Empty, Icon, Modal, Tabs } from '../components/ui';
+import { ETIQUETA } from './Anuncios';
 import {
-  type Anuncio, type StatusAnuncio,
+  type Anuncio, type TipoAnuncio, type StatusAnuncio,
   encerrarAnuncio, faixaDeOrcamento, meusAnuncios, ondeFica,
 } from '../services/mercado';
 
@@ -37,6 +38,12 @@ function Cartao({ a, onAbrir, onEncerrar }: {
   return (
     <Card className="p-5">
       <button type="button" className="w-full text-left" onClick={onAbrir}>
+        {/* A etiqueta é a mesma do quadro público, vinda do mesmo lugar. Dois
+            rótulos parecidos, escritos em dois arquivos, divergem. */}
+        <span className={`mb-2 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold tracking-[0.08em] ${ETIQUETA[a.tipo].classe}`}>
+          <Icon name={ETIQUETA[a.tipo].icone} size={11} /> {ETIQUETA[a.tipo].texto}
+        </span>
+
         <div className="flex items-start justify-between gap-3">
           <h3 className="font-display text-base font-semibold leading-snug">{a.titulo}</h3>
           <Chip size="sm" tone={aberto ? 'sage' : 'neutral'}>
@@ -78,6 +85,12 @@ export function MeusAnuncios() {
   const [anuncios, setAnuncios] = useState<Anuncio[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [aba, setAba] = useState<Aba>('abertos');
+  /**
+   * Qual lado do mercado a pessoa está olhando. Separado das abas de propósito:
+   * "procurados" e "oferecidos" são coisas diferentes, não estados da mesma
+   * coisa. Misturá-los numa lista só é exatamente a confusão a evitar.
+   */
+  const [lado, setLado] = useState<TipoAnuncio>('procurando');
   const [encerrando, setEncerrando] = useState<Anuncio | null>(null);
 
   const carregar = useCallback(async () => {
@@ -94,10 +107,20 @@ export function MeusAnuncios() {
 
   useEffect(() => { void carregar(); }, [carregar]);
 
-  const { abertos, encerrados } = useMemo(() => ({
-    abertos: anuncios.filter(estaAberto),
-    encerrados: anuncios.filter((a) => !estaAberto(a)),
+  /** Quantos há de cada lado — o número vai no seletor, para a pessoa saber
+   *  que o outro lado existe mesmo quando este está vazio. */
+  const porLado = useMemo(() => ({
+    procurando: anuncios.filter((a) => a.tipo === 'procurando').length,
+    oferecendo: anuncios.filter((a) => a.tipo === 'oferecendo').length,
   }), [anuncios]);
+
+  const { abertos, encerrados } = useMemo(() => {
+    const doLado = anuncios.filter((a) => a.tipo === lado);
+    return {
+      abertos: doLado.filter(estaAberto),
+      encerrados: doLado.filter((a) => !estaAberto(a)),
+    };
+  }, [anuncios, lado]);
 
   const lista = aba === 'abertos' ? abertos : encerrados;
 
@@ -122,8 +145,8 @@ export function MeusAnuncios() {
       title="Meus anúncios"
       subtitle="O que você publicou e as propostas que chegaram."
       action={
-        <Button size="sm" icon="plus" onClick={() => navigate({ name: 'publicar' })}>
-          Publicar
+        <Button size="sm" icon="plus" onClick={() => navigate({ name: 'publicar', tipo: lado })}>
+          {lado === 'procurando' ? 'Publicar o que preciso' : 'Oferecer meu serviço'}
         </Button>
       }
     >
@@ -135,11 +158,29 @@ export function MeusAnuncios() {
         <Empty
           icon="plus"
           title="Você ainda não publicou nada"
-          body="Publique o que precisa e deixe as propostas virem até você. Leva dois minutos, e o anúncio fica aberto por 30 dias."
-          action={<Button size="sm" icon="plus" onClick={() => navigate({ name: 'publicar' })}>Publicar um anúncio</Button>}
+          body="Você pode publicar o que precisa, oferecer o que sabe fazer, ou as duas coisas. É de graça, leva dois minutos, e cada anúncio fica aberto por 30 dias."
+          action={
+            <div className="flex flex-wrap justify-center gap-2">
+              <Button size="sm" icon="search" onClick={() => navigate({ name: 'publicar', tipo: 'procurando' })}>
+                Publicar o que preciso
+              </Button>
+              <Button size="sm" variant="outline" icon="handshake" onClick={() => navigate({ name: 'publicar', tipo: 'oferecendo' })}>
+                Oferecer meu serviço
+              </Button>
+            </div>
+          }
         />
       ) : (
         <>
+          <div className="mb-4 flex flex-wrap gap-2">
+            <Chip active={lado === 'procurando'} onClick={() => setLado('procurando')}>
+              <Icon name="search" size={13} /> Serviços que procuro ({porLado.procurando})
+            </Chip>
+            <Chip active={lado === 'oferecendo'} onClick={() => setLado('oferecendo')}>
+              <Icon name="handshake" size={13} /> Serviços que ofereço ({porLado.oferecendo})
+            </Chip>
+          </div>
+
           <div className="mb-5">
             <Tabs<Aba>
               value={aba}
@@ -154,12 +195,18 @@ export function MeusAnuncios() {
           {lista.length === 0 ? (
             <Empty
               icon={aba === 'abertos' ? 'plus' : 'clock'}
-              title={aba === 'abertos' ? 'Nenhum anúncio aberto' : 'Nada encerrado ainda'}
+              title={aba === 'abertos'
+                ? (lado === 'procurando' ? 'Nenhuma procura aberta' : 'Nenhuma oferta aberta')
+                : 'Nada encerrado ainda'}
               body={aba === 'abertos'
-                ? 'Todos os seus anúncios já foram encerrados ou venceram. Publique outro quando precisar.'
+                ? 'Nada aberto deste lado por enquanto. Publique quando precisar — é de graça.'
                 : 'Quando um anúncio for concluído, cancelado ou vencer o prazo, ele aparece aqui.'}
               action={aba === 'abertos'
-                ? <Button size="sm" icon="plus" onClick={() => navigate({ name: 'publicar' })}>Publicar</Button>
+                ? (
+                  <Button size="sm" icon="plus" onClick={() => navigate({ name: 'publicar', tipo: lado })}>
+                    {lado === 'procurando' ? 'Publicar o que preciso' : 'Oferecer meu serviço'}
+                  </Button>
+                )
                 : undefined}
             />
           ) : (

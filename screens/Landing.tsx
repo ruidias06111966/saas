@@ -4,10 +4,10 @@ import { supabaseEnabled } from '../services/supabaseClient';
 import { APP_NAME, APP_TAGLINE, URL_DIRETRIZES, URL_MANUAL, URL_PRIVACIDADE, URL_TERMOS } from '../constants';
 
 const STEPS = [
-  { n: '01', t: 'Diga o que você faz', d: 'Profissão, áreas de atuação e um resumo honesto. Leva cinco minutos.' },
-  { n: '02', t: 'Publique ou procure', d: 'Precisa de alguém? Publique. Quer trabalho? Procure no quadro.' },
-  { n: '03', t: 'Receba propostas', d: 'Quem sabe fazer responde com valor e prazo. Você compara e escolhe.' },
-  { n: '04', t: 'Feche o combinado', d: 'Proposta aceita, os telefones dos dois lados são liberados.' },
+  { n: '01', t: 'Publique', d: 'De graça, dos dois lados: o que você precisa, ou o que você sabe fazer.' },
+  { n: '02', t: 'Encontre', d: 'Quem precisa acha quem oferece. Quem oferece acha quem precisa.' },
+  { n: '03', t: 'Conecte-se', d: 'Demonstre interesse, envie proposta, converse. É aqui que o negócio começa.' },
+  { n: '04', t: 'Negocie', d: 'Combinado fechado, os telefones dos dois lados são liberados.' },
 ];
 
 const PILLARS: { icon: IconName; t: string; d: string }[] = [
@@ -55,15 +55,40 @@ export function Landing() {
               <Icon name="sparkle" size={13} filled /> {APP_TAGLINE}
             </p>
             <h1 className="font-display text-4xl font-bold leading-[1.08] tracking-tight sm:text-5xl lg:text-6xl">
-              Quem sabe fazer,<br />
-              <span className="bg-gradient-to-r from-brand to-ember bg-clip-text text-transparent">e quem precisa.</span>
+              Encontre quem precisa.<br />
+              <span className="bg-gradient-to-r from-brand to-ember bg-clip-text text-transparent">Encontre quem oferece.</span>
             </h1>
             <p className="mt-5 max-w-lg text-base leading-relaxed text-muted sm:text-lg">
-              Contador, engenheiro, advogado, quem cuida de alvará, quem faz site. Publique o que
-              você precisa e receba propostas de gente da sua região — ou ofereça o que você sabe
-              fazer para quem já está procurando.
+              O QICONEXÃO conecta pessoas, profissionais e empresas para encontrar e oferecer
+              serviços. Contador, eletricista, advogado, quem faz site, quem cuida de alvará.
             </p>
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+
+            {/* OS DOIS CAMINHOS, LADO A LADO E DO MESMO TAMANHO.
+                Quem chega traz uma de duas perguntas. Um botão só, ou um
+                maior que o outro, responde a errada para metade das pessoas. */}
+            <div className="mt-8 grid gap-3 sm:grid-cols-2">
+              {([
+                { tipo: 'procurando', icone: 'search', titulo: 'Procurar um serviço',
+                  linha: 'Publique gratuitamente o que você precisa.' },
+                { tipo: 'oferecendo', icone: 'handshake', titulo: 'Oferecer um serviço',
+                  linha: 'Divulgue gratuitamente o que você faz.' },
+              ] as const).map((c) => (
+                <button
+                  key={c.tipo}
+                  type="button"
+                  onClick={() => navigate({ name: 'signup' })}
+                  className="group rounded-xl3 border border-line bg-surface p-5 text-left transition-colors hover:border-brand hover:bg-brandSoft"
+                >
+                  <span className="grid h-10 w-10 place-items-center rounded-full bg-brandSoft text-brand transition-colors group-hover:bg-brand group-hover:text-white">
+                    <Icon name={c.icone} size={19} />
+                  </span>
+                  <span className="mt-3 block font-display text-lg font-semibold">{c.titulo}</span>
+                  <span className="mt-1 block text-[13px] leading-relaxed text-muted">{c.linha}</span>
+                </button>
+              ))}
+            </div>
+
+            <div className="mt-5 flex flex-col gap-3 sm:flex-row">
               <Button size="lg" onClick={() => navigate({ name: 'signup' })}>Criar minha conta</Button>
               <Button size="lg" variant="outline" onClick={() => navigate({ name: 'login' })}>Já tenho conta</Button>
             </div>

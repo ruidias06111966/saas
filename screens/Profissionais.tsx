@@ -178,7 +178,7 @@ export function Profissionais() {
             : 'Conforme as pessoas se cadastrarem, elas aparecem aqui. Enquanto isso, publique o que você precisa: um anúncio aberto atrai quem ainda nem chegou.'}
           action={temFiltro
             ? <Button size="sm" variant="outline" onClick={limpar}>Limpar filtros</Button>
-            : <Button size="sm" icon="plus" onClick={() => navigate({ name: 'publicar' })}>Publicar um anúncio</Button>}
+            : <Button size="sm" icon="plus" onClick={() => navigate({ name: 'publicar', tipo: 'procurando' })}>Publicar o que preciso</Button>}
         />
       ) : (
         <div className="space-y-3">

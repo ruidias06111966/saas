@@ -10,6 +10,8 @@
 // pergunta que alguém vai acabar respondendo errado.
 // ---------------------------------------------------------------------------
 
+import type { TipoAnuncio } from './services/mercado';
+
 export type AccountStatus = 'ativo' | 'suspenso' | 'banido';
 export type Plan = 'free' | 'premium';
 
@@ -238,9 +240,15 @@ export type Route =
   | { name: 'home' }
   | { name: 'profissionais' }          // quem faz o quê, e onde
   // ------------------------------ o mercado --------------------------------
-  | { name: 'anuncios' }                 // buscar trabalho
+  // ------------------------- as duas pontas do mercado ----------------------
+  // Dois menus, de propósito, porque a pergunta que a pessoa traz é uma das
+  // duas: "preciso de alguém" ou "quero trabalho". Em cada área ela publica o
+  // SEU lado e vê o lado OPOSTO — quem procura vê ofertas, quem oferece vê
+  // procuras. Uma tela só com um filtro escondido não responde essa pergunta.
+  | { name: 'procurar' }                 // preciso de alguém: vejo quem oferece
+  | { name: 'oferecer' }                 // quero trabalho: vejo quem procura
   | { name: 'anuncio'; id: string }      // um anúncio, e propor nele
-  | { name: 'publicar' }                 // publicar o que você precisa
+  | { name: 'publicar'; tipo: TipoAnuncio } // publicar o meu lado, qualquer um dos dois
   | { name: 'meusAnuncios' }             // o que publiquei, e quem respondeu
   | { name: 'minhasPropostas' }          // onde me ofereci
   | { name: 'person'; id: string }  // o perfil profissional de alguém
