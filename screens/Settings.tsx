@@ -9,6 +9,7 @@ import { Page } from '../components/layout/AppShell';
 import { Banner, Button, Card, Chip, Field, Icon, Input, Modal, SectionTitle, Toggle } from '../components/ui';
 import { firstName } from '../services/utils';
 import { redefinirSenha } from '../services/auth';
+import { RECADO_NAO_CONSEGUI, conferirSenha, recadoDaSenhaVazada } from '../services/senhaVazada';
 import { desligarPush, estadoDoPush, ligarPush, type EstadoDoPush } from '../services/push';
 
 const MINIMO_DA_SENHA = 8;
@@ -21,6 +22,9 @@ export function Settings() {
   const [senha, setSenha] = useState('');
   const [senha2, setSenha2] = useState('');
   const [erroSenha, setErroSenha] = useState('');
+  // Aviso não é erro: aparece quando a conferência de vazamento não rodou e NÃO
+  // impede de salvar. Separado do `erroSenha` justamente para não bloquear.
+  const [avisoSenha, setAvisoSenha] = useState('');
   const [salvandoSenha, setSalvandoSenha] = useState(false);
   const [push, setPush] = useState<EstadoDoPush>('indisponivel');
 
@@ -48,7 +52,17 @@ export function Settings() {
     if (senha !== senha2) return setErroSenha('As senhas não conferem.');
 
     setSalvandoSenha(true);
+    setAvisoSenha('');
     try {
+      // Conferida contra a lista de vazamentos ANTES de ser gravada: depois não
+      // haveria o que fazer, a senha já estaria valendo.
+      const veredito = await conferirSenha(senha);
+      if (veredito.tipo === 'vazada') {
+        setErroSenha(recadoDaSenhaVazada(veredito.vezes));
+        return;
+      }
+      if (veredito.tipo === 'nao-consegui') setAvisoSenha(RECADO_NAO_CONSEGUI);
+
       await redefinirSenha(senha);
       setSenha('');
       setSenha2('');
@@ -112,7 +126,7 @@ export function Settings() {
                   onChange={(e) => setSenha(e.target.value)}
                 />
               </Field>
-              <Field label="Repita a nova senha" required error={erroSenha}>
+              <Field label="Repita a nova senha" required error={erroSenha} hint={avisoSenha || undefined}>
                 <Input
                   type="password" value={senha2} autoComplete="new-password"
                   onChange={(e) => setSenha2(e.target.value)}
@@ -125,7 +139,9 @@ export function Settings() {
             <p className="mt-3 text-xs leading-relaxed text-muted">
               Mínimo de {MINIMO_DA_SENHA} caracteres. Sua senha não é guardada
               aqui em texto: o servidor de autenticação guarda só um resumo
-              criptográfico dela, do qual não se volta atrás.
+              criptográfico dela, do qual não se volta atrás. Conferimos também
+              se ela já apareceu em vazamentos de outros sites — e para isso a
+              senha também não sai do seu aparelho.
             </p>
           </Card>
         )}

@@ -12,6 +12,7 @@ import { Portrait } from '../components/Portrait';
 import { readImageAsDataUrl } from '../services/storage';
 import { uploadProfilePhoto } from '../services/media';
 import { resendConfirmation, signUp } from '../services/auth';
+import { RECADO_NAO_CONSEGUI, conferirSenha, recadoDaSenhaVazada } from '../services/senhaVazada';
 import { supabaseEnabled } from '../services/supabaseClient';
 import { clearDraft, loadDraft, saveDraft } from '../services/signupDraft';
 import * as backend from '../services/backend';
@@ -71,6 +72,9 @@ export function Signup() {
   );
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
+  // Aviso não é erro: aparece quando a conferência de vazamento não rodou, e NÃO
+  // impede de continuar. Separado de `errors` justamente para não bloquear.
+  const [avisoSenha, setAvisoSenha] = useState('');
   /** Preenchido quando o cadastro terminou e falta a pessoa confirmar o e-mail. */
   const [aguardandoEmail, setAguardandoEmail] = useState('');
   const [retomando, setRetomando] = useState(!!pendingAccount);
@@ -128,8 +132,41 @@ export function Signup() {
     return Object.keys(e).length === 0;
   };
 
+  /**
+   * A senha já apareceu em vazamento de outro site?
+   *
+   * FICA FORA DE `validate()` de propósito, e não por desleixo: `validate()` é
+   * síncrona e roda a cada avanço de etapa. Consultar a rede dentro dela
+   * obrigaria a torná-la assíncrona inteira — quatro etapas pagando por uma —, e
+   * uma validação que às vezes espera a rede e às vezes não é a espécie de coisa
+   * que quebra calada mais tarde.
+   *
+   * Devolve `false` apenas quando a senha está em vazamento CONHECIDO. Serviço
+   * fora do ar não barra ninguém: vira aviso e o cadastro segue. Ver
+   * services/senhaVazada.ts para o porquê dessa escolha.
+   */
+  const senhaPassa = async (): Promise<boolean> => {
+    setAvisoSenha('');
+    setBusy(true);
+    try {
+      const veredito = await conferirSenha(d.password);
+      if (veredito.tipo === 'vazada') {
+        setErrors({ password: recadoDaSenhaVazada(veredito.vezes) });
+        return false;
+      }
+      if (veredito.tipo === 'nao-consegui') setAvisoSenha(RECADO_NAO_CONSEGUI);
+      return true;
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const next = async () => {
     if (!validate()) return;
+    // Só na etapa da conta, que é a única em que a senha é escolhida. E ANTES de
+    // avançar: descobrir o problema na última etapa faria a pessoa voltar três
+    // telas por causa da senha.
+    if (step === 0 && !(await senhaPassa())) return;
     if (step < STEPS.length - 1) { setStep(step + 1); window.scrollTo({ top: 0 }); return; }
     await finish();
   };
@@ -360,7 +397,10 @@ export function Signup() {
               <Input type="email" value={d.email} onChange={(e) => set('email', e.target.value)} autoComplete="email" />
             </Field>
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Senha" required error={errors.password} hint="Mínimo de 8 caracteres.">
+              <Field
+                label="Senha" required error={errors.password}
+                hint={avisoSenha || 'Mínimo de 8 caracteres. Conferimos se ela já apareceu em vazamentos de outros sites, sem que a senha saia do seu aparelho.'}
+              >
                 <Input type="password" value={d.password} onChange={(e) => set('password', e.target.value)} autoComplete="new-password" />
               </Field>
               <Field label="Confirmar senha" required error={errors.password2}>
