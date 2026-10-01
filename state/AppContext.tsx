@@ -10,6 +10,7 @@ import {
 import { loadState, saveState } from '../services/storage';
 import * as backend from '../services/backend';
 import { onAuthChange, currentSession, signOut } from '../services/auth';
+import { aSessaoAcabou, esquecerQueEntrou, esteveLogado, lembrarQueEntrou } from '../services/sessao';
 import { subscribeToConversations } from '../services/realtime';
 import { supabaseEnabled } from '../services/supabaseClient';
 import { avisarDaMensagem } from '../services/push';
@@ -67,6 +68,15 @@ interface Ctx {
    * pôde ser gravado agora, porque só agora existe sessão.
    */
   pendingAccount: { id: string; email: string } | null;
+  /**
+   * A sessão acabou e a pessoa precisa entrar de novo.
+   *
+   * Existe porque, sem isto, os dois caminhos de perda de sessão eram mudos: ou
+   * a pessoa lia `Falha ao carregar dados: permission denied for view ...`, ou
+   * — o caso comum — abria o aplicativo no dia seguinte e caía na página
+   * inicial deslogada, sem uma palavra. Ver services/sessao.ts.
+   */
+  sessaoExpirada: boolean;
 }
 
 const AppCtx = createContext<Ctx | null>(null);
@@ -83,6 +93,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [booting, setBooting] = useState(supabaseEnabled);
   const [pendingAccount, setPendingAccount] = useState<{ id: string; email: string } | null>(null);
+  const [sessaoExpirada, setSessaoExpirada] = useState(false);
   const historyRef = useRef<Route[]>([]);
   // A rota vive num ref para o handler do Realtime poder consultá-la sem
   // entrar nas dependências do efeito — senão reassinaríamos a cada navegação.
@@ -103,6 +114,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // ------------------------------------------------------------------------
   const hydrate = useCallback(async (userId: string, email = '') => {
     const snapshot = await backend.loadSnapshot(userId);
+    // A partir daqui o navegador sabe que alguém entrou aqui. É um único
+    // sim/não, sem id nem e-mail, e é o que permite distinguir "a sessão
+    // acabou" de "visitante novo". Ver services/sessao.ts.
+    lembrarQueEntrou();
     dispatch({ type: 'HYDRATE_REMOTE', snapshot, sessionUserId: userId });
     // Sessão sem perfil = cadastro pela metade. Não é erro: com a confirmação
     // de e-mail ligada, o perfil não pôde ser gravado no momento do cadastro,
@@ -143,6 +158,42 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [state],
   );
 
+  /**
+   * A sessão acabou: limpa, leva para a entrada e EXPLICA.
+   *
+   * A memória do navegador é apagada na primeira linha para o aviso não se
+   * repetir: depois disto o aparelho já não sabe de ninguém entrado, e um
+   * segundo tropeço não volta a dizer que a sessão expirou.
+   */
+  const marcarSessaoExpirada = useCallback(() => {
+    esquecerQueEntrou();
+    setPendingAccount(null);
+    dispatch({ type: 'LOGOUT' });
+    setSessaoExpirada(true);
+    setRoute({ name: 'login' });
+    void signOut();
+  }, []);
+
+  /**
+   * A carga falhou. Foi a sessão que acabou, ou é defeito de verdade?
+   *
+   * A pergunta NÃO é feita ao texto do erro — ver services/sessao.ts para o
+   * porquê (o mesmo código 42501 vem da porta do painel administrativo).
+   *
+   * E note o que acontece no caminho da sessão vencida: NÃO vai para o registro
+   * de erros. Sessão que vence é o funcionamento normal, não defeito; mandá-la
+   * para lá enche o Sentry de ruído e esconde o que importa. Foi exatamente
+   * assim que este caso chegou até aqui.
+   */
+  const tratarFalhaDeCarga = useCallback(async (err: unknown, onde: string) => {
+    const sessao = await currentSession().catch(() => null);
+    if (aSessaoAcabou(esteveLogado(), Boolean(sessao))) {
+      marcarSessaoExpirada();
+      return;
+    }
+    reportarErro(err, onde);
+  }, [marcarSessaoExpirada]);
+
   useEffect(() => {
     if (!supabaseEnabled) return;
     let vivo = true;
@@ -150,11 +201,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     currentSession()
       .then(async (session) => {
         if (!vivo) return;
-        if (session?.user?.id) await hydrate(session.user.id, session.user.email ?? '');
+        if (session?.user?.id) {
+          await hydrate(session.user.id, session.user.email ?? '');
+          return;
+        }
+        // O CASO COMUM, E O QUE ERA MUDO ATÉ AQUI: fecha o aplicativo, volta no
+        // dia seguinte, a sessão guardada já não vale. Não há erro nenhum —
+        // antes disto a pessoa simplesmente caía na página inicial, deslogada,
+        // como se nunca tivesse entrado.
+        if (aSessaoAcabou(esteveLogado(), false)) marcarSessaoExpirada();
       })
       .catch((err) => {
         console.error('[QICONEXÃO] Falha ao restaurar a sessão.', err);
-        reportarErro(err, 'restaurar-sessao');
+        void tratarFalhaDeCarga(err, 'restaurar-sessao');
       })
       .finally(() => { if (vivo) setBooting(false); });
 
@@ -172,12 +231,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (userId) {
+        // Entrou: o aviso cumpriu o papel e sai da frente.
+        setSessaoExpirada(false);
         void currentSession().then((s2) =>
           // Este catch protege a tela de quebrar, e por isso mesmo precisa
           // avisar: era aqui que uma falha ao carregar os dados da pessoa
           // deixava o app parado sem explicação para ninguém.
           hydrate(userId, s2?.user?.email ?? '').catch((err) => {
-            reportarErro(err, 'hidratar-apos-login');
+            void tratarFalhaDeCarga(err, 'hidratar-apos-login');
           }),
         );
       } else {
@@ -187,7 +248,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
 
     return () => { vivo = false; unsubscribe(); };
-  }, [hydrate]);
+  }, [hydrate, marcarSessaoExpirada, tratarFalhaDeCarga]);
 
   // ------------------------------------------------------------------------
   // Realtime: mensagens e conexões chegam sem recarregar a página.
@@ -514,6 +575,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
+    // Sair de propósito APAGA a memória. Sem isto, reabrir o aplicativo diria a
+    // quem saiu por vontade própria que "a sessão expirou" — uma mentira sobre
+    // uma coisa que a própria pessoa fez.
+    esquecerQueEntrou();
     await signOut();
     setPendingAccount(null);
     dispatch({ type: 'LOGOUT' });
@@ -521,6 +586,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const deleteAccount = useCallback(async () => {
     if (!me) return;
+    esquecerQueEntrou();
     if (supabaseEnabled) {
       // Roda no servidor: apaga mensagens e conexões, anonimiza o cadastro e
       // preserva, sem autor, as denúncias feitas CONTRA a pessoa.
@@ -538,6 +604,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     saveProfile, logout, deleteAccount,
     quota, canUseAi, spendAi,
     mode: state.mode, booting, refresh, loadOlder, hasOlder, pendingAccount,
+    sessaoExpirada,
   };
 
   return <AppCtx.Provider value={value}>{children}</AppCtx.Provider>;
