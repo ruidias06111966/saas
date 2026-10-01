@@ -1,18 +1,24 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import type { AccountStatus, ReportStatus } from '../types';
 import { APP_NAME, REPORT_REASON_LABEL } from '../constants';
 import { CATEGORY_LABEL } from '../services/moderation';
 import { useApp } from '../state/AppContext';
 import * as backend from '../services/backend';
+import {
+  type AnuncioDoPainel, type FiltroDoPainel, type NumerosDoPainel, type PessoaDoPainel,
+  anunciosDoPainel, numerosDoPainel, pessoasDoPainel,
+} from '../services/painel';
+import { type Plano, emReais, porPeriodo, salvarPlano, todosOsPlanos } from '../services/planos';
+import type { StatusAnuncio, TipoAnuncio } from '../services/mercado';
 import { supabaseEnabled } from '../services/supabaseClient';
 import { findUser } from '../state/appState';
 import { Page } from '../components/layout/AppShell';
-import { Banner, Button, Card, Chip, Empty, Icon, Input, Tabs } from '../components/ui';
+import { Banner, Button, Card, Chip, Empty, Icon, Input, SectionTitle, Select, Tabs } from '../components/ui';
 import { Avatar } from '../components/Portrait';
 import { FilaVerificacao } from '../components/FilaVerificacao';
 import { dateKey, firstName, timeAgo } from '../services/utils';
 
-type Tab = 'painel' | 'usuarios' | 'denuncias' | 'moderacao' | 'verificacao';
+type Tab = 'painel' | 'anuncios' | 'planos' | 'usuarios' | 'denuncias' | 'moderacao' | 'verificacao';
 
 function Metric({ label, value, hint }: { label: string; value: React.ReactNode; hint?: string }) {
   return (
@@ -28,26 +34,74 @@ export function Admin() {
   const { me, state, dispatch, back, toast } = useApp();
   const [tab, setTab] = useState<Tab>('painel');
   const [query, setQuery] = useState('');
+  /** Muda de valor para as listas do servidor lerem de novo depois de uma ação. */
+  const [recarga, setRecarga] = useState(0);
 
-  const stats = useMemo(() => {
-    const users = state.users.filter((u) => u.role !== 'admin');
-    const today = dateKey();
-    const dayAgo = Date.now() - 86400000;
+  /**
+   * OS NÚMEROS VÊM DO SERVIDOR. Esta é a correção desta etapa.
+   *
+   * Antes saíam de `state` — a lista que o navegador carregou para montar as
+   * telas do mercado. Essa lista exclui contas suspensas (a view exige
+   * `status = 'ativo'`), traz mensagens paginadas e corta no teto do PostgREST.
+   * O painel somava aquilo e apresentava como se fosse a base inteira.
+   */
+  const [numeros, setNumeros] = useState<NumerosDoPainel | null>(null);
+  const [apurando, setApurando] = useState(supabaseEnabled);
+
+  useEffect(() => {
+    if (!supabaseEnabled) return;
+    let vivo = true;
+    numerosDoPainel()
+      .then((r) => { if (vivo) { setNumeros(r); setApurando(false); } })
+      .catch(() => { if (vivo) setApurando(false); });
+    return () => { vivo = false; };
+  }, []);
+
+  /**
+   * O modo demonstração não tem servidor — e ali a lista em memória É a base
+   * inteira, porque ela nasce do seed. Contar dela é correto ali, e SÓ ali.
+   *
+   * A primeira linha é o guarda: com servidor, este caminho devolve null e a
+   * tela fica sem números em vez de mostrar números da memória. Preferir buraco
+   * a número errado é o ponto desta etapa.
+   */
+  const numerosDaDemonstracao = useMemo<NumerosDoPainel | null>(() => {
+    if (supabaseEnabled) return null;
+    const pessoas = state.users.filter((u) => u.role !== 'admin');
+    const dia = Date.now() - 86400000;
+    const hoje = dateKey();
+    const conversas = new Set(state.messages.map((m) => m.connectionId)).size;
     return {
-      total: users.length,
-      active: users.filter((u) => new Date(u.lastActiveAt).getTime() > dayAgo).length,
-      newToday: users.filter((u) => u.createdAt.slice(0, 10) === today).length,
-      verified: users.filter((u) => u.verified).length,
-      premium: users.filter((u) => u.plan === 'premium').length,
-      suspended: users.filter((u) => u.status !== 'ativo').length,
-      connections: state.connections.filter((c) => c.status === 'conectada').length,
-      conversations: new Set(state.messages.map((m) => m.connectionId)).size,
-      messages: state.messages.length,
-      openReports: state.reports.filter((r) => r.status === 'aberta' || r.status === 'em_analise').length,
-      pendingModeration: state.moderationQueue.filter((m) => m.status === 'pendente').length,
-      gentleClosures: state.connections.filter((c) => c.closedGently).length,
+      pessoas: {
+        total: pessoas.length,
+        ativas24h: pessoas.filter((u) => new Date(u.lastActiveAt).getTime() > dia).length,
+        novasHoje: pessoas.filter((u) => u.createdAt.slice(0, 10) === hoje).length,
+        verificadas: pessoas.filter((u) => u.verified).length,
+        suspensas: pessoas.filter((u) => u.status !== 'ativo').length,
+        apagadas: 0,
+      },
+      mercado: {
+        procuras: 0, ofertas: 0, abertos: 0, comProposta: 0, propostas: 0, propostasAceitas: 0,
+      },
+      conversa: {
+        conexoes: state.connections.filter((c) => c.status === 'conectada').length,
+        conversas,
+        mensagens: state.messages.length,
+        despedidas: state.connections.filter((c) => c.closedGently).length,
+      },
+      cuidado: {
+        denunciasAbertas: state.reports.filter((r) => r.status === 'aberta' || r.status === 'em_analise').length,
+        filaModeracao: state.moderationQueue.filter((m) => m.status === 'pendente').length,
+      },
+      dinheiro: {
+        assinaturasAtivas: pessoas.filter((u) => u.plan === 'premium').length,
+        pagantes: 0, cortesias: 0, mensais: 0, anuais: 0, mrrCentavos: 0, arrCentavos: 0,
+      },
+      apuradoEm: new Date().toISOString(),
     };
   }, [state]);
+
+  const num = supabaseEnabled ? numeros : numerosDaDemonstracao;
 
   if (!me) return null;
   if (me.role !== 'admin') {
@@ -69,9 +123,43 @@ export function Admin() {
     );
   }
 
-  const users = state.users
-    .filter((u) => u.role !== 'admin')
-    .filter((u) => !query || `${u.name} ${u.email} ${u.city}`.toLowerCase().includes(query.toLowerCase()));
+  /**
+   * AS PESSOAS VÊM DE `users`, NÃO DA VIEW DO MERCADO.
+   *
+   * É esta troca que faz a conta suspensa voltar a aparecer. A view exige
+   * `status = 'ativo'`, então quem era suspenso DESAPARECIA desta lista — e o
+   * botão "Reativar", que só aparece para quem não está ativo, nunca podia ser
+   * clicado. Suspender por engano não tinha volta pela tela.
+   *
+   * A busca também passou para o servidor: filtrar no navegador exigiria trazer
+   * a base inteira, que é o hábito que esta etapa desfaz.
+   */
+  const [pessoas, setPessoas] = useState<PessoaDoPainel[]>([]);
+
+  useEffect(() => {
+    if (!supabaseEnabled || tab !== 'usuarios') return;
+    let vivo = true;
+    const t = window.setTimeout(() => {
+      void pessoasDoPainel(query).then((r) => { if (vivo) setPessoas(r); });
+    }, 250);
+    return () => { vivo = false; window.clearTimeout(t); };
+  }, [query, tab, recarga]);
+
+  /** No modo demonstração não há servidor; ali a memória é a base inteira. */
+  const pessoasDaDemonstracao = useMemo<PessoaDoPainel[]>(() => {
+    if (supabaseEnabled) return [];
+    const termo = query.trim().toLowerCase();
+    return state.users
+      .filter((u) => u.role !== 'admin')
+      .filter((u) => !termo || `${u.name} ${u.email} ${u.city}`.toLowerCase().includes(termo))
+      .map((u) => ({
+        id: u.id, nome: u.name, email: u.email ?? '', cidade: u.city, uf: u.state ?? '',
+        profissao: u.profession ?? '', verificada: !!u.verified, reputacao: u.reputation ?? 0,
+        plano: u.plan, status: u.status, criadaEm: u.createdAt,
+      }));
+  }, [state.users, query]);
+
+  const listaDePessoas = supabaseEnabled ? pessoas : pessoasDaDemonstracao;
 
   /**
    * Toda decisão do painel seguia este molde: `dispatch` e um aviso verde. Só
@@ -96,7 +184,7 @@ export function Admin() {
   const setStatus = (id: string, status: AccountStatus) => {
     void comServidor(
       () => backend.definirStatusDaConta(id, status),
-      () => dispatch({ type: 'UPDATE_USER', id, patch: { status } }),
+      () => { dispatch({ type: 'UPDATE_USER', id, patch: { status } }); setRecarga((r) => r + 1); },
       `Conta marcada como ${status}.`,
     );
   };
@@ -120,6 +208,64 @@ export function Admin() {
     );
   };
 
+  // ----- ANÚNCIOS -----
+  const [filtro, setFiltro] = useState<FiltroDoPainel>({ tipo: 'todos', status: 'todos', busca: '' });
+  const [anuncios, setAnuncios] = useState<AnuncioDoPainel[] | null>(null);
+
+  useEffect(() => {
+    if (!supabaseEnabled || tab !== 'anuncios') return;
+    let vivo = true;
+    const t = window.setTimeout(() => {
+      void anunciosDoPainel(filtro).then((r) => { if (vivo) setAnuncios(r); });
+    }, 250);
+    return () => { vivo = false; window.clearTimeout(t); };
+  }, [filtro, tab]);
+
+  // ----- PLANOS -----
+  const [planos, setPlanos] = useState<Plano[] | null>(null);
+  /** O que está sendo digitado, em reais, por código de plano. */
+  const [rascunhoPreco, setRascunhoPreco] = useState<Record<string, string>>({});
+  const [salvando, setSalvando] = useState('');
+
+  useEffect(() => {
+    if (!supabaseEnabled || tab !== 'planos') return;
+    let vivo = true;
+    void todosOsPlanos().then((r) => { if (vivo) setPlanos(r); });
+    return () => { vivo = false; };
+  }, [tab, recarga]);
+
+  /**
+   * Reais digitados -> centavos. Devolve null quando não dá para ler um número,
+   * e a tela não deixa salvar nesse caso.
+   *
+   * Aceita "49,90", "49.90" e "4990" como quarenta e nove e noventa? NÃO: "4990"
+   * é lido como quatro mil novecentos e noventa reais. Adivinhar a intenção de
+   * quem digita preço é como se cobra o valor errado — a tela mostra de volta o
+   * que entendeu, e quem decide confere antes de salvar.
+   */
+  const paraCentavos = (texto: string): number | null => {
+    const limpo = texto.replace(/[^\d,.]/g, '').replace(/\./g, ',');
+    if (!limpo) return null;
+    const [inteiros, decimais = ''] = limpo.split(',');
+    if (!/^\d+$/.test(inteiros)) return null;
+    const centavos = Number(inteiros) * 100 + Number((decimais + '00').slice(0, 2));
+    return Number.isFinite(centavos) ? centavos : null;
+  };
+
+  const guardarPlano = async (plano: Plano, mudancas: { centavos?: number; ativo?: boolean }) => {
+    setSalvando(plano.codigo);
+    try {
+      await salvarPlano(plano.codigo, mudancas);
+      setRascunhoPreco((r) => ({ ...r, [plano.codigo]: '' }));
+      setRecarga((r) => r + 1);
+      toast('Plano atualizado. Quem já assinou mantém o valor que contratou.', 'ok');
+    } catch (err) {
+      toast((err as Error).message, 'danger');
+    } finally {
+      setSalvando('');
+    }
+  };
+
   return (
     <Page
       title="Painel administrativo" back={back}
@@ -129,60 +275,141 @@ export function Admin() {
         value={tab} onChange={setTab}
         tabs={[
           { id: 'painel', label: 'Visão geral' },
-          { id: 'usuarios', label: 'Usuários', count: stats.total },
-          { id: 'denuncias', label: 'Denúncias', count: stats.openReports },
-          { id: 'moderacao', label: 'Moderação', count: stats.pendingModeration },
+          { id: 'anuncios', label: 'Anúncios' },
+          { id: 'planos', label: 'Planos' },
+          { id: 'usuarios', label: 'Usuários', count: num?.pessoas.total },
+          { id: 'denuncias', label: 'Denúncias', count: num?.cuidado.denunciasAbertas },
+          { id: 'moderacao', label: 'Moderação', count: num?.cuidado.filaModeracao },
           { id: 'verificacao', label: 'Verificação' },
         ]}
       />
 
       {tab === 'painel' && (
         <div className="mt-5 space-y-6">
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <Metric label="Usuários" value={stats.total} hint={`${stats.verified} verificados`} />
-            <Metric label="Ativos em 24 h" value={stats.active} />
-            <Metric label="Novos hoje" value={stats.newToday} />
-            <Metric label="Premium" value={stats.premium} />
-          </div>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <Metric label="Conexões" value={stats.connections} />
-            <Metric label="Conversas iniciadas" value={stats.conversations} />
-            <Metric label="Mensagens" value={stats.messages} />
-            <Metric label="Encerradas com despedida" value={stats.gentleClosures} hint="métrica anti-ghosting" />
-          </div>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <Metric label="Denúncias abertas" value={stats.openReports} />
-            <Metric label="Fila de moderação" value={stats.pendingModeration} />
-            <Metric label="Contas suspensas" value={stats.suspended} />
-            <Metric label="Taxa de conversa" value={`${stats.connections ? Math.round((stats.conversations / stats.connections) * 100) : 0}%`} hint="conexões que viraram conversa" />
-          </div>
+          {/* Sem números, a tela diz que não apurou. Não mostra os da memória:
+              era exatamente isso o defeito. */}
+          {apurando && <Card className="p-5"><p className="text-[14px] text-muted">Apurando no servidor…</p></Card>}
+          {!apurando && !num && (
+            <Banner tone="warn" icon="info" title="Não consegui apurar os números agora">
+              Tente recarregar daqui a pouco. Os números desta tela são contados no servidor, sobre
+              a base inteira — e é melhor ficar sem número do que mostrar um número que conta só o
+              que este navegador carregou.
+            </Banner>
+          )}
 
-          <Banner tone="info" icon="chart" title="A métrica que importa aqui">
-            Num site de anúncios comum, a métrica de sucesso é volume de cadastros. No {APP_NAME} é a
-            <strong> taxa de conversas que viram negócio fechado</strong> — e a de anúncios que
-            recebem pelo menos uma proposta. São essas que colocamos no topo do painel de propósito.
-          </Banner>
+          {num && (
+            <>
+              <section>
+                <SectionTitle hint="Somado no servidor, sobre todas as assinaturas ativas.">
+                  Dinheiro
+                </SectionTitle>
+                <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  <Metric label="Receita por mês" value={emReais(num.dinheiro.mrrCentavos)} hint="MRR" />
+                  <Metric label="Receita por ano" value={emReais(num.dinheiro.arrCentavos)} hint="ARR" />
+                  <Metric label="Pagantes" value={num.dinheiro.pagantes}
+                          hint={`${num.dinheiro.mensais} mensal · ${num.dinheiro.anuais} anual`} />
+                  <Metric label="Cortesias" value={num.dinheiro.cortesias} hint="acesso sem receita" />
+                </div>
+                <p className="mt-2 text-[12px] leading-relaxed text-muted">
+                  Cada assinatura entra pelo valor que <strong>ela</strong> contratou. Mudar o preço
+                  na aba <em>Planos</em> não mexe em quem já assinou — nem na cobrança, nem aqui.
+                </p>
+              </section>
+
+              <section>
+                <SectionTitle hint="O que o mercado está fazendo.">Mercado</SectionTitle>
+                <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  <Metric label="Procuras" value={num.mercado.procuras} />
+                  <Metric label="Ofertas" value={num.mercado.ofertas} />
+                  <Metric label="Abertos agora" value={num.mercado.abertos} />
+                  <Metric
+                    label="Anúncios com proposta" value={num.mercado.comProposta}
+                    hint={num.mercado.procuras + num.mercado.ofertas > 0
+                      ? `${Math.round((num.mercado.comProposta / (num.mercado.procuras + num.mercado.ofertas)) * 100)}% do total`
+                      : undefined}
+                  />
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  <Metric label="Propostas enviadas" value={num.mercado.propostas} />
+                  <Metric
+                    label="Propostas aceitas" value={num.mercado.propostasAceitas}
+                    hint={num.mercado.propostas > 0
+                      ? `${Math.round((num.mercado.propostasAceitas / num.mercado.propostas) * 100)}% das enviadas`
+                      : undefined}
+                  />
+                  <Metric label="Conversas" value={num.conversa.conversas} />
+                  <Metric label="Mensagens" value={num.conversa.mensagens} />
+                </div>
+              </section>
+
+              <section>
+                <SectionTitle hint="Quem está no sistema.">Pessoas</SectionTitle>
+                <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  <Metric label="Contas" value={num.pessoas.total} hint={`${num.pessoas.verificadas} verificadas`} />
+                  <Metric label="Ativas em 24 h" value={num.pessoas.ativas24h} />
+                  <Metric label="Novas hoje" value={num.pessoas.novasHoje} />
+                  <Metric label="Suspensas ou banidas" value={num.pessoas.suspensas}
+                          hint={num.pessoas.apagadas ? `${num.pessoas.apagadas} apagadas` : undefined} />
+                </div>
+              </section>
+
+              <section>
+                <SectionTitle hint="O que espera decisão humana.">Cuidado</SectionTitle>
+                <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  <Metric label="Denúncias abertas" value={num.cuidado.denunciasAbertas} />
+                  <Metric label="Fila de moderação" value={num.cuidado.filaModeracao} />
+                  <Metric label="Conexões" value={num.conversa.conexoes} />
+                  <Metric label="Encerradas com despedida" value={num.conversa.despedidas}
+                          hint="métrica anti-ghosting" />
+                </div>
+              </section>
+
+              <Banner tone="info" icon="chart" title="A métrica que importa aqui">
+                Num site de anúncios comum, a métrica de sucesso é volume de cadastros. No {APP_NAME} é
+                a <strong>proporção de anúncios que recebem pelo menos uma proposta</strong> e a de
+                propostas que são aceitas. São essas duas que ficam no bloco do mercado, de propósito.
+              </Banner>
+
+              {num.apuradoEm && (
+                <p className="text-center text-[11px] text-muted">
+                  Apurado em {new Date(num.apuradoEm).toLocaleString('pt-BR')}.
+                </p>
+              )}
+            </>
+          )}
         </div>
       )}
 
       {tab === 'usuarios' && (
         <div className="mt-5">
-          <Input placeholder="Buscar por nome, e-mail ou cidade" value={query} onChange={(e) => setQuery(e.target.value)} />
-          <Card className="mt-4 divide-y divide-line overflow-hidden">
-            {users.map((u) => (
-              <div key={u.id} className="flex items-center gap-3 p-4">
-                <Avatar seed={u.id} photo={u.photo} name={u.name} size={44} />
+          <Input
+            placeholder="Buscar por nome, e-mail ou cidade"
+            value={query} onChange={(e) => setQuery(e.target.value)}
+          />
+          <p className="mt-2 text-[12px] text-muted">
+            Esta lista inclui contas <strong>suspensas e banidas</strong>, que não aparecem em
+            nenhuma outra tela — é daqui que se desfaz uma suspensão.
+          </p>
+          <Card className="mt-3 divide-y divide-line overflow-hidden">
+            {listaDePessoas.map((u) => (
+              <div key={u.id} className="flex flex-wrap items-center gap-3 p-4">
+                <Avatar seed={u.id} name={u.nome} size={44} />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-semibold">
-                    {u.name}
-                    {u.verified && <Icon name="check" size={12} className="ml-1.5 inline text-sage" />}
+                    {u.nome}
+                    {u.verificada && <Icon name="check" size={12} className="ml-1.5 inline text-sage" />}
                   </p>
                   <p className="truncate text-[12px] text-muted">
-                    {u.profession || 'sem profissão'} · {u.email} · {u.city} · reputação {u.reputation}
+                    {u.profissao || 'sem profissão'} · {u.email} · {u.cidade} · reputação {u.reputacao}
                   </p>
                 </div>
-                <Chip size="sm" tone={u.status === 'ativo' ? 'sage' : u.status === 'suspenso' ? 'warn' : 'danger'}>{u.status}</Chip>
-                {u.status === 'ativo' ? (
+                {u.plano === 'premium' && <Chip size="sm" tone="ember">plano ativo</Chip>}
+                <Chip size="sm" tone={u.status === 'ativo' ? 'sage' : u.status === 'suspenso' ? 'warn' : 'danger'}>
+                  {u.status}
+                </Chip>
+                {u.apagadaEm ? (
+                  <Chip size="sm" tone="neutral">apagada</Chip>
+                ) : u.status === 'ativo' ? (
                   <>
                     <Button size="sm" variant="outline" onClick={() => setStatus(u.id, 'suspenso')}>Suspender</Button>
                     <Button size="sm" variant="ghost" onClick={() => setStatus(u.id, 'banido')}>Banir</Button>
@@ -192,8 +419,167 @@ export function Admin() {
                 )}
               </div>
             ))}
-            {users.length === 0 && <p className="p-6 text-center text-sm text-muted">Nenhum usuário encontrado.</p>}
+            {listaDePessoas.length === 0 && (
+              <p className="p-6 text-center text-sm text-muted">Nenhuma conta encontrada.</p>
+            )}
           </Card>
+        </div>
+      )}
+
+      {tab === 'anuncios' && (
+        <div className="mt-5 space-y-4">
+          {/* Esta é a única tela do sistema que mostra RASCUNHO, FECHADO e
+              VENCIDO. A policy de `anuncios` abre tudo para o administrador; as
+              outras telas só veem o que está aberto. */}
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Select
+              value={filtro.tipo ?? 'todos'}
+              onChange={(e) => setFiltro((f) => ({ ...f, tipo: e.target.value as TipoAnuncio | 'todos' }))}
+            >
+              <option value="todos">Procuras e ofertas</option>
+              <option value="procurando">Só quem procura serviço</option>
+              <option value="oferecendo">Só quem oferece serviço</option>
+            </Select>
+            <Select
+              value={filtro.status ?? 'todos'}
+              onChange={(e) => setFiltro((f) => ({ ...f, status: e.target.value as StatusAnuncio | 'todos' }))}
+            >
+              <option value="todos">Qualquer situação</option>
+              <option value="aberto">Aberto</option>
+              <option value="rascunho">Rascunho</option>
+              <option value="fechado">Fechado</option>
+              <option value="concluido">Concluído</option>
+              <option value="cancelado">Cancelado</option>
+            </Select>
+            <Input
+              placeholder="Buscar por título ou cidade"
+              value={filtro.busca ?? ''}
+              onChange={(e) => setFiltro((f) => ({ ...f, busca: e.target.value }))}
+            />
+          </div>
+
+          {!supabaseEnabled && (
+            <Banner tone="info" icon="info" title="Sem servidor">
+              No modo demonstração não há base de anúncios para listar aqui.
+            </Banner>
+          )}
+
+          {supabaseEnabled && anuncios === null && (
+            <Card className="p-5"><p className="text-[14px] text-muted">Carregando…</p></Card>
+          )}
+
+          {supabaseEnabled && anuncios?.length === 0 && (
+            <Empty icon="search" title="Nenhum anúncio com esse filtro"
+                   body="Limpe o filtro ou procure por outra palavra." />
+          )}
+
+          {!!anuncios?.length && (
+            <Card className="divide-y divide-line overflow-hidden">
+              {anuncios.map((a) => (
+                <div key={a.id} className="flex flex-wrap items-center gap-2 p-4">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold">{a.titulo}</p>
+                    <p className="truncate text-[12px] text-muted">
+                      {a.cidade}{a.uf ? `, ${a.uf}` : ''} · publicado {timeAgo(a.criadoEm)}
+                      {a.expiraEm && new Date(a.expiraEm).getTime() < Date.now() ? ' · vencido' : ''}
+                    </p>
+                  </div>
+                  <Chip size="sm" tone={a.tipo === 'procurando' ? 'brand' : 'ember'}>
+                    {a.tipo === 'procurando' ? 'procura' : 'oferece'}
+                  </Chip>
+                  <Chip size="sm" tone={a.status === 'aberto' ? 'sage' : a.status === 'cancelado' ? 'danger' : 'neutral'}>
+                    {a.status}
+                  </Chip>
+                  <Chip size="sm" tone={a.propostas > 0 ? 'sage' : 'neutral'}>
+                    {a.propostas} {a.propostas === 1 ? 'proposta' : 'propostas'}
+                  </Chip>
+                </div>
+              ))}
+            </Card>
+          )}
+        </div>
+      )}
+
+      {tab === 'planos' && (
+        <div className="mt-5 space-y-4">
+          <Banner tone="warn" icon="info" title="O que você muda aqui é o que o cartão paga">
+            Este preço é o <strong>mesmo</strong> que a tela de Planos mostra e que o Stripe cobra —
+            não há dois números. Quem <strong>já</strong> assinou mantém o valor que contratou: mudar
+            aqui vale só para assinaturas novas.
+          </Banner>
+
+          {!supabaseEnabled && (
+            <Banner tone="info" icon="info" title="Sem servidor">
+              No modo demonstração os preços são fixos e não há o que editar.
+            </Banner>
+          )}
+
+          {supabaseEnabled && planos === null && (
+            <Card className="p-5"><p className="text-[14px] text-muted">Carregando…</p></Card>
+          )}
+
+          {planos?.map((plano) => {
+            const digitado = rascunhoPreco[plano.codigo] ?? '';
+            const novo = digitado ? paraCentavos(digitado) : null;
+            const mudou = novo !== null && novo !== plano.centavos;
+            return (
+              <Card key={plano.codigo} className="space-y-3 p-5">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="font-display text-lg font-bold">{plano.nome}</p>
+                    <p className="text-[13px] text-muted">
+                      hoje: <strong>{emReais(plano.centavos)}</strong>{porPeriodo(plano)}
+                    </p>
+                  </div>
+                  <Chip size="sm" tone={plano.ativo ? 'sage' : 'neutral'}>
+                    {plano.ativo ? 'à venda' : 'fora de venda'}
+                  </Chip>
+                </div>
+
+                <div className="flex flex-wrap items-end gap-3">
+                  <div className="min-w-[160px] flex-1">
+                    <label className="block text-[12px] font-semibold text-muted" htmlFor={`preco-${plano.codigo}`}>
+                      Novo preço, em reais
+                    </label>
+                    <Input
+                      id={`preco-${plano.codigo}`} inputMode="decimal" placeholder="49,90"
+                      value={digitado}
+                      onChange={(e) => setRascunhoPreco((r) => ({ ...r, [plano.codigo]: e.target.value }))}
+                    />
+                  </div>
+                  <Button
+                    variant="primary" loading={salvando === plano.codigo}
+                    disabled={!mudou}
+                    onClick={() => { if (novo !== null) void guardarPlano(plano, { centavos: novo }); }}
+                  >
+                    Salvar preço
+                  </Button>
+                  <Button
+                    variant="outline" loading={salvando === plano.codigo}
+                    onClick={() => void guardarPlano(plano, { ativo: !plano.ativo })}
+                  >
+                    {plano.ativo ? 'Tirar de venda' : 'Pôr à venda'}
+                  </Button>
+                </div>
+
+                {/* A tela repete de volta o que ENTENDEU antes de salvar. É o
+                    que transforma um dedo escorregado em algo visível: quem
+                    digitar 4,90 por engano lê "vai passar a custar R$ 4,90". */}
+                {digitado && novo === null && (
+                  <p className="text-[13px] font-semibold text-ember">
+                    Não entendi esse valor. Escreva como 49,90.
+                  </p>
+                )}
+                {novo !== null && (
+                  <p className="text-[13px]">
+                    {mudou
+                      ? <>Vai passar a custar <strong>{emReais(novo)}</strong>{porPeriodo(plano)} para quem assinar daqui em diante.</>
+                      : <>Esse já é o preço atual.</>}
+                  </p>
+                )}
+              </Card>
+            );
+          })}
         </div>
       )}
 
