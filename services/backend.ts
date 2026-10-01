@@ -573,8 +573,18 @@ export async function resolverDenuncia(
 export async function definirStatusDaConta(
   id: string, status: 'ativo' | 'suspenso' | 'banido',
 ): Promise<void> {
+  // PASSOU A SER UMA CHAMADA DE FUNÇÃO, E NÃO UM UPDATE NA TABELA.
+  //
+  // A migração 027 fechou a leitura de `public.users` para o administrador, para
+  // o telefone de outra pessoa deixar de estar ao alcance dele. O efeito colateral
+  // só apareceu no ensaio: no Postgres um `update ... where id = X` precisa
+  // ENCONTRAR a linha, e encontrar passa pela policy de LEITURA. Com a leitura
+  // estreitada, este update passou a afetar ZERO linhas — sem erro nenhum.
+  //
+  // `definir_status_da_conta` roda com direitos do dono, confere `is_admin()` e
+  // recusa mexer em conta de administrador.
   const db = requireSupabase();
-  const { error } = await db.from('users').update({ status }).eq('id', id);
+  const { error } = await db.rpc('definir_status_da_conta', { alvo: id, novo: status });
   if (error) throw new Error(`Falha ao alterar a conta: ${error.message}`);
 }
 
