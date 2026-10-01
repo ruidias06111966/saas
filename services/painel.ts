@@ -114,45 +114,57 @@ export interface PessoaDoPainel {
   criadaEm: string;
 }
 
-const COLUNAS_PESSOA =
-  'id, name, email, city, state, profession, verified, reputation, plan, status, deleted_at, created_at';
-
 /**
  * As pessoas do painel, inclusive as suspensas, banidas e apagadas.
  *
- * `busca` filtra no SERVIDOR por nome, e-mail ou cidade. Filtrar no navegador
- * exigiria trazer a base inteira — que é o hábito que esta etapa desfaz.
+ * VEM DE UMA FUNÇÃO, E NÃO MAIS DA TABELA — e a razão é de privacidade.
+ *
+ * A migração 027 fechou a leitura de `public.users` para o administrador,
+ * porque a policy antiga (`or private.is_admin()`) abria a LINHA INTEIRA:
+ * telefone e coordenada aproximada incluídos. A Política de Privacidade promete
+ * que o telefone não sai "até que uma proposta seja aceita" e que "o servidor se
+ * recusa a entregar o número fora dessa condição" — e isso era falso para uma
+ * pessoa.
+ *
+ * `pessoas_do_painel` devolve só o que esta tela mostra. O telefone não está na
+ * lista de colunas, e é por isso que ele não pode aparecer aqui nem por engano.
+ *
+ * A busca continua no servidor: filtrar no navegador exigiria trazer a base.
  */
 export async function pessoasDoPainel(busca = '', limite = 200): Promise<PessoaDoPainel[]> {
   if (!supabaseEnabled) return [];
-  let q = requireSupabase().from('users').select(COLUNAS_PESSOA)
-    .neq('role', 'admin')
-    .order('created_at', { ascending: false })
-    .limit(limite);
-
-  const termo = busca.trim();
-  if (termo) {
-    // `or` do PostgREST: vírgula separa as alternativas, `*` é o curinga.
-    const alvo = termo.replace(/[,()*]/g, ' ').trim();
-    if (alvo) q = q.or(`name.ilike.*${alvo}*,email.ilike.*${alvo}*,city.ilike.*${alvo}*`);
-  }
-
-  const { data, error } = await q;
+  const { data, error } = await requireSupabase()
+    .rpc('pessoas_do_painel', { busca, limite });
   if (error || !Array.isArray(data)) return [];
   return (data as Record<string, unknown>[]).map((r) => ({
     id: String(r.id),
-    nome: String(r.name ?? ''),
+    nome: String(r.nome ?? ''),
     email: String(r.email ?? ''),
-    cidade: String(r.city ?? ''),
-    uf: String(r.state ?? ''),
-    profissao: String(r.profession ?? ''),
-    verificada: r.verified === true,
-    reputacao: n(r.reputation),
-    plano: r.plan === 'premium' ? 'premium' : 'free',
+    cidade: String(r.cidade ?? ''),
+    uf: String(r.uf ?? '').trim(),
+    profissao: String(r.profissao ?? ''),
+    verificada: r.verificada === true,
+    reputacao: n(r.reputacao),
+    plano: r.plano === 'premium' ? 'premium' : 'free',
     status: (r.status ?? 'ativo') as AccountStatus,
-    apagadaEm: r.deleted_at ? String(r.deleted_at) : undefined,
-    criadaEm: String(r.created_at ?? ''),
+    apagadaEm: r.apagada_em ? String(r.apagada_em) : undefined,
+    criadaEm: String(r.criada_em ?? ''),
   }));
+}
+
+/**
+ * Suspender, banir e reativar.
+ *
+ * Também passou a ser função, e não por gosto: estreitar a leitura de `users`
+ * tirou ao administrador a capacidade de ENCONTRAR a linha para atualizar. No
+ * Postgres um `update ... where id = X` precisa achar a linha, e achar passa
+ * pela policy de leitura. O ensaio mostrou isso como "0 linhas" — em silêncio,
+ * sem erro. Em produção teria quebrado a moderação e ninguém saberia por quê.
+ */
+export async function definirStatusDaConta(alvo: string, novo: AccountStatus): Promise<void> {
+  const { error } = await requireSupabase()
+    .rpc('definir_status_da_conta', { alvo, novo });
+  if (error) throw new Error(error.message);
 }
 
 // ---------------------------------------------------------------------------

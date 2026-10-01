@@ -8,7 +8,7 @@
  */
 export const APP_NAME = 'QICONEXÃO';
 export const APP_TAGLINE = 'Trabalho, negócios e quem sabe fazer.';
-export const POLICY_VERSION = '2026.3';
+export const POLICY_VERSION = '2026.4';
 
 /**
  * ATENÇÃO: esta chave e as irmãs dela (`conexao.auth` em supabaseClient.ts,

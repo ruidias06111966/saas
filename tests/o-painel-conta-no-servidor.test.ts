@@ -119,21 +119,39 @@ describe('os números do painel são contados no servidor', () => {
 });
 
 describe('a conta suspensa volta a aparecer, e por isso o botão de reativar funciona', () => {
-  it('a lista de pessoas do painel vem de `users`, não da view do mercado', () => {
+  // MUDOU DE MECANISMO NA MIGRAÇÃO 027, E A INTENÇÃO CONTINUA A MESMA.
+  //
+  // Na Etapa 4 este teste exigia que a lista viesse da tabela `users`, porque o
+  // defeito era vir da view do mercado (que esconde as suspensas). Na Etapa 5 a
+  // leitura de `users` fechou para o administrador — a policy abria a linha
+  // inteira, telefone incluído, e a Política de Privacidade prometia o
+  // contrário. A lista passou a vir de `pessoas_do_painel`, que devolve só as
+  // colunas da tela.
+  //
+  // O que o teste guarda não é o mecanismo: é que a lista não volte à view que
+  // esconde quem está suspenso.
+  it('a lista de pessoas vem da função do painel, nunca da view do mercado', () => {
     const abre = SERVICO.indexOf('export async function pessoasDoPainel');
     expect(abre).toBeGreaterThan(-1);
-    const fecha = SERVICO.indexOf('\n}', SERVICO.indexOf('return (data as', abre));
-    const corpo = SERVICO.slice(abre, fecha);
-    expect(corpo).toContain("from('users')");
-    expect(corpo).not.toContain('perfis_do_mercado');
-  });
-
-  it('a lista NÃO filtra por status — é isso que mantém a suspensa visível', () => {
-    const abre = SERVICO.indexOf('export async function pessoasDoPainel');
     const fecha = SERVICO.indexOf('export async function', abre + 10);
     const corpo = SERVICO.slice(abre, fecha);
-    expect(corpo).not.toMatch(/eq\('status'/);
-    expect(corpo).not.toMatch(/deleted_at.*is.*null/);
+    expect(corpo).toContain("rpc('pessoas_do_painel'");
+    expect(corpo).not.toContain('perfis_do_mercado');
+    expect(corpo, 'voltou a ler a tabela, que já não entrega as suspensas')
+      .not.toContain("from('users')");
+  });
+
+  it('a função do servidor NÃO filtra por status — é isso que mantém a suspensa visível', () => {
+    const sql = semComentariosSQL(
+      ler('supabase/migrations/027_a_politica_prometia_mais_do_que_o_sistema_cumpria.sql'),
+    );
+    const abre = sql.indexOf('create or replace function public.pessoas_do_painel(');
+    expect(abre).toBeGreaterThan(-1);
+    const corpo = sql.slice(abre, sql.indexOf('$f$;', abre));
+    expect(corpo, 'a função passou a esconder quem não está ativo')
+      .not.toMatch(/status\s*=\s*'ativo'/);
+    expect(corpo, 'a função passou a esconder as contas apagadas')
+      .not.toMatch(/deleted_at\s+is\s+null/);
   });
 
   it('a tela diz, em texto, que a lista inclui suspensas e banidas', () => {
