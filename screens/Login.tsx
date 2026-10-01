@@ -5,6 +5,7 @@ import { DEMO_ADMIN_ID, DEMO_PASSWORD, DEMO_USER_ID, SEED_USERS } from '../data/
 import { isEmail, sha256 } from '../services/utils';
 import { signIn } from '../services/auth';
 import { supabaseEnabled } from '../services/supabaseClient';
+import { TEXTO_SESSAO_EXPIRADA, TITULO_SESSAO_EXPIRADA } from '../services/sessao';
 
 // O e-mail da conta de demonstração vem do seed, não de uma cópia aqui: a cópia
 // ficou para trás no pivô (`joao@conexao.app`) e o campo vinha preenchido com uma
@@ -12,7 +13,7 @@ import { supabaseEnabled } from '../services/supabaseClient';
 const DEMO_USER_EMAIL = SEED_USERS.find((u) => u.id === DEMO_USER_ID)?.email ?? '';
 
 export function Login() {
-  const { state, dispatch, navigate, toast } = useApp();
+  const { state, dispatch, navigate, toast, sessaoExpirada } = useApp();
   const [email, setEmail] = useState(supabaseEnabled ? '' : DEMO_USER_EMAIL);
   const [password, setPassword] = useState(supabaseEnabled ? '' : DEMO_PASSWORD);
   const [error, setError] = useState('');
@@ -60,6 +61,18 @@ export function Login() {
 
       <h1 className="font-display text-3xl font-bold tracking-tight">Entrar</h1>
       <p className="mt-2 text-sm text-muted">Que bom te ver de novo.</p>
+
+      {/* ACIMA DO FORMULÁRIO, E NÃO NUM AVISO QUE PASSA.
+          Quem chega aqui foi trazido — não clicou em "Entrar". Precisa de ler
+          por que está nesta tela, e de poder reler enquanto procura a senha.
+          Um toque de aviso desapareceria antes disso. Ver services/sessao.ts. */}
+      {sessaoExpirada && (
+        <div className="mt-5">
+          <Banner tone="warn" icon="clock" title={TITULO_SESSAO_EXPIRADA}>
+            {TEXTO_SESSAO_EXPIRADA}
+          </Banner>
+        </div>
+      )}
 
       <Card className="mt-6 p-6">
         <form onSubmit={submit} className="space-y-4">
