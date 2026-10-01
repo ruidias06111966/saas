@@ -65,12 +65,16 @@
     <b>QICONEXÃO</b>
   </a>
   <h1>Política de Privacidade</h1>
-  <p class="sub">Versão 2026.4 · Publicada em 1 de outubro de 2026</p>
+  <p class="sub">Versão 2026.5 · Publicada em 1 de outubro de 2026</p>
 </header>
 
 <p>Esta página explica, sem rodeios, <span class="destaque">quais dados seus o QICONEXÃO guarda, para quê, com quem os divide e como você manda neles</span>. Está escrita para ser lida por qualquer pessoa, não só por advogados, e segue a Lei Geral de Proteção de Dados (Lei nº 13.709/2018).</p>
 
 <p>O QICONEXÃO é um <span class="destaque">mercado de serviços profissionais</span>. Quem precisa de um trabalho publica o que precisa; quem sabe fazer se oferece. Contador, engenheiro, advogado, quem cuida de alvará, quem faz site.</p>
+
+<div class="nota">
+  <p style="margin:0 0 8px"><span class="destaque">O que mudou na versão 2026.5:</span> passamos a conferir, no momento em que você escolhe uma senha, se ela já apareceu em vazamentos públicos de outros sites. Isso acrescentou um serviço à lista do item 6, e por isso pedimos o seu consentimento de novo — está explicado em detalhe no item 6, incluindo por que <span class="destaque">a sua senha não sai do seu aparelho</span> para essa conferência. Nada mais foi alterado.</p>
+</div>
 
 <div class="nota">
   <p style="margin:0 0 8px"><span class="destaque">Mudança de versão:</span> até 25 de setembro de 2026 o QICONEXÃO era um aplicativo de relacionamentos, e esta política descrevia aquele serviço.</p>
@@ -196,6 +200,7 @@
     <tr><td><span class="destaque">Sentry</span></td><td>Registro de erros do aplicativo</td><td>Estados Unidos</td></tr>
     <tr><td><span class="destaque">Google, Mozilla, Apple</span></td><td>Entrega dos avisos no celular</td><td>Exterior</td></tr>
     <tr><td><span class="destaque">GitHub Pages</span></td><td>Hospedagem das páginas do site</td><td>Exterior</td></tr>
+    <tr><td><span class="destaque">Have I Been Pwned</span></td><td>Conferir se a senha que você escolheu já apareceu em vazamentos de outros sites</td><td>Exterior</td></tr>
   </tbody>
 </table>
 </div>
@@ -207,6 +212,23 @@
 <p>Há ainda uma segunda camada de moderação: quando uma verificação automática feita <span class="destaque">dentro do próprio aplicativo</span> suspeita de golpe, assédio ou conteúdo impróprio numa mensagem, esse texto é enviado ao Google para ser classificado. <span class="destaque">Isso acontece só nesses casos</span> — as suas conversas comuns não são enviadas para lugar nenhum.</p>
 
 <p>Nenhum desses conteúdos é usado para treinar modelos de inteligência artificial.</p>
+
+<h3>Sobre a conferência de senha vazada, em detalhe</h3>
+
+<p>Quando você escolhe uma senha — ao criar a conta, ao usar o "esqueci minha senha" ou ao trocá-la em Configurações —, conferimos se ela já apareceu em vazamentos públicos de outros sites. Senha já conhecida é a primeira coisa que quem invade conta experimenta.</p>
+
+<p><span class="destaque">A sua senha nunca sai do seu aparelho.</span> Nem inteira, nem cifrada, nem de forma nenhuma. O que acontece é isto:</p>
+
+<ol>
+  <li>a senha vira um resumo matemático dentro do seu próprio navegador;</li>
+  <li>desse resumo saem pela internet apenas os <span class="destaque">5 primeiros caracteres</span>;</li>
+  <li>o serviço devolve a lista de cerca de 800 resumos que começam com esses 5 caracteres;</li>
+  <li>a comparação final acontece <span class="destaque">dentro do seu navegador</span>.</li>
+</ol>
+
+<p>Um pedaço de 5 caracteres corresponde a centenas de milhares de senhas diferentes. O serviço do outro lado não tem como saber qual delas foi consultada — nem mesmo se alguma foi. Nada dessa consulta é guardado, por nós ou por eles.</p>
+
+<p>Se esse serviço estiver fora do ar, a conferência simplesmente não acontece e você <span class="destaque">não é impedido de criar a conta ou de trocar a senha</span>. O aplicativo avisa, na própria tela, que não conseguiu conferir.</p>
 
 <h3>Transferência internacional</h3>
 
@@ -283,6 +305,7 @@
 <ul>
   <li>Todo o tráfego é criptografado (HTTPS)</li>
   <li>As senhas nunca são guardadas em texto legível</li>
+  <li>Uma senha que já apareceu em vazamento público de outro site é recusada no momento em que você a escolhe — sem que a senha saia do seu aparelho (explicado no item 6)</li>
   <li>O banco de dados aplica regras de acesso linha a linha: mesmo que houvesse uma falha no aplicativo, o servidor recusaria entregar o dado de outra pessoa</li>
   <li>Suas fotos ficam em armazenamento privado, entregues apenas a quem está logado e a quem o seu perfil já aparece</li>
   <li>O seu telefone fica fora de todas as consultas de perfil: ele só sai do servidor pela função que confere se existe uma proposta aceita entre vocês</li>
@@ -300,7 +323,7 @@
 <p>Se mudarmos algo relevante, publicamos a nova versão aqui com data nova e avisamos dentro do aplicativo. Mudanças que ampliem o uso dos seus dados serão submetidas a novo consentimento — não passam por baixo do pano.</p>
 
 <footer>
-  <p><span class="destaque">QICONEXÃO</span> · Política de Privacidade versão 2026.4 · 1 de outubro de 2026<br>
+  <p><span class="destaque">QICONEXÃO</span> · Política de Privacidade versão 2026.5 · 1 de outubro de 2026<br>
   Dúvidas ou pedidos: <a href="mailto:qidominio@gmail.com">qidominio@gmail.com</a></p>
   <p><a href="/manual.html">Manual de Utilização</a> · <a href="/">Voltar ao aplicativo</a> · <a href="/termos.html">Termos de Uso</a> · <a href="/diretrizes.html">Diretrizes da Comunidade</a></p>
 </footer>
