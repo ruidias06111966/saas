@@ -6,7 +6,7 @@ import {
 import { NOMES_DE_CIDADE, UFS, coordenadasDe } from '../services/localizacao';
 import { useApp } from '../state/AppContext';
 import {
-  Bar, Banner, Button, Card, Checkbox, Chip, Field, Icon, Input, Select, Textarea, Toggle,
+  Bar, Banner, Button, CampoDeSenha, Card, Checkbox, Chip, Field, Icon, Input, Select, Textarea, Toggle,
 } from '../components/ui';
 import { Portrait } from '../components/Portrait';
 import { readImageAsDataUrl } from '../services/storage';
@@ -401,10 +401,10 @@ export function Signup() {
                 label="Senha" required error={errors.password}
                 hint={avisoSenha || 'Mínimo de 8 caracteres. Conferimos se ela já apareceu em vazamentos de outros sites, sem que a senha saia do seu aparelho.'}
               >
-                <Input type="password" value={d.password} onChange={(e) => set('password', e.target.value)} autoComplete="new-password" />
+                <CampoDeSenha value={d.password} onChange={(e) => set('password', e.target.value)} autoComplete="new-password" />
               </Field>
               <Field label="Confirmar senha" required error={errors.password2}>
-                <Input type="password" value={d.password2} onChange={(e) => set('password2', e.target.value)} autoComplete="new-password" />
+                <CampoDeSenha value={d.password2} onChange={(e) => set('password2', e.target.value)} autoComplete="new-password" />
               </Field>
             </div>
           </div>

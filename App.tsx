@@ -41,7 +41,7 @@ function Router() {
     case 'procurar': return <Anuncios area="procurando" />;
     case 'oferecer': return <Anuncios area="oferecendo" />;
     case 'anuncio': return <Anuncio id={route.id} />;
-    case 'publicar': return <PublicarAnuncio tipo={route.tipo} />;
+    case 'publicar': return <PublicarAnuncio tipo={route.tipo} id={route.id} />;
     case 'meusAnuncios': return <MeusAnuncios />;
     case 'minhasPropostas': return <MinhasPropostas />;
     case 'person': return <PersonProfile id={route.id} />;

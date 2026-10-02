@@ -248,7 +248,9 @@ export type Route =
   | { name: 'procurar' }                 // preciso de alguém: vejo quem oferece
   | { name: 'oferecer' }                 // quero trabalho: vejo quem procura
   | { name: 'anuncio'; id: string }      // um anúncio, e propor nele
-  | { name: 'publicar'; tipo: TipoAnuncio } // publicar o meu lado, qualquer um dos dois
+  // `id` ausente = publicar novo; presente = editar aquele anúncio. Opcional
+  // de propósito: as chamadas que já existiam continuam válidas sem mudar.
+  | { name: 'publicar'; tipo: TipoAnuncio; id?: string }
   | { name: 'meusAnuncios' }             // o que publiquei, e quem respondeu
   | { name: 'minhasPropostas' }          // onde me ofereci
   | { name: 'person'; id: string }  // o perfil profissional de alguém

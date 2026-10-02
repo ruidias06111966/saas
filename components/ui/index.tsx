@@ -1,4 +1,4 @@
-import React, { useEffect, useId, useRef } from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
 import { cx } from '../../services/utils';
 import { Icon, type IconName } from './Icon';
 
@@ -139,6 +139,69 @@ export function Field({ label, hint, error, children, required }: {
       {hint && !error && <span className="mt-1 block text-xs text-muted">{hint}</span>}
       {error && <span className="mt-1 block text-xs font-medium text-danger">{error}</span>}
     </label>
+  );
+}
+
+/**
+ * CAMPO DE SENHA, COM O OLHO PARA CONFERIR O QUE SE DIGITOU.
+ *
+ * O PROBLEMA QUE ISTO RESOLVE
+ *
+ * Senha digitada às cegas, num teclado de celular, com correção automática a
+ * atrapalhar. Quem erra uma letra não descobre: descobre só quando o sistema
+ * recusa — e nem aí sabe se errou a senha ou se esqueceu qual era. No cadastro é
+ * pior ainda, porque a pessoa repete o engano no campo de confirmação e fica sem
+ * entender por que "as senhas não conferem".
+ *
+ * TRÊS DETALHES QUE PARECEM PEQUENOS E NÃO SÃO
+ *
+ *   • `type="button"`. Sem isto o botão é SUBMIT por padrão dentro de um
+ *     `<form>`, e tocar no olho ENVIARIA o formulário — com a senha meio
+ *     escrita. É o defeito clássico deste componente, e há teste para ele.
+ *
+ *   • o rótulo muda com o estado ("Mostrar senha" / "Ocultar senha"). Um rótulo
+ *     fixo deixa quem usa leitor de tela sem saber o que o botão vai fazer.
+ *
+ *   • `tabIndex={-1}`: o olho fica FORA da ordem do teclado. Quem navega por
+ *     Tab quer ir da senha para o botão de entrar, e não parar num atalho
+ *     visual pelo caminho.
+ *
+ * Começa SEMPRE escondido. Mostrar por padrão exporia a senha a quem estiver ao
+ * lado, e a decisão de revelar tem de ser de quem digita.
+ */
+export function CampoDeSenha({ value, onChange, autoComplete, autoFocus, placeholder }: {
+  value: string;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  autoComplete?: string;
+  autoFocus?: boolean;
+  placeholder?: string;
+}) {
+  const [visivel, setVisivel] = useState(false);
+  const rotulo = visivel ? 'Ocultar senha' : 'Mostrar senha';
+
+  return (
+    <div className="relative">
+      <Input
+        type={visivel ? 'text' : 'password'}
+        value={value}
+        onChange={onChange}
+        autoComplete={autoComplete}
+        autoFocus={autoFocus}
+        placeholder={placeholder}
+        className="pr-12"
+      />
+      <button
+        type="button"
+        onClick={() => setVisivel((v) => !v)}
+        aria-label={rotulo}
+        aria-pressed={visivel}
+        title={rotulo}
+        tabIndex={-1}
+        className="absolute inset-y-0 right-0 flex items-center rounded-r-2xl px-3.5 text-muted transition-colors hover:text-ink focus:outline-none focus-visible:text-brand"
+      >
+        <Icon name={visivel ? 'eyeOff' : 'eye'} size={18} />
+      </button>
+    </div>
   );
 }
 

@@ -179,7 +179,7 @@ function PropostaRecebida({ p, aoResponder }: { p: Proposta; aoResponder: (s: 'a
 }
 
 export function Anuncio({ id }: { id: string }) {
-  const { me, back, toast } = useApp();
+  const { me, back, navigate, toast } = useApp();
   const [anuncio, setAnuncio] = useState<TAnuncio | null>(null);
   const [propostas, setPropostas] = useState<Proposta[]>([]);
   const [minha, setMinha] = useState<Proposta | null>(null);
@@ -261,6 +261,22 @@ export function Anuncio({ id }: { id: string }) {
           <Banner tone="warn" icon="clock" title="Este anúncio não recebe mais propostas">
             Ele foi encerrado ou o prazo de publicação terminou.
           </Banner>
+        </div>
+      )}
+
+      {/* EDITAR, DE ONDE A PESSOA ESTÁ A OLHAR O PRÓPRIO ANÚNCIO.
+          O botão existe também em "Meus anúncios", mas é aqui que se percebe o
+          erro de digitação — a ler o que ficou publicado. Fazer voltar à lista
+          para corrigir seria mandar a pessoa procurar o que já está à frente.
+          Só enquanto aberto, pela mesma razão explicada em MeusAnuncios. */}
+      {meu && aberto && (
+        <div className="mt-5">
+          <Button
+            variant="outline" icon="edit"
+            onClick={() => navigate({ name: 'publicar', tipo: anuncio.tipo, id: anuncio.id })}
+          >
+            Editar anúncio
+          </Button>
         </div>
       )}
 
