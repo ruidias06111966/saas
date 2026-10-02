@@ -113,7 +113,7 @@ export interface Connection {
   closedGently?: boolean;
 }
 
-export type MessageKind = 'texto' | 'imagem' | 'ritual' | 'sistema';
+export type MessageKind = 'texto' | 'imagem' | 'arquivo' | 'ritual' | 'sistema';
 
 export interface Message {
   id: string;
@@ -122,6 +122,14 @@ export interface Message {
   kind: MessageKind;
   text: string;
   imageData?: string;
+  /**
+   * Ficheiro anexado (PDF, Word, Excel). Os três andam juntos: o banco recusa
+   * uma mensagem `arquivo` incompleta, e recusa um `texto` que os carregue
+   * (restrição `arquivo_tem_arquivo`, migração 030).
+   */
+  arquivoPath?: string;
+  arquivoNome?: string;
+  arquivoBytes?: number;
   ritualLevel?: 1 | 2 | 3 | 4;
   createdAt: string;
   readAt?: string;

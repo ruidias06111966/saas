@@ -12,7 +12,9 @@ import { ConversationThermometer, EtapasDaConversa } from '../components/Convers
 import { CopilotPanel } from '../components/Copilot';
 import { ReportDialog } from '../components/ReportDialog';
 import { Avatar, ImagemDaMensagem } from '../components/Portrait';
-import { uploadChatImage } from '../services/media';
+import { ArquivoDaMensagem } from '../components/ArquivoDaMensagem';
+import { ACCEPT, porQueNaoPosso } from '../services/anexos';
+import { uploadChatFile, uploadChatImage } from '../services/media';
 import { ouvirDigitacao } from '../services/realtime';
 import { clockTime, cx, dayLabel, firstName, seededRandom, shuffle } from '../services/utils';
 
@@ -245,6 +247,14 @@ export function Chat({ id }: { id: string }) {
                           {m.kind === 'imagem' && m.imageData && (
                             <ImagemDaMensagem caminho={m.imageData} />
                           )}
+                          {m.kind === 'arquivo' && m.arquivoPath && m.arquivoNome && (
+                            <ArquivoDaMensagem
+                              caminho={m.arquivoPath}
+                              nome={m.arquivoNome}
+                              bytes={m.arquivoBytes}
+                              meu={mine}
+                            />
+                          )}
                           {m.text}
                         </div>
                         <div className={cx('mt-1 flex items-center gap-1.5 px-1 text-[10px] text-muted', mine && 'justify-end')}>
@@ -323,6 +333,32 @@ export function Chat({ id }: { id: string }) {
                       try {
                         const caminho = await uploadChatImage(file, me.id);
                         doSend('📷 Imagem', 'imagem', { imageData: caminho });
+                      } catch (err) { toast((err as Error).message, 'danger'); }
+                    }}
+                  />
+                </label>
+                {/* ARQUIVO, ao lado da imagem e não no lugar dela.
+                    São coisas diferentes: a imagem aparece na conversa, o
+                    arquivo baixa-se. Juntar as duas num botão só obrigaria a
+                    pessoa a descobrir, pelo seletor, o que afinal é aceito. */}
+                <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-line px-3 py-1.5 text-[12px] font-semibold text-muted transition-colors hover:text-ink">
+                  <Icon name="download" size={14} /> Arquivo
+                  <input
+                    type="file" accept={ACCEPT} className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      // O campo é limpo SEMPRE: sem isto, escolher o mesmo
+                      // ficheiro duas vezes seguidas não dispara nada, e a
+                      // pessoa acha que o botão parou de funcionar.
+                      e.target.value = '';
+                      if (!file) return;
+                      const problema = porQueNaoPosso(file.name, file.size);
+                      if (problema) { toast(problema, 'danger'); return; }
+                      try {
+                        const a = await uploadChatFile(file, me.id);
+                        doSend('📎 Arquivo', 'arquivo', {
+                          arquivoPath: a.caminho, arquivoNome: a.nome, arquivoBytes: a.bytes,
+                        });
                       } catch (err) { toast((err as Error).message, 'danger'); }
                     }}
                   />
