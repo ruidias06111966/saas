@@ -1,6 +1,7 @@
 import { requireSupabase, supabaseEnabled } from './supabaseClient';
 import { readImageAsDataUrl } from './storage';
 import { reportarErro } from './monitoring';
+import { extensaoDe, nomeParaMostrar, porQueNaoPosso } from './anexos';
 
 // ---------------------------------------------------------------------------
 // Imagens de perfil.
@@ -135,6 +136,59 @@ export async function uploadChatImage(file: File, userId: string): Promise<strin
     .from(BUCKET).upload(caminho, blob, { contentType: 'image/jpeg', upsert: true });
   if (error) throw new Error(`Falha ao enviar a imagem: ${error.message}`);
   return caminho;
+}
+
+/**
+ * Envia um ficheiro de conversa — PDF, Word ou Excel.
+ *
+ * NÃO PASSA PELO REDIMENSIONADOR, e é essa a diferença que importa em relação a
+ * `uploadChatImage`. A imagem é reescrita num JPEG de 900px; um PDF rebentaria
+ * ali. Aqui o ficheiro vai como está, byte por byte.
+ *
+ * O nome gravado é um CARIMBO DE TEMPO mais a extensão — nunca o nome que a
+ * pessoa deu. Nome de ficheiro vindo de fora é texto de terceiro, e deixá-lo
+ * decidir o caminho é como se escreve fora da própria pasta. O nome original
+ * viaja noutro lugar, na coluna `arquivo_nome` da mensagem, onde é dado e não
+ * endereço.
+ *
+ * A conferência aqui é a terceira grade, não a única: a policy de envio olha a
+ * extensão e o depósito olha o tipo declarado (migração 030). Esta existe para
+ * a pessoa saber ANTES de esperar o envio.
+ */
+export async function uploadChatFile(
+  file: File, userId: string,
+): Promise<{ caminho: string; nome: string; bytes: number }> {
+  const problema = porQueNaoPosso(file.name, file.size);
+  if (problema) throw new Error(problema);
+
+  const nome = nomeParaMostrar(file.name);
+  const bytes = file.size;
+  if (!supabaseEnabled) {
+    // Modo demonstração: não há depósito. O caminho falso deixa a tela montar a
+    // bolha, e o botão de baixar avisa que ali não há ficheiro de verdade.
+    return { caminho: `demo/${nome}`, nome, bytes };
+  }
+
+  const caminho = `${userId}/arquivo/${Date.now()}.${extensaoDe(file.name)}`;
+  const { error } = await requireSupabase().storage
+    .from(BUCKET).upload(caminho, file, { contentType: file.type, upsert: true });
+  if (error) throw new Error(`Falha ao enviar o arquivo: ${error.message}`);
+  return { caminho, nome, bytes };
+}
+
+/**
+ * O endereço para baixar um ficheiro de conversa.
+ *
+ * Assinado e temporário, como o das imagens — e com o nome ORIGINAL no
+ * `download`, para o ficheiro chegar ao computador da pessoa chamando-se
+ * "Orçamento.pdf" e não "1790000000.pdf".
+ */
+export async function urlDoArquivo(caminho: string, nome: string): Promise<string | undefined> {
+  if (!supabaseEnabled) return undefined;
+  const { data, error } = await requireSupabase().storage
+    .from(BUCKET).createSignedUrl(caminho, URL_TTL_SEGUNDOS, { download: nome });
+  if (error || !data) return undefined;
+  return data.signedUrl;
 }
 
 const cache = new Map<string, { url: string; expira: number }>();

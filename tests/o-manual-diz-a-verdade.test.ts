@@ -350,10 +350,32 @@ describe('o manual acompanha o que o sistema passou a fazer', () => {
     expect(t, 'falta dizer que o prazo não reinicia').toContain('não reinicia');
   });
 
+  it('se a conversa aceita arquivo, o manual diz quais e qual o limite', () => {
+    expect(servico('services/media.ts'), 'o envio de arquivo saiu do sistema?')
+      .toContain('export async function uploadChatFile');
+
+    const t = texto.toLowerCase();
+    expect(t, 'o manual não explica os dois botões da conversa')
+      .toContain('mandar foto e arquivo');
+    expect(t).toContain('pdf, word ou excel');
+    expect(t, 'falta o limite de tamanho').toContain('8 mb');
+    // A parte que é decisão, e não detalhe: o que NÃO é aceito, e por quê.
+    expect(t, 'falta dizer que programa não passa').toContain('programas e scripts');
+  });
+
+  it('e a Política de Privacidade declara que o arquivo fica guardado', () => {
+    const privacidade = ler('public/privacidade.html').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+    expect(privacidade).toContain('imagens e arquivos');
+    expect(privacidade, 'falta dizer quem alcança o arquivo')
+      .toContain('você e à pessoa com quem a conversa está aberta');
+    expect(privacidade, 'falta dizer que o endereço expira').toContain('assinado e expira');
+  });
+
   it('a seção de problemas cobre os três enganos novos', () => {
     const t = texto.toLowerCase();
     expect(t).toContain('a senha que escolhi foi recusada');
     expect(t).toContain('fui parar na tela de entrar sozinho');
     expect(t).toContain('errei algo no anúncio que já publiquei');
+    expect(t).toContain('não consigo anexar um arquivo na conversa');
   });
 });

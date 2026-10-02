@@ -235,6 +235,7 @@ export const toConnection = (r: RawConnection): Connection => ({
 export interface RawMessage {
   id: string; connection_id: string; sender_id: string; kind: Message['kind'];
   body: string; image_url: string | null; ritual_level: number | null;
+  arquivo_path: string | null; arquivo_nome: string | null; arquivo_bytes: number | null;
   created_at: string; read_at: string | null;
   mod_level: 'ok' | 'atencao' | 'risco'; mod_categories: string[] | null;
 }
@@ -246,6 +247,9 @@ export const toMessage = (r: RawMessage): Message => ({
   kind: r.kind,
   text: r.body,
   imageData: r.image_url ?? undefined,
+  arquivoPath: r.arquivo_path ?? undefined,
+  arquivoNome: r.arquivo_nome ?? undefined,
+  arquivoBytes: r.arquivo_bytes ?? undefined,
   ritualLevel: (r.ritual_level ?? undefined) as Message['ritualLevel'],
   createdAt: r.created_at,
   readAt: r.read_at ?? undefined,
@@ -606,6 +610,9 @@ export async function saveMessage(m: Message): Promise<void> {
   const { error } = await db.from('messages').insert({
     id: m.id, connection_id: m.connectionId, sender_id: m.senderId,
     kind: m.kind, body: m.text, image_url: m.imageData ?? null,
+    arquivo_path: m.arquivoPath ?? null,
+    arquivo_nome: m.arquivoNome ?? null,
+    arquivo_bytes: m.arquivoBytes ?? null,
     ritual_level: m.ritualLevel ?? null, created_at: m.createdAt,
     mod_level: m.moderation?.level ?? 'ok',
     mod_categories: m.moderation?.categories ?? [],

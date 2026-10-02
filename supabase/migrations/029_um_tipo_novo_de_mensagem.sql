@@ -1,0 +1,20 @@
+-- ===========================================================================
+-- 029 — UM TIPO NOVO DE MENSAGEM: `arquivo`
+--
+-- POR QUE ISTO VIAJA SOZINHO, NUMA MIGRAÇÃO SÓ PARA SI
+--
+-- Não é organização: é o Postgres. Um valor novo de enum só pode ser USADO
+-- depois de a transação que o criou ter sido confirmada — tentar criar e usar
+-- no mesmo lote devolve "unsafe use of new value". A migração 030, que precisa
+-- de o comparar numa restrição, tem de vir depois desta.
+--
+-- Há um truque para contornar (comparar `kind::text` em vez do enum), e ele foi
+-- recusado: funciona, mas esconde do leitor a razão pela qual a ordem importa.
+--
+-- E POR QUE NÃO REAPROVEITAR `imagem`
+--
+-- Ficheiro não é imagem. Guardar um PDF num `imagem` obrigaria cada tela a
+-- adivinhar qual é qual pela extensão do caminho — e é assim que uma distinção
+-- se perde, uma tela de cada vez, até ninguém saber qual está certa.
+-- ===========================================================================
+alter type message_kind add value if not exists 'arquivo';
