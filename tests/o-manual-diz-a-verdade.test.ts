@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { QUOTAS, ETAPAS_DA_CONVERSA } from '../constants';
 import { SAFETY_TIPS } from '../services/moderation';
 import { MODALIDADE_LABEL, STATUS_PROPOSTA_LABEL } from '../services/mercado';
+import { TITULO_SESSAO_EXPIRADA } from '../services/sessao';
 
 // ---------------------------------------------------------------------------
 // O manual tem de dizer o que o sistema FAZ.
@@ -278,5 +279,81 @@ describe('o manual conta a pegadinha da foto que já custou um relato real', () 
   it('diz que a foto só vale depois do Salvar', () => {
     expect(texto).toContain('Salvar');
     expect(texto.toLowerCase()).toMatch(/foto só vale depois de apertar/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// E O MANUAL TEM DE ACOMPANHAR O QUE O SISTEMA PASSOU A FAZER.
+//
+// 02/10/2026: quatro coisas entraram no sistema em dois dias — a conferência de
+// senha vazada, o aviso de sessão expirada, o olho no campo de senha e a edição
+// de anúncio. O manual não disse nenhuma. Só o NÚMERO DA VERSÃO tinha subido,
+// mecanicamente, junto com os outros documentos.
+//
+// Ninguém errou de propósito, e nenhum teste reclamou: os testes acima amarram
+// NÚMEROS e RÓTULOS que já estavam no manual. Não havia nada a amarrar um
+// recurso NOVO, porque o manual não falava dele. Foi o dono quem reparou.
+//
+// Daí este bloco: cada recurso que o sistema ganhou fica amarrado, pelo CÓDIGO
+// que o implementa, à frase do manual que o explica. Tirar o recurso sem tirar
+// a frase — ou pôr o recurso sem pôr a frase — quebra a build.
+//
+// O QUE ISTO AINDA NÃO RESOLVE, E É HONESTO DIZER
+//
+// O recurso número cinco, o de amanhã, continuará sem guarda até alguém
+// escrever o seu. Não há como um teste exigir uma frase sobre uma coisa que
+// ainda não existe. O que este bloco faz é tornar a omissão VISÍVEL depois —
+// e deixar o hábito escrito onde a próxima pessoa vai procurar.
+// ---------------------------------------------------------------------------
+
+const servico = (caminho: string) => ler(caminho);
+
+describe('o manual acompanha o que o sistema passou a fazer', () => {
+  it('se o sistema confere senha vazada, o manual explica — e tranquiliza', () => {
+    expect(servico('services/senhaVazada.ts'), 'o sistema deixou de conferir?')
+      .toContain('export async function conferirSenha');
+
+    const t = texto.toLowerCase();
+    expect(t, 'o manual não fala da conferência de senha vazada')
+      .toContain('vazamentos públicos de outros sites');
+    // A frase que mais importa: sem ela, "sua senha vazou" lê-se como "o
+    // QICONEXÃO foi invadido".
+    expect(t, 'falta dizer que não foi o QICONEXÃO que vazou')
+      .toContain('não significa que o qiconexão foi invadido');
+    // E a promessa técnica que a Política de Privacidade também faz.
+    expect(t).toContain('não sai do seu aparelho');
+  });
+
+  it('o aviso de sessão expirada do manual é o MESMO que a tela mostra', () => {
+    // Amarrado à constante, e não a um texto copiado: duas frases parecidas,
+    // escritas em dois arquivos, divergem.
+    expect(texto).toContain(TITULO_SESSAO_EXPIRADA);
+    expect(texto.toLowerCase()).toContain('nada do que você fez foi perdido');
+  });
+
+  it('se os campos de senha têm o olho, o manual diz onde ele está', () => {
+    expect(servico('components/ui/index.tsx'), 'o olho sumiu do componente?')
+      .toContain('export function CampoDeSenha');
+    expect(texto.toLowerCase()).toContain('olho do lado direito');
+  });
+
+  it('se o sistema deixa editar anúncio, o manual explica as regras', () => {
+    expect(servico('services/mercado.ts'), 'a edição saiu do sistema?')
+      .toContain('export async function atualizarAnuncio');
+
+    const t = texto.toLowerCase();
+    expect(t, 'o manual não diz que dá para corrigir um anúncio')
+      .toContain('corrigir um anúncio já publicado');
+    // As três regras que a pessoa descobriria do pior jeito.
+    expect(t, 'falta dizer que só dá enquanto aberto').toContain('só enquanto o anúncio está aberto');
+    expect(t, 'falta dizer que o lado não muda').toContain('o lado não muda');
+    expect(t, 'falta dizer que o prazo não reinicia').toContain('não reinicia');
+  });
+
+  it('a seção de problemas cobre os três enganos novos', () => {
+    const t = texto.toLowerCase();
+    expect(t).toContain('a senha que escolhi foi recusada');
+    expect(t).toContain('fui parar na tela de entrar sozinho');
+    expect(t).toContain('errei algo no anúncio que já publiquei');
   });
 });
