@@ -6,7 +6,7 @@ import { clearState } from '../services/storage';
 import { aiEnabled } from '../services/geminiService';
 import { POLICY_VERSION, URL_DIRETRIZES, URL_MANUAL, URL_PRIVACIDADE, URL_TERMOS } from '../constants';
 import { Page } from '../components/layout/AppShell';
-import { Banner, Button, Card, Chip, Field, Icon, Input, Modal, SectionTitle, Toggle } from '../components/ui';
+import { Banner, Button, CampoDeSenha, Card, Chip, Field, Icon, Input, Modal, SectionTitle, Toggle } from '../components/ui';
 import { firstName } from '../services/utils';
 import { redefinirSenha } from '../services/auth';
 import { RECADO_NAO_CONSEGUI, conferirSenha, recadoDaSenhaVazada } from '../services/senhaVazada';
@@ -121,14 +121,14 @@ export function Settings() {
             <SectionTitle hint="Vale para a próxima vez que você entrar.">Senha</SectionTitle>
             <form onSubmit={trocarSenha} className="space-y-3">
               <Field label="Nova senha" required>
-                <Input
-                  type="password" value={senha} autoComplete="new-password"
+                <CampoDeSenha
+                  value={senha} autoComplete="new-password"
                   onChange={(e) => setSenha(e.target.value)}
                 />
               </Field>
               <Field label="Repita a nova senha" required error={erroSenha} hint={avisoSenha || undefined}>
-                <Input
-                  type="password" value={senha2} autoComplete="new-password"
+                <CampoDeSenha
+                  value={senha2} autoComplete="new-password"
                   onChange={(e) => setSenha2(e.target.value)}
                 />
               </Field>

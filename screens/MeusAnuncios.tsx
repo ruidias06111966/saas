@@ -29,8 +29,8 @@ const STATUS_LABEL: Record<StatusAnuncio, string> = {
 const venceu = (a: Anuncio) => new Date(a.expiresAt) <= new Date();
 const estaAberto = (a: Anuncio) => a.status === 'aberto' && !venceu(a);
 
-function Cartao({ a, onAbrir, onEncerrar }: {
-  a: Anuncio; onAbrir: () => void; onEncerrar: () => void;
+function Cartao({ a, onAbrir, onEditar, onEncerrar }: {
+  a: Anuncio; onAbrir: () => void; onEditar: () => void; onEncerrar: () => void;
 }) {
   const aberto = estaAberto(a);
   const n = a.propostas ?? 0;
@@ -70,8 +70,15 @@ function Cartao({ a, onAbrir, onEncerrar }: {
         </p>
       </button>
 
+      {/* EDITAR SÓ ENQUANTO ESTÁ ABERTO.
+          Reescrever um anúncio concluído ou cancelado mudaria, depois do facto,
+          o que foi combinado — e as propostas que ele recebeu passariam a
+          responder a um texto que já não é o que estava lá. Quem quer outra
+          coisa publica outra. Esta é a razão de os dois botões viverem dentro do
+          mesmo `aberto`. */}
       {aberto && (
-        <div className="mt-4 border-t border-line pt-3">
+        <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-line pt-3">
+          <Button size="sm" variant="outline" icon="edit" onClick={onEditar}>Editar</Button>
           <Button size="sm" variant="ghost" onClick={onEncerrar}>Encerrar anúncio</Button>
         </div>
       )}
@@ -216,6 +223,10 @@ export function MeusAnuncios() {
                   key={a.id}
                   a={a}
                   onAbrir={() => navigate({ name: 'anuncio', id: a.id })}
+                  // O `tipo` vem do ANÚNCIO, não do lado que está sendo olhado:
+                  // é ele que decide se o campo de prazo aparece, e um lado
+                  // errado aqui mudaria o anúncio de face.
+                  onEditar={() => navigate({ name: 'publicar', tipo: a.tipo, id: a.id })}
                   onEncerrar={() => setEncerrando(a)}
                 />
               ))}

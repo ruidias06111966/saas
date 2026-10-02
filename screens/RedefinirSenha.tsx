@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useApp } from '../state/AppContext';
-import { Button, Field, Input } from '../components/ui';
+import { Button, CampoDeSenha, Field } from '../components/ui';
 import { erroDoLink, redefinirSenha, signOut } from '../services/auth';
 import { RECADO_NAO_CONSEGUI, conferirSenha, recadoDaSenhaVazada } from '../services/senhaVazada';
 
@@ -95,8 +95,7 @@ export function RedefinirSenha() {
 
       <form onSubmit={salvar} className="mt-7 space-y-4">
         <Field label="Nova senha" required error={erro}>
-          <Input
-            type="password"
+          <CampoDeSenha
             value={senha}
             onChange={(e) => setSenha(e.target.value)}
             autoComplete="new-password"
@@ -104,8 +103,7 @@ export function RedefinirSenha() {
           />
         </Field>
         <Field label="Confirmar a nova senha" required hint={aviso || undefined}>
-          <Input
-            type="password"
+          <CampoDeSenha
             value={senha2}
             onChange={(e) => setSenha2(e.target.value)}
             autoComplete="new-password"

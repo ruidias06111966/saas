@@ -5,7 +5,7 @@ import { Banner, Button, Card, Chip, Field, Input, Select, SectionTitle, Textare
 import { NOMES_DE_CIDADE, UFS } from '../services/localizacao';
 import {
   type Categoria, type Modalidade, type RascunhoAnuncio, type TipoAnuncio, type TipoOrcamento,
-  MODALIDADE_LABEL, listarCategorias, publicarAnuncio,
+  MODALIDADE_LABEL, atualizarAnuncio, lerAnuncio, listarCategorias, publicarAnuncio,
 } from '../services/mercado';
 
 // ---------------------------------------------------------------------------
@@ -108,9 +108,17 @@ const vazio = (tipo: TipoAnuncio): RascunhoAnuncio => ({
   orcamentoTipo: 'a_combinar',
 });
 
-export function PublicarAnuncio({ tipo }: { tipo: TipoAnuncio }) {
+/**
+ * `id` presente = EDITAR aquele anúncio; ausente = publicar um novo.
+ *
+ * Uma tela só, outra vez, e pela mesma razão do comentário no topo: os campos
+ * são os mesmos, letra por letra. Uma segunda tela "de edição" divergiria da
+ * primeira no dia em que um campo mudasse num lado só.
+ */
+export function PublicarAnuncio({ tipo, id }: { tipo: TipoAnuncio; id?: string }) {
   const { me, navigate, back, toast } = useApp();
   const t = TEXTOS[tipo];
+  const editando = Boolean(id);
 
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [d, setD] = useState<RascunhoAnuncio>(() => vazio(tipo));
@@ -119,28 +127,77 @@ export function PublicarAnuncio({ tipo }: { tipo: TipoAnuncio }) {
   const [prazo, setPrazo] = useState('');
   const [tentou, setTentou] = useState(false);
   const [enviando, setEnviando] = useState(false);
+  // `true` enquanto o anúncio não chegou. Sem isto a tela pisca o formulário
+  // vazio antes de preencher, e a pessoa acha que perdeu o que tinha escrito.
+  const [carregando, setCarregando] = useState(Boolean(id));
+  const [propostasRecebidas, setPropostasRecebidas] = useState(0);
 
   useEffect(() => {
     listarCategorias().then(setCategorias).catch((e) => toast((e as Error).message, 'danger'));
   }, [toast]);
 
+  // Editar: traz o que está publicado para dentro do formulário.
+  useEffect(() => {
+    if (!id) return;
+    let vivo = true;
+    lerAnuncio(id)
+      .then((a) => {
+        if (!vivo) return;
+        if (!a) {
+          toast('Não encontrei esse anúncio.', 'danger');
+          navigate({ name: 'meusAnuncios' });
+          return;
+        }
+        setD({
+          tipo: a.tipo,
+          titulo: a.titulo,
+          descricao: a.descricao,
+          categoriaId: a.categoriaId,
+          modalidade: a.modalidade,
+          cidade: a.cidade ?? '',
+          uf: a.uf ?? '',
+          orcamentoTipo: a.orcamentoTipo,
+          orcamentoMin: a.orcamentoMin,
+          orcamentoMax: a.orcamentoMax,
+          prazoDias: a.prazoDias,
+        });
+        // Os três campos numéricos vivem como texto no formulário, para a
+        // pessoa poder apagar tudo sem o campo saltar para zero.
+        setMin(a.orcamentoMin != null ? String(a.orcamentoMin) : '');
+        setMax(a.orcamentoMax != null ? String(a.orcamentoMax) : '');
+        setPrazo(a.prazoDias != null ? String(a.prazoDias) : '');
+        setPropostasRecebidas(a.propostas ?? 0);
+      })
+      .catch((e) => toast((e as Error).message, 'danger'))
+      .finally(() => { if (vivo) setCarregando(false); });
+    return () => { vivo = false; };
+  }, [id, navigate, toast]);
+
   // A cidade de quem publica é o palpite certo na esmagadora maioria dos casos,
   // e trocá-la custa um clique. Pedir do zero custa mais — e um campo de lugar
   // em branco é o tipo de atrito que faz a pessoa fechar a tela.
   useEffect(() => {
+    // EDITANDO, NÃO. O palpite serve para um anúncio novo; num já publicado ele
+    // atropelaria o lugar que a pessoa escolheu — e o `||` não protege, porque
+    // o formulário começa vazio e só é preenchido depois, pela leitura acima.
+    if (id) return;
     setD((atual) => ({
       ...atual,
       cidade: atual.cidade || me?.city || '',
       uf: atual.uf || me?.state || '',
     }));
-  }, [me?.city, me?.state]);
+  }, [id, me?.city, me?.state]);
 
   // Se a pessoa entrar por "procurar" e depois por "oferecer" sem recarregar,
   // o rascunho tem de acompanhar — senão publicaria do lado errado.
   useEffect(() => {
+    // Editando, o lado é o que está publicado e não muda — ver o comentário em
+    // `atualizarAnuncio`: virar uma procura em oferta desmancharia as propostas
+    // que já chegaram.
+    if (id) return;
     setD((atual) => (atual.tipo === tipo ? atual : { ...atual, tipo }));
     if (tipo === 'oferecendo') setPrazo('');
-  }, [tipo]);
+  }, [id, tipo]);
 
   const grupos = useMemo(() => {
     const m = new Map<string, Categoria[]>();
@@ -154,7 +211,7 @@ export function PublicarAnuncio({ tipo }: { tipo: TipoAnuncio }) {
   const precisaDeLugar = d.modalidade !== 'remoto';
   const temFaixa = d.orcamentoTipo !== 'a_combinar';
   /** Prazo é do trabalho a fazer. Quem se oferece não tem prazo a declarar. */
-  const temPrazo = tipo === 'procurando';
+  const temPrazo = d.tipo === 'procurando';
   const nMin = min ? Number(min) : undefined;
   const nMax = max ? Number(max) : undefined;
 
@@ -174,15 +231,22 @@ export function PublicarAnuncio({ tipo }: { tipo: TipoAnuncio }) {
     setTentou(true);
     if (problemas.length > 0) return;
     setEnviando(true);
+    const rascunho: RascunhoAnuncio = {
+      ...d,
+      orcamentoMin: temFaixa ? nMin : undefined,
+      orcamentoMax: temFaixa ? nMax : undefined,
+      prazoDias: temPrazo && prazo ? Number(prazo) : undefined,
+    };
     try {
-      const id = await publicarAnuncio(me.id, {
-        ...d,
-        orcamentoMin: temFaixa ? nMin : undefined,
-        orcamentoMax: temFaixa ? nMax : undefined,
-        prazoDias: temPrazo && prazo ? Number(prazo) : undefined,
-      });
-      toast(t.sucesso, 'ok');
-      navigate({ name: 'anuncio', id });
+      if (id) {
+        await atualizarAnuncio(id, rascunho);
+        toast('Alterações salvas.', 'ok');
+        navigate({ name: 'anuncio', id });
+      } else {
+        const novoId = await publicarAnuncio(me.id, rascunho);
+        toast(t.sucesso, 'ok');
+        navigate({ name: 'anuncio', id: novoId });
+      }
     } catch (e) {
       toast((e as Error).message, 'danger');
     } finally {
@@ -192,14 +256,42 @@ export function PublicarAnuncio({ tipo }: { tipo: TipoAnuncio }) {
 
   if (!me) return null;
 
+  // O anúncio ainda não chegou: um esqueleto, e não o formulário vazio. Mostrar
+  // os campos em branco faria a pessoa começar a escrever por cima do que já
+  // tinha — e perder o texto quando a leitura terminasse.
+  if (carregando) {
+    return (
+      <Page title="Editar anúncio" subtitle="Carregando o que está publicado…" back={back} maxWidth="max-w-2xl">
+        <Card className="h-96 animate-pulseSoft p-5"><span /></Card>
+      </Page>
+    );
+  }
+
   return (
     <Page
-      title={t.titulo}
-      subtitle={t.subtitulo}
+      title={editando ? 'Editar anúncio' : t.titulo}
+      subtitle={editando
+        ? 'As alterações aparecem para quem vir o anúncio a partir de agora.'
+        : t.subtitulo}
       back={back}
       maxWidth="max-w-2xl"
     >
       <div className="space-y-5">
+        {/* AVISO HONESTO, E NÃO UM BLOQUEIO.
+            Quem já propôs leu o texto ANTIGO: orçou com base nele. Mudar o valor
+            ou o prazo depois disso muda o combinado por baixo de quem respondeu.
+            Não impedimos — o anúncio é seu —, mas dizemos, porque a alternativa
+            é a pessoa descobrir pela reclamação de quem propôs. */}
+        {editando && propostasRecebidas > 0 && (
+          <Banner tone="warn" icon="info" title="Este anúncio já recebeu propostas">
+            {propostasRecebidas === 1
+              ? 'Uma pessoa já respondeu com base no texto atual.'
+              : `${propostasRecebidas} pessoas já responderam com base no texto atual.`}
+            {' '}Se você mudar o valor, o prazo ou o que está pedindo, avise quem já propôs — pela
+            conversa — para ninguém ficar com um combinado diferente do seu.
+          </Banner>
+        )}
+
         <Card className="space-y-4 p-5">
           <SectionTitle hint={t.dicaSecao}>{t.secao}</SectionTitle>
 
@@ -320,10 +412,16 @@ export function PublicarAnuncio({ tipo }: { tipo: TipoAnuncio }) {
         )}
 
         <div className="flex flex-wrap items-center gap-3">
-          <Button onClick={publicar} loading={enviando} icon="send">
-            {enviando ? t.publicando : t.botao}
+          <Button onClick={publicar} loading={enviando} icon={editando ? 'check' : 'send'}>
+            {editando
+              ? (enviando ? 'Salvando…' : 'Salvar alterações')
+              : (enviando ? t.publicando : t.botao)}
           </Button>
-          <span className="text-xs text-muted">Fica aberto por 30 dias. Você pode encerrar antes.</span>
+          <span className="text-xs text-muted">
+            {editando
+              ? 'O prazo de 30 dias continua contando desde a publicação — editar não o reinicia.'
+              : 'Fica aberto por 30 dias. Você pode encerrar antes.'}
+          </span>
         </div>
       </div>
     </Page>

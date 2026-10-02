@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../state/AppContext';
-import { Banner, Button, Card, Field, Icon, Input } from '../components/ui';
+import { Banner, Button, CampoDeSenha, Card, Field, Icon, Input } from '../components/ui';
 import { DEMO_ADMIN_ID, DEMO_PASSWORD, DEMO_USER_ID, SEED_USERS } from '../data/seed';
 import { isEmail, sha256 } from '../services/utils';
 import { signIn } from '../services/auth';
@@ -80,7 +80,7 @@ export function Login() {
             <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" placeholder="voce@email.com" />
           </Field>
           <Field label="Senha" required error={error}>
-            <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />
+            <CampoDeSenha value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />
           </Field>
           <Button type="submit" full loading={busy}>Entrar</Button>
         </form>

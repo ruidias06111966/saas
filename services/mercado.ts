@@ -292,6 +292,49 @@ export async function publicarAnuncio(autorId: string, r: RascunhoAnuncio): Prom
 }
 
 /**
+ * Alterar um anúncio já publicado.
+ *
+ * POR QUE ISTO NÃO EXISTIA, E POR QUE PASSOU A EXISTIR
+ *
+ * Até aqui um anúncio só podia ser publicado ou encerrado. Um erro de digitação
+ * no título, um orçamento mal escrito, um prazo que mudou — a única saída era
+ * cancelar e publicar outro, perdendo as propostas já recebidas.
+ *
+ * O `.select('id')` no fim NÃO é decoração, e a lição é a mesma de
+ * `encerrarAnuncio`: quando a RLS recusa um UPDATE ela não levanta erro —
+ * devolve zero linhas, em silêncio. Sem esta verificação o app diria "alterações
+ * salvas" para quem não salvou nada.
+ *
+ * O `tipo` NÃO entra no que se altera. Trocar uma procura por uma oferta depois
+ * de alguém já ter proposto viraria o negócio do avesso, e as propostas
+ * recebidas deixariam de fazer sentido. Quem quer o outro lado publica outro.
+ */
+export async function atualizarAnuncio(id: string, r: RascunhoAnuncio): Promise<void> {
+  const { data, error } = await requireSupabase()
+    .from('anuncios')
+    .update({
+      titulo: r.titulo.trim(),
+      descricao: r.descricao.trim(),
+      categoria_id: r.categoriaId,
+      modalidade: r.modalidade,
+      // Mesma regra de `publicarAnuncio`: anúncio remoto não carrega lugar.
+      cidade: r.modalidade === 'remoto' ? null : (r.cidade?.trim() || null),
+      uf: r.modalidade === 'remoto' ? null : (r.uf || null),
+      orcamento_tipo: r.orcamentoTipo,
+      orcamento_min: r.orcamentoTipo === 'a_combinar' ? null : (r.orcamentoMin ?? null),
+      orcamento_max: r.orcamentoTipo === 'a_combinar' ? null : (r.orcamentoMax ?? null),
+      // O banco RECUSA prazo numa oferta (`prazo_so_em_procura`, migração 021).
+      prazo_dias: r.tipo === 'oferecendo' ? null : (r.prazoDias ?? null),
+    })
+    .eq('id', id)
+    .select('id');
+  if (error) throw new Error(`Não foi possível salvar as alterações: ${error.message}`);
+  if (!data || data.length === 0) {
+    throw new Error('Não foi possível salvar: o anúncio não é seu ou já foi encerrado.');
+  }
+}
+
+/**
  * Encerrar um anúncio.
  *
  * O `.select('id')` no fim não é decoração. Quando a RLS recusa um UPDATE ela
