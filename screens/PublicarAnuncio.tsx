@@ -86,6 +86,30 @@ const TEXTOS: Record<TipoAnuncio, {
   },
 };
 
+/**
+ * Como se diz cada lado para quem edita — e, sobretudo, ONDE o anúncio é VISTO.
+ *
+ * A inversão é a parte contraintuitiva do mercado e já custou um anúncio: quem
+ * OFERECE é encontrado na área "Procurar serviço", porque é lá que está quem
+ * precisa. Dizer só "procurando/oferecendo" não basta; a tela tem de dizer em
+ * que aba o anúncio vai aparecer, senão a pessoa escolhe pelo nome da aba.
+ *
+ * Ver o comentário no topo de screens/Anuncios.tsx: cada área publica o SEU
+ * lado e lista o lado OPOSTO.
+ */
+const LADO: Record<TipoAnuncio, { rotulo: string; explica: string; ondeAparece: string }> = {
+  procurando: {
+    rotulo: 'Estou procurando',
+    explica: 'Você precisa de alguém que faça o trabalho.',
+    ondeAparece: 'Oferecer serviço',
+  },
+  oferecendo: {
+    rotulo: 'Estou oferecendo',
+    explica: 'Você faz o trabalho e quer ser contratado.',
+    ondeAparece: 'Procurar serviço',
+  },
+};
+
 const MIN_TITULO = 8;
 const MIN_DESCRICAO = 30;
 const MAX_TITULO = 120;
@@ -117,7 +141,6 @@ const vazio = (tipo: TipoAnuncio): RascunhoAnuncio => ({
  */
 export function PublicarAnuncio({ tipo, id }: { tipo: TipoAnuncio; id?: string }) {
   const { me, navigate, back, toast } = useApp();
-  const t = TEXTOS[tipo];
   const editando = Boolean(id);
 
   const [categorias, setCategorias] = useState<Categoria[]>([]);
@@ -131,6 +154,9 @@ export function PublicarAnuncio({ tipo, id }: { tipo: TipoAnuncio; id?: string }
   // vazio antes de preencher, e a pessoa acha que perdeu o que tinha escrito.
   const [carregando, setCarregando] = useState(Boolean(id));
   const [propostasRecebidas, setPropostasRecebidas] = useState(0);
+  // O lado com que o anúncio foi carregado, para saber se a pessoa o virou.
+  // `null` enquanto não se está editando — num anúncio novo não há "original".
+  const [ladoOriginal, setLadoOriginal] = useState<TipoAnuncio | null>(null);
 
   useEffect(() => {
     listarCategorias().then(setCategorias).catch((e) => toast((e as Error).message, 'danger'));
@@ -167,6 +193,7 @@ export function PublicarAnuncio({ tipo, id }: { tipo: TipoAnuncio; id?: string }
         setMax(a.orcamentoMax != null ? String(a.orcamentoMax) : '');
         setPrazo(a.prazoDias != null ? String(a.prazoDias) : '');
         setPropostasRecebidas(a.propostas ?? 0);
+        setLadoOriginal(a.tipo);
       })
       .catch((e) => toast((e as Error).message, 'danger'))
       .finally(() => { if (vivo) setCarregando(false); });
@@ -191,9 +218,12 @@ export function PublicarAnuncio({ tipo, id }: { tipo: TipoAnuncio; id?: string }
   // Se a pessoa entrar por "procurar" e depois por "oferecer" sem recarregar,
   // o rascunho tem de acompanhar — senão publicaria do lado errado.
   useEffect(() => {
-    // Editando, o lado é o que está publicado e não muda — ver o comentário em
-    // `atualizarAnuncio`: virar uma procura em oferta desmancharia as propostas
-    // que já chegaram.
+    // EDITANDO, NÃO — mas por outra razão do que antes. O lado de um anúncio em
+    // edição PODE ser trocado (ver `atualizarAnuncio`); o que não pode é a ROTA
+    // trocá-lo por trás. Quem abre a edição pela aba "Procurar" carrega uma
+    // oferta: sem este guarda, a tela viraria o anúncio sozinha, sem ninguém
+    // pedir, e a pessoa salvaria do lado errado sem perceber. A troca existe,
+    // mas tem de ser um clique de quem edita.
     if (id) return;
     setD((atual) => (atual.tipo === tipo ? atual : { ...atual, tipo }));
     if (tipo === 'oferecendo') setPrazo('');
@@ -207,6 +237,27 @@ export function PublicarAnuncio({ tipo, id }: { tipo: TipoAnuncio; id?: string }
 
   const set = <K extends keyof RascunhoAnuncio>(k: K, v: RascunhoAnuncio[K]) =>
     setD((atual) => ({ ...atual, [k]: v }));
+
+  // A MOLDURA SEGUE O LADO ESCOLHIDO, NÃO A ROTA.
+  //
+  // Publicando, os dois são a mesma coisa (o rascunho nasce com o lado da rota)
+  // e seguir a rota evita um piscar: o efeito acima só sincroniza `d.tipo`
+  // DEPOIS da primeira pintura.
+  //
+  // Editando, quem manda é o rascunho — é o lado do anúncio carregado e, se a
+  // pessoa o virar, é o lado novo. Sem isto a tela trocaria o campo de prazo
+  // mas continuaria a dizer "O que você precisa?" numa oferta.
+  const lado = editando ? d.tipo : tipo;
+  const t = TEXTOS[lado];
+
+  /**
+   * O lado de onde o anúncio está saindo, ou `null` se ninguém o virou. Guardar
+   * o lado ANTERIOR, e não um booleano, é o que permite escrever o aviso por
+   * extenso — "de X para Y" — em vez de um "você mudou algo".
+   */
+  const ladoAnterior = editando && ladoOriginal != null && ladoOriginal !== d.tipo
+    ? ladoOriginal
+    : null;
 
   const precisaDeLugar = d.modalidade !== 'remoto';
   const temFaixa = d.orcamentoTipo !== 'a_combinar';
@@ -289,6 +340,59 @@ export function PublicarAnuncio({ tipo, id }: { tipo: TipoAnuncio; id?: string }
               : `${propostasRecebidas} pessoas já responderam com base no texto atual.`}
             {' '}Se você mudar o valor, o prazo ou o que está pedindo, avise quem já propôs — pela
             conversa — para ninguém ficar com um combinado diferente do seu.
+          </Banner>
+        )}
+
+        {/* VIRAR O LADO — a correção de um "não" silencioso.
+            A primeira versão da edição simplesmente não mexia no lado, e não
+            dizia nada a respeito: o dono do site editou um anúncio esperando
+            virá-lo, a tela ficou calada e o anúncio passou dias invisível para
+            quem o procurava. Agora a troca está aqui, com o preço escrito ao
+            lado — ver o comentário em `atualizarAnuncio`.
+
+            SÓ AO EDITAR. Publicando, o lado já foi escolhido no botão que trouxe
+            a pessoa até aqui ("Publicar o que preciso" / "Oferecer meu
+            serviço"); repetir a pergunta seria convidar a contradizê-lo. */}
+        {editando && (
+          <Card className="space-y-3 p-5">
+            <SectionTitle hint="É isto que decide quem encontra o seu anúncio.">
+              Este anúncio é
+            </SectionTitle>
+            <div className="flex flex-wrap gap-2">
+              {(['procurando', 'oferecendo'] as TipoAnuncio[]).map((l) => (
+                <Chip key={l} active={d.tipo === l} onClick={() => set('tipo', l)}>
+                  {LADO[l].rotulo}
+                </Chip>
+              ))}
+            </div>
+            <p className="text-xs leading-relaxed text-muted">
+              {LADO[d.tipo].explica}{' '}
+              Quem está do outro lado encontra este anúncio na área
+              {' '}<strong className="font-semibold text-ink">{LADO[d.tipo].ondeAparece}</strong>.
+            </p>
+          </Card>
+        )}
+
+        {/* O AVISO DA TROCA, por extenso e antes de salvar. */}
+        {ladoAnterior && (
+          <Banner tone="warn" icon="info" title="Você está trocando o lado deste anúncio">
+            De <strong className="font-semibold">{LADO[ladoAnterior].rotulo.toLowerCase()}</strong>
+            {' '}para <strong className="font-semibold">{LADO[d.tipo].rotulo.toLowerCase()}</strong>.
+            {' '}Ao salvar, ele sai da área “{LADO[ladoAnterior].ondeAparece}” e passa a aparecer
+            {' '}em “{LADO[d.tipo].ondeAparece}”.
+            {propostasRecebidas > 0 && (
+              <>
+                {' '}
+                {propostasRecebidas === 1
+                  ? 'A proposta que você já recebeu respondeu ao outro lado: ela não desaparece, mas deixa de fazer sentido.'
+                  : `As ${propostasRecebidas} propostas que você já recebeu responderam ao outro lado: elas não desaparecem, mas deixam de fazer sentido.`}
+                {' '}Avise essas pessoas pela conversa antes de salvar.
+              </>
+            )}
+            {d.tipo === 'oferecendo' && prazo !== '' && (
+              <> O prazo de {prazo} dia{prazo === '1' ? '' : 's'} será apagado: quem se oferece não
+              tem prazo a declarar.</>
+            )}
           </Banner>
         )}
 

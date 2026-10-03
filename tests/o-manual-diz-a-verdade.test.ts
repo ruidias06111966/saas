@@ -346,8 +346,33 @@ describe('o manual acompanha o que o sistema passou a fazer', () => {
       .toContain('corrigir um anúncio já publicado');
     // As três regras que a pessoa descobriria do pior jeito.
     expect(t, 'falta dizer que só dá enquanto aberto').toContain('só enquanto o anúncio está aberto');
-    expect(t, 'falta dizer que o lado não muda').toContain('o lado não muda');
     expect(t, 'falta dizer que o prazo não reinicia').toContain('não reinicia');
+
+    // O MANUAL JÁ MENTIU AQUI. Dizia "o lado não muda" porque a edição recusava
+    // trocá-lo. A edição passou a permitir, e o manual tem de acompanhar — senão
+    // a pessoa lê que não dá, não tenta, e deixa o anúncio do lado errado.
+    expect(t, 'o manual voltou a dizer que o lado não muda').not.toContain('o lado não muda');
+    expect(t, 'falta dizer que dá para virar o lado').toContain('o lado muda, sim');
+    expect(t, 'falta dizer onde se vira o lado').toContain('este anúncio é');
+  });
+
+  // O ENGANO QUE CUSTOU DIAS DE ANÚNCIO INVISÍVEL: quem oferece é encontrado na
+  // área "Procurar serviço". O manual tem de dizer isto com as duas áreas pelo
+  // nome, porque o nome da aba sugere o contrário.
+  it('o manual diz em que área o anúncio da pessoa aparece para os outros', () => {
+    expect(servico('screens/Anuncios.tsx'), 'a inversão saiu da tela?')
+      .toContain('OUTRA_PONTA[area]');
+
+    const t = texto.toLowerCase();
+    expect(t, 'o manual não responde onde o anúncio aparece')
+      .toContain('onde é que o meu anúncio aparece para os outros?');
+    expect(t, 'falta dizer que é a área contrária').toContain('na área contrária');
+    expect(t, 'falta mandar quem oferece olhar em Procurar serviço')
+      .toContain('ofereceu um serviço, ele aparece em procurar serviço');
+    expect(t, 'falta mandar quem procura olhar em Oferecer serviço')
+      .toContain('aparece em oferecer serviço');
+    expect(t, 'falta dizer onde a pessoa vê os seus próprios anúncios')
+      .toContain('para ver os seus anúncios num lugar só');
   });
 
   it('se a conversa aceita arquivo, o manual diz quais e qual o limite', () => {

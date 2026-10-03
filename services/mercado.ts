@@ -305,14 +305,27 @@ export async function publicarAnuncio(autorId: string, r: RascunhoAnuncio): Prom
  * devolve zero linhas, em silêncio. Sem esta verificação o app diria "alterações
  * salvas" para quem não salvou nada.
  *
- * O `tipo` NÃO entra no que se altera. Trocar uma procura por uma oferta depois
- * de alguém já ter proposto viraria o negócio do avesso, e as propostas
- * recebidas deixariam de fazer sentido. Quem quer o outro lado publica outro.
+ * O `tipo` ENTRA no que se altera — e não entrava.
+ *
+ * A primeira versão deixava-o de fora, com o argumento de que virar uma procura
+ * em oferta desmancharia as propostas recebidas. O argumento não era mau; a
+ * execução é que era. A tela não mostrava a troca NEM dizia que ela não existia,
+ * e o dono editou um anúncio esperando virá-lo — ficou calado, e o anúncio
+ * passou dias do lado errado do mercado, invisível para quem o procurava.
+ *
+ * Negar em silêncio é o defeito que esta base passou a semana a corrigir, e eu
+ * reintroduzi-o num lugar novo. A troca passa a ser possível, e quem avisa do
+ * custo é a tela, com o número de propostas à frente.
+ *
+ * `prazo_dias` zera ao virar oferta porque o banco RECUSA prazo numa oferta
+ * (restrição `prazo_so_em_procura`). Sem zerar aqui, a troca devolveria um erro
+ * do Postgres na cara de quem só queria mudar de lado.
  */
 export async function atualizarAnuncio(id: string, r: RascunhoAnuncio): Promise<void> {
   const { data, error } = await requireSupabase()
     .from('anuncios')
     .update({
+      tipo_anuncio: r.tipo,
       titulo: r.titulo.trim(),
       descricao: r.descricao.trim(),
       categoria_id: r.categoriaId,

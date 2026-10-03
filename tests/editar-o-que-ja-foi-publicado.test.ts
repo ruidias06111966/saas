@@ -14,8 +14,19 @@ import { describe, expect, it } from 'vitest';
 //      depois do facto, o que foi combinado — e as propostas que ele recebeu
 //      passariam a responder a um texto que já não é o que estava lá.
 //
-//   2. O LADO NÃO MUDA. Virar uma procura em oferta depois de alguém já ter
-//      proposto viraria o negócio do avesso.
+//   2. O LADO MUDA — E ANTES NÃO MUDAVA. A primeira versão recusava trocar
+//      procura por oferta, com o argumento de que as propostas recebidas
+//      deixariam de fazer sentido. O argumento não era mau; a execução era.
+//      A tela não mostrava a troca NEM dizia que ela não existia: o dono do
+//      site editou "Pedreiro" esperando virá-lo para oferta, a tela ficou
+//      calada, e o anúncio passou dias do lado errado — invisível para quem o
+//      procurava. Negar em silêncio é o defeito que esta base passou a semana
+//      a corrigir, e foi reintroduzido aqui. Agora a troca existe, e quem diz
+//      o preço dela é a tela.
+//
+//      E A PARTE CONTRAINTUITIVA, que foi o que de facto enganou: quem OFERECE
+//      é encontrado na área "Procurar serviço". Os testes abaixo seguram essa
+//      inversão letra por letra, porque trocá-la devolve o defeito original.
 //
 // E a lição que `encerrarAnuncio` já tinha aprendido: quando a RLS recusa um
 // UPDATE ela NÃO levanta erro — devolve zero linhas, em silêncio. Sem conferir,
@@ -27,6 +38,7 @@ const semComentarios = (codigo: string): string =>
   codigo.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/.*$/gm, '$1');
 
 const MERCADO = semComentarios(ler('services/mercado.ts'));
+const ANUNCIOS = semComentarios(ler('screens/Anuncios.tsx'));
 const PUBLICAR = semComentarios(ler('screens/PublicarAnuncio.tsx'));
 const MEUS = semComentarios(ler('screens/MeusAnuncios.tsx'));
 const ANUNCIO = semComentarios(ler('screens/Anuncio.tsx'));
@@ -63,10 +75,20 @@ describe('alterar um anúncio já publicado', () => {
     expect(corpo).toContain('não é seu ou já foi encerrado');
   });
 
-  // A REGRESSÃO QUE VIRARIA O NEGÓCIO DO AVESSO.
-  it('NÃO altera o lado do mercado, nem o dono, nem a situação', () => {
+  // A REGRESSÃO QUE DEIXOU UM ANÚNCIO DIAS DO LADO ERRADO: esta linha não
+  // existia, e a tela não dizia que não existia.
+  it('ALTERA o lado do mercado — era o que faltava', () => {
     const corpo = corpoDoUpdate();
-    for (const proibido of ['tipo_anuncio:', 'autor_id:', 'status:', 'expires_at:']) {
+    expect(corpo, 'voltou a recusar a troca de lado, e em silêncio')
+      .toContain('tipo_anuncio: r.tipo');
+  });
+
+  // O que continua fora, e por quê: o dono não se transfere, a situação muda
+  // por `encerrarAnuncio` (que também mexe em `status`), e o prazo dos 30 dias
+  // conta desde a publicação — editar não o reinicia.
+  it('NÃO altera o dono, a situação nem o prazo de validade', () => {
+    const corpo = corpoDoUpdate();
+    for (const proibido of ['autor_id:', 'status:', 'expires_at:']) {
       expect(corpo, `a edição passou a mexer em ${proibido}`).not.toContain(proibido);
     }
   });
@@ -177,5 +199,89 @@ describe('o botão, e só onde faz sentido', () => {
   // se o campo de prazo aparece.
   it('leva o lado do próprio anúncio, não o da aba', () => {
     expect(MEUS, 'o lado passou a vir da aba').not.toContain("name: 'publicar', tipo: lado, id:");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// VIRAR O LADO DO MERCADO
+//
+// O defeito que trouxe este bloco: o dono publicou "Pedreiro" como PROCURA,
+// percebeu o erro, abriu a edição — e não havia como virar. A tela não o
+// dizia; simplesmente ignorava. O anúncio ficou dias invisível para quem
+// procurava um pedreiro.
+// ---------------------------------------------------------------------------
+
+/** O mapa `LADO` da tela de publicar, recortado. */
+const MAPA_LADO = () => trecho(PUBLICAR, 'const LADO: Record<TipoAnuncio', '\n};', 250, 1000);
+const entradaLado = (l: string) => trecho(MAPA_LADO(), `${l}: {`, '},', 60, 400);
+
+describe('virar o lado, dizendo o preço', () => {
+  it('a edição mostra um seletor de lado', () => {
+    const marca = PUBLICAR.indexOf("set('tipo', l)");
+    expect(marca, 'o seletor de lado desapareceu da tela').toBeGreaterThan(-1);
+
+    // SÓ AO EDITAR: publicando, o lado veio do botão que trouxe a pessoa até
+    // aqui. Sem o `editando &&`, a tela de publicar passaria a perguntar de
+    // novo — e a deixar contradizer o botão que foi clicado.
+    const abre = PUBLICAR.lastIndexOf('{editando && (', marca);
+    expect(abre, 'o seletor de lado saiu de dentro do `editando &&`').toBeGreaterThan(-1);
+    const bloco = PUBLICAR.slice(abre, marca);
+    expect(bloco.length, 'recorte do seletor largo demais').toBeLessThan(900);
+    expect(bloco.length, 'recorte do seletor curto demais').toBeGreaterThan(60);
+    expect(bloco, 'o seletor deixou de ser um par de opções').toContain('<Chip');
+  });
+
+  // A INVERSÃO É O CORAÇÃO DO DEFEITO: quem OFERECE é encontrado na área
+  // "Procurar serviço", porque é lá que está quem precisa. Dizer só
+  // "procurando/oferecendo" não bastou — foi o nome da aba que enganou.
+  it('o seletor diz em que área o anúncio aparece — a área OPOSTA', () => {
+    expect(entradaLado('procurando')).toContain("ondeAparece: 'Oferecer serviço'");
+    expect(entradaLado('oferecendo')).toContain("ondeAparece: 'Procurar serviço'");
+  });
+
+  // E A MESMA COISA DERIVADA, não repetida: a área onde se PUBLICA uma procura
+  // é a que LISTA as ofertas. Assim os dois ficheiros não podem divergir sem o
+  // teste cair — se alguém renomear as abas em Anuncios.tsx, este teste exige
+  // que o aviso da edição acompanhe.
+  it('a área que o aviso nomeia é a mesma que Anuncios.tsx lista', () => {
+    const moldura = trecho(ANUNCIOS, 'const MOLDURA: Record<TipoAnuncio', '\n};', 300, 2000);
+    const areaDe = (l: string) => {
+      const achado = trecho(moldura, `${l}: {`, '},', 60, 900).match(/titulo: '([^']+)'/);
+      expect(achado, `não achei o título da área ${l}`).not.toBeNull();
+      return achado![1];
+    };
+    expect(entradaLado('oferecendo')).toContain(`ondeAparece: '${areaDe('procurando')}'`);
+    expect(entradaLado('procurando')).toContain(`ondeAparece: '${areaDe('oferecendo')}'`);
+  });
+
+  it('a moldura da tela segue o lado escolhido, não a rota', () => {
+    expect(PUBLICAR, 'seguindo a rota, virar o lado trocaria o campo de prazo mas não os textos')
+      .toContain('const lado = editando ? d.tipo : tipo;');
+    expect(PUBLICAR).toContain('const t = TEXTOS[lado];');
+  });
+
+  it('guarda o lado com que o anúncio chegou, para saber se foi virado', () => {
+    expect(PUBLICAR).toContain('setLadoOriginal(a.tipo);');
+    expect(PUBLICAR).toContain('ladoOriginal !== d.tipo');
+  });
+
+  it('avisa, por extenso, quando o lado foi virado', () => {
+    const marca = PUBLICAR.indexOf('Você está trocando o lado deste anúncio');
+    expect(marca, 'o aviso da troca desapareceu').toBeGreaterThan(-1);
+    const abre = PUBLICAR.lastIndexOf('{ladoAnterior && (', marca);
+    expect(abre, 'o aviso deixou de depender de a troca ter acontecido').toBeGreaterThan(-1);
+
+    const aviso = trecho(PUBLICAR, '{ladoAnterior && (', '</Banner>', 300, 2200);
+    expect(aviso, 'o aviso deixou de dizer de onde e para onde').toContain('LADO[ladoAnterior].ondeAparece');
+    expect(aviso).toContain('LADO[d.tipo].ondeAparece');
+    expect(aviso, 'o aviso calou-se sobre as propostas já recebidas').toContain('propostasRecebidas > 0');
+    expect(aviso, 'o aviso calou-se sobre o prazo que vai ser apagado').toContain("d.tipo === 'oferecendo' && prazo !== ''");
+  });
+
+  // POR QUE O PRAZO TEM DE ZERAR: ensaiado contra a base real — virar para
+  // oferta mantendo `prazo_dias` é RECUSADO pela restrição `prazo_so_em_procura`
+  // com um erro do Postgres na cara de quem só queria mudar de lado.
+  it('virar para oferta zera o prazo — o banco recusa prazo numa oferta', () => {
+    expect(corpoDoUpdate()).toContain("prazo_dias: r.tipo === 'oferecendo' ? null");
   });
 });
