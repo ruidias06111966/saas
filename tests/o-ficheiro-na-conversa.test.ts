@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   ACCEPT, MAXIMO_BYTES, TIPOS_ACEITOS, emMB, extensaoDe, nomeParaMostrar, porQueNaoPosso,
@@ -28,6 +28,11 @@ import {
 const MIGRACAO = readFileSync('supabase/migrations/030_a_conversa_so_aceitava_imagem.sql', 'utf8');
 const semComentariosSQL = (sql: string) => sql.replace(/--.*$/gm, '');
 const SQL = semComentariosSQL(MIGRACAO);
+
+const MIGRACOES = 'supabase/migrations';
+const CONSERTO = semComentariosSQL(
+  readFileSync(`${MIGRACOES}/031_a_coluna_nova_quebrou_quem_lia_a_tabela.sql`, 'utf8'),
+);
 
 describe('o que a conversa aceita, e o que recusa', () => {
   it('aceita os cinco tipos escolhidos', () => {
@@ -191,5 +196,91 @@ describe('o envio do ficheiro não passa pelo redimensionador de imagem', () => 
     const corpo = media.slice(i, media.indexOf('\nexport ', i + 10));
     expect(corpo).toContain('${userId}/arquivo/${Date.now()}.');
     expect(corpo, 'o nome original passou a compor o caminho').not.toContain('/arquivo/${file.name}');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// O ESTRAGO QUE A COLUNA NOVA FEZ — E O QUE IMPEDE A VOLTA
+//
+// A migração 030 deu três colunas a `messages`. Com isso quebrou as DUAS
+// funções que carregam as conversas, e o dono do site não conseguiu mais
+// entrar. Entrar não parou: parou a carga que vem logo depois do login, e de
+// fora as duas coisas são indistinguíveis.
+//
+// A ARMADILHA: as funções são `RETURNS SETOF messages`, o que não quer dizer
+// "linhas desta tabela" mas "linhas do tipo que esta tabela tem AGORA" — e o
+// corpo delas lista as colunas uma a uma. Tabela com 14 colunas, corpo com 11:
+//
+//   ERROR 42P13: return type mismatch in function declared to return messages
+//
+// E o Postgres não reclama ao ALTERAR a tabela. Reclama quando alguém CHAMA a
+// função: em produção, na cara de quem usa.
+//
+// Os testes abaixo não conferem o conserto de outubro — conferem a REGRA. Na
+// próxima coluna que `messages` receber, eles caem antes do deploy.
+// ---------------------------------------------------------------------------
+
+/** Os nomes das colunas que as migrações acrescentam a `messages`. */
+function colunasAcrescentadasAMessages(): string[] {
+  const nomes = new Set<string>();
+  for (const arquivo of readdirSync(MIGRACOES).filter((f) => f.endsWith('.sql'))) {
+    const sql = semComentariosSQL(readFileSync(`${MIGRACOES}/${arquivo}`, 'utf8'));
+    // `alter table public.messages` abre um bloco que vai até ao `;`, e dentro
+    // dele pode haver vários `add column` separados por vírgula.
+    const re = /alter\s+table\s+(?:public\.)?messages\b([^;]*);/gis;
+    for (const bloco of sql.matchAll(re)) {
+      for (const add of bloco[1].matchAll(/add\s+column\s+(?:if\s+not\s+exists\s+)?([a-z_][a-z0-9_]*)/gi)) {
+        nomes.add(add[1].toLowerCase());
+      }
+    }
+  }
+  return [...nomes];
+}
+
+describe('a coluna nova não pode quebrar quem lê a tabela', () => {
+  it('o conserto está guardado no código, não só no servidor', () => {
+    expect(CONSERTO, 'a função das mensagens recentes saiu da migração')
+      .toContain('create or replace function public.mensagens_recentes');
+    expect(CONSERTO, 'a função da página anterior saiu da migração')
+      .toContain('create or replace function public.mensagens_anteriores');
+  });
+
+  // O TESTE QUE TERIA EVITADO O INCIDENTE. Ele não sabe quais são as colunas:
+  // vai buscá-las às próprias migrações. Acrescente uma a `messages` e este
+  // teste cai até que as duas funções a listem.
+  it('toda coluna dada a `messages` aparece nas duas funções', () => {
+    const colunas = colunasAcrescentadasAMessages();
+    expect(colunas.length, 'não achei nenhuma coluna acrescentada a messages')
+      .toBeGreaterThan(0);
+    expect(colunas, 'as colunas de arquivo deixaram de ser acrescentadas')
+      .toContain('arquivo_path');
+
+    for (const funcao of ['mensagens_recentes', 'mensagens_anteriores']) {
+      const i = CONSERTO.indexOf(`create or replace function public.${funcao}`);
+      expect(i, `não achei ${funcao}`).toBeGreaterThan(-1);
+      const corpo = CONSERTO.slice(i, CONSERTO.indexOf('$$;', i));
+      expect(corpo.length, `recorte de ${funcao} largo demais`).toBeLessThan(1600);
+      expect(corpo.length, `recorte de ${funcao} curto demais`).toBeGreaterThan(200);
+      for (const coluna of colunas) {
+        expect(corpo, `${funcao} não devolve m.${coluna} — chamá-la dará 42P13`)
+          .toContain(`m.${coluna}`);
+      }
+    }
+  });
+
+  // A CLASSE, E NÃO O CASO. Estas duas funções são herança da migração 026 e
+  // ficam como estão; o que não pode é NASCER outra igual. Função nova devolve
+  // `returns table (...)`, que não se amarra ao tipo da tabela.
+  it('nenhuma função nova se amarra ao tipo de uma tabela', () => {
+    const permitido = '031_a_coluna_nova_quebrou_quem_lia_a_tabela.sql';
+    for (const arquivo of readdirSync(MIGRACOES).filter((f) => f.endsWith('.sql'))) {
+      if (arquivo === permitido) continue;
+      const sql = semComentariosSQL(readFileSync(`${MIGRACOES}/${arquivo}`, 'utf8'));
+      const achados = [...sql.matchAll(/returns\s+setof\s+(?:public\.)?([a-z_][a-z0-9_]*)/gi)]
+        .map((m) => m[1].toLowerCase())
+        .filter((nome) => !nome.startsWith('record') && !['uuid', 'text', 'int', 'integer', 'boolean', 'jsonb'].includes(nome));
+      expect(achados, `${arquivo} declarou "returns setof <tabela>" — use "returns table (...)"`)
+        .toEqual([]);
+    }
   });
 });
