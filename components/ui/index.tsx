@@ -280,19 +280,81 @@ export function Checkbox({ checked, onChange, children }: {
 
 // -------------------------------- Modal -------------------------------------
 
+/**
+ * O DIÁLOGO, E O DEFEITO QUE ELE TINHA: ROUBAVA O FOCO A CADA LETRA.
+ *
+ * A primeira versão punha o foco e ouvia o Escape num efeito só, com `onClose`
+ * na lista de dependências:
+ *
+ *   useEffect(() => { …; ref.current?.focus(); }, [open, onClose]);
+ *
+ * Parece inofensivo. Não é. `onClose` é quase sempre escrito na própria
+ * chamada — `onClose={() => setAberto(false)}` — e isso é uma função NOVA a
+ * cada pintura. Então, com o diálogo aberto:
+ *
+ *   a pessoa digita uma letra → o estado do pai muda → nova pintura →
+ *   `onClose` tem identidade nova → o efeito corre outra vez →
+ *   `ref.current?.focus()` ARRANCA o foco do campo e põe-no na caixa.
+ *
+ * Resultado medido num navegador de verdade, antes do conserto: de oito letras
+ * digitadas no campo de despedida, **entrou uma**. As outras sete foram para a
+ * caixa do diálogo, que não escreve nada. No celular o teclado fecha a cada
+ * letra.
+ *
+ * O QUE ISTO TORNAVA IMPOSSÍVEL, e não só incómodo:
+ *
+ *   - A despedida da conversa (Chat) — o botão exige texto.
+ *   - A EXCLUSÃO DA CONTA (Settings) — o botão só liga depois de a pessoa
+ *     escrever "EXCLUIR", e nunca passava da primeira letra. O direito de
+ *     apagar a própria conta estava inalcançável pela tela.
+ *   - A recusa de uma verificação (FilaVerificacao) — exige 8 caracteres.
+ *
+ * Nessas três o texto vive no MESMO componente que desenha o diálogo, então
+ * cada letra repintava e roubava o foco. A denúncia (ReportDialog) escapava à
+ * regra por receber o `onClose` como propriedade: digitar não repinta o Chat.
+ * Mas bastava chegar uma mensagem nova, ou o aviso de "está escrevendo", para o
+ * Chat repintar e o foco ser roubado no meio da frase.
+ *
+ * O CONSERTO, E POR QUE É AQUI
+ *
+ * Consertar as chamadas uma a uma (envolvendo cada `onClose` num `useCallback`)
+ * seria consertar o caso: o próximo diálogo com um campo nasceria quebrado
+ * outra vez, e ninguém se lembraria do porquê. O conserto mora no `Modal`:
+ *
+ *   1. O FOCO ENTRA UMA VEZ, ao abrir — o efeito depende só de `open`.
+ *   2. O OUVINTE DO ESCAPE chama o `onClose` mais recente através de um ref,
+ *      e por isso também não precisa de ser reatado a cada pintura.
+ *
+ * Assim o diálogo fica imune à identidade do `onClose` que lhe passam, que é
+ * exactamente o que ele não devia ter notado em primeiro lugar.
+ */
 export function Modal({ open, onClose, title, children, footer, wide }: {
   open: boolean; onClose: () => void; title: string;
   children: React.ReactNode; footer?: React.ReactNode; wide?: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+
+  // O `onClose` mais recente, sem o obrigar a ser estável. Guardado num ref
+  // para que o ouvinte abaixo não tenha de o trazer nas dependências.
+  const fechar = useRef(onClose);
+  useEffect(() => { fechar.current = onClose; }, [onClose]);
+
+  // O FOCO: uma vez, ao abrir. Depende SÓ de `open` — e é por isso que este
+  // efeito está separado. Juntá-lo ao de baixo devolve o defeito.
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    ref.current?.focus();
+  }, [open]);
+
+  // O Escape e o travão da rolagem de fundo, que duram enquanto está aberto.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') fechar.current(); };
     document.addEventListener('keydown', onKey);
     document.body.style.overflow = 'hidden';
-    ref.current?.focus();
     return () => { document.removeEventListener('keydown', onKey); document.body.style.overflow = ''; };
-  }, [open, onClose]);
+  }, [open]);
+
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center" role="dialog" aria-modal="true" aria-label={title}>
