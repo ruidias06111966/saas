@@ -15,7 +15,8 @@ outro subdomínio. Estes são os valores que o QICONEXÃO usa hoje:
 | Domínio registrado | `qidominios.com.br` (DNS na Cloudflare) |
 | Domínio de envio, verificado no Resend | `mail.conexao.qidominios.com.br` (região São Paulo) |
 | Remetente | `nao-responda@mail.conexao.qidominios.com.br` |
-| DMARC | `_dmarc.qidominios.com.br` = `v=DMARC1; p=reject; rua=mailto:qidominio@gmail.com` |
+| DMARC | `_dmarc.qidominios.com.br` = `v=DMARC1; p=reject; rua=mailto:qidominios@qidominios.com.br` |
+| Contato de suporte nos e-mails e páginas | `suporte@qidominios.com.br` (caixa do Google Workspace) |
 | Limite de envios | 100 por hora (Authentication → Rate Limits) |
 | Site URL | `https://ruidias06111966.github.io/saas/` |
 | Redirect URLs | o mesmo, mais `.../saas/**` e `https://conexao.qidominios.com.br/**` |
@@ -28,10 +29,25 @@ segundos, remetente sem "via" nem "em nome de", e o link caindo no app.
 Funciona; só não é o texto que o app merece. Ver a seção *Os textos dos e-mails*.
 
 **O padrão para os próximos sistemas:** cada um envia por
-`mail.<sistema>.qidominios.com.br`, verificado separadamente no Resend. A raiz
-`qidominios.com.br` nunca envia — ela tem `v=spf1 -all` e `MX 0 .`, que é o modo
-de dizer "daqui não sai e-mail nenhum". Assim a reputação de um sistema não
-contamina a dos outros, e o DMARC da raiz vale para todos sem precisar repetir.
+`mail.<sistema>.qidominios.com.br`, verificado separadamente no Resend. Assim a
+reputação de um sistema não contamina a dos outros, e o DMARC da raiz vale para
+todos sem precisar repetir.
+
+A raiz `qidominios.com.br` é do **Google Workspace** desde 12/10/2026: recebe e
+envia as caixas da empresa (MX do Google, `v=spf1 include:_spf.google.com ~all`
+e DKIM `google._domainkey`). Sistema nenhum envia pela raiz.
+
+**Padrão de endereços em todos os sistemas:**
+
+| endereço | uso |
+|---|---|
+| `suporte@qidominios.com.br` | o que o usuário do sistema vê: páginas legais, manual, rodapé dos e-mails, pedidos de LGPD |
+| `contato@qidominios.com.br` | comercial (site da QiDomínios) |
+| `qidominios@qidominios.com.br` | administração: dono das contas de serviço e destino do DMARC; nunca aparece ao público |
+| `nao-responda@mail.<sistema>.qidominios.com.br` | só remetente; o texto do e-mail aponta para `suporte@` |
+
+E-mail pessoal (Gmail, Hotmail) não entra em página, e-mail automático nem
+documentação.
 
 ---
 
@@ -325,6 +341,8 @@ Corpo:
             <p style="margin:20px 0 0;padding-top:20px;border-top:1px solid #eee7df;font-size:13px;line-height:1.6;color:#8a7f74">
               Não foi você que se cadastrou? Ignore este e-mail. Sem o clique,
               nada é criado.
+              <br><br>Dúvidas? Escreva para
+              <a href="mailto:suporte@qidominios.com.br" style="color:#8a7f74">suporte@qidominios.com.br</a>.
             </p>
           </td>
         </tr>
@@ -380,6 +398,8 @@ Corpo:
             <p style="margin:20px 0 0;padding-top:20px;border-top:1px solid #eee7df;font-size:13px;line-height:1.6;color:#8a7f74">
               Não foi você que pediu? Ignore este e-mail — sua senha atual
               continua valendo, e ninguém consegue trocá-la sem este link.
+              <br><br>Dúvidas? Escreva para
+              <a href="mailto:suporte@qidominios.com.br" style="color:#8a7f74">suporte@qidominios.com.br</a>.
             </p>
           </td>
         </tr>
