@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../state/AppContext';
 import { Banner, Button, CampoDeSenha, Card, Field, Icon, Input } from '../components/ui';
+import { URL_MANUAL } from '../constants';
 import { DEMO_ADMIN_ID, DEMO_PASSWORD, DEMO_USER_ID, SEED_USERS } from '../data/seed';
 import { isEmail, sha256 } from '../services/utils';
 import { signIn } from '../services/auth';
@@ -100,6 +101,25 @@ export function Login() {
           <button type="button" className="font-semibold text-brand hover:underline" onClick={() => navigate({ name: 'signup' })}>
             Criar agora
           </button>
+        </p>
+
+        {/* O MANUAL, AQUI, E DISCRETO.
+            A página inicial já tem um cartão grande para o manual — mas quem
+            chega direto nesta tela (um atalho na área de trabalho, um endereço
+            guardado, um link que alguém mandou) nunca passou por ela. Era a
+            única porta do sistema sem resposta para "e eu faço o quê agora?".
+
+            Discreto de propósito: quem abre esta tela veio entrar, e 95% das
+            vezes é só isso. Uma caixa destacada empurraria o formulário para
+            baixo no telefone para servir a minoria. */}
+        <p className="mt-4 border-t border-line pt-4 text-center text-[13px] text-muted">
+          Primeira vez aqui?{' '}
+          <a
+            href={URL_MANUAL} target="_blank" rel="noopener noreferrer"
+            className="font-semibold text-brand hover:underline"
+          >
+            Leia o manual de utilização
+          </a>
         </p>
       </Card>
 

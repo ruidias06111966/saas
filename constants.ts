@@ -46,6 +46,22 @@ export const URL_DIRETRIZES = '/diretrizes.html';
  */
 export const URL_MANUAL = '/manual.html';
 
+/**
+ * O MESMO manual, impresso em PDF — para baixar, guardar no telefone, imprimir
+ * ou mandar para alguém.
+ *
+ * "O mesmo" é literal, e é a parte que importa: o arquivo é gerado da própria
+ * `manual.html` por um navegador (`scripts/gerar-manual-pdf.mjs`), e não
+ * escrito à parte. Um PDF escrito à mão seria uma SEGUNDA cópia do manual, e
+ * duas cópias divergem — este manual já afirmou "o lado não muda" durante dias
+ * depois de o lado ter passado a mudar, com uma cópia só. E a cópia que a
+ * pessoa baixou é a que fica no telefone dela para sempre.
+ *
+ * `tests/o-manual-em-pdf.test.ts` guarda a impressão digital do manual e cai se
+ * ele mudar sem o PDF ser refeito — antes de a construção do sistema terminar.
+ */
+export const URL_MANUAL_PDF = '/manual.pdf';
+
 export const REPORT_REASON_LABEL: Record<string, string> = {
   perfil_falso: 'Perfil falso',
   assedio: 'Assédio',

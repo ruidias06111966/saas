@@ -73,6 +73,67 @@
     border-radius:10px; padding:14px 16px; margin:18px 0}
   code{background:var(--marca-fraca); border:1px solid var(--linha); border-radius:6px;
     padding:.1rem .35rem; font-size:.88em}
+
+  /* O botão de baixar. Fica no alto, perto do índice, porque é ali que quem
+     quer guardar o manual vai olhar — e não no fim de 35 seções. */
+  .baixar{display:inline-flex; align-items:center; gap:8px; margin:18px 0 0;
+    background:var(--marca); color:#fff; text-decoration:none; font-weight:600; font-size:.95rem;
+    border-radius:12px; padding:11px 16px}
+  .baixar small{display:block; font-weight:400; opacity:.85; font-size:.8rem}
+</style>
+
+<style media="print">
+  /* ======================================================================
+     COMO ESTE MANUAL SAI EM PAPEL — E EM PDF
+
+     O /manual.pdf é gerado desta MESMA página, por um navegador, usando
+     estas regras. Não existe um segundo documento a ser escrito à mão: é
+     por isso que o PDF não pode contar uma história diferente da página.
+
+     O que muda ao imprimir, e por quê:
+       - Cor fixa e clara. Quem abre o site no tema escuro geraria um PDF de
+         fundo preto, que gasta tinta e fica ilegível impresso.
+       - Sem o botão de baixar e sem o índice clicável. Num papel, "clique
+         aqui" não serve para nada — o índice fica, mas sem a aparência de
+         link.
+       - Nada de cartão, tabela ou passo partido ao meio entre duas páginas.
+         É a diferença entre um documento e um monte de folhas.
+     ====================================================================== */
+  :root, :root[data-theme="dark"], :root:not([data-theme="light"]){
+    --fundo:#fff; --papel:#fff; --tinta:#1c1917; --suave:#44403c;
+    --linha:#d6d3d1; --marca:#8a3454; --marca-fraca:#f7eef2;
+    --aviso:#fdf8ea; --aviso-linha:#ddcb9c; --perigo:#fdf1ef; --perigo-linha:#ddb3a8;
+  }
+  @page{ size:A4; margin:16mm 14mm 18mm; }
+  body{background:#fff; font-size:10.5pt; line-height:1.55}
+  .folha{max-width:none; margin:0; padding:0}
+  .baixar{display:none}
+
+  /* NÃO imprimimos o endereço ao lado de cada link, e isso foi uma decisão.
+     A regra de sempre ("num papel, um link sem o endereço é uma palavra
+     sublinhada que não leva a lugar nenhum") não se aplica a este manual: os
+     DOIS únicos links externos dele já têm o endereço como texto, e a regra
+     só produzia "conexao.qidominios.com.br (https://conexao.qidominios.com.br)".
+     Se um dia entrar aqui um link escrito "clique aqui", é a altura de voltar
+     a pôr a regra — e só para esse. */
+  a{color:var(--marca); text-decoration:none}
+
+  h1{font-size:19pt}
+  h2{font-size:12.5pt; margin-top:22pt; padding-top:9pt}
+  h3{font-size:11pt; margin-top:14pt}
+  h1, h2, h3{break-after:avoid; page-break-after:avoid}
+  p, li{orphans:3; widows:3}
+
+  /* Nada parte ao meio. */
+  .cartao, .nota, .perigo, .chave, nav.indice, .dois>div,
+  ol.passos>li, table, tr, thead, footer{
+    break-inside:avoid; page-break-inside:avoid;
+  }
+  .tabela-rolante{overflow:visible; break-inside:avoid; page-break-inside:avoid}
+  table{min-width:0; font-size:9.5pt}
+  thead{display:table-header-group}
+  .dois{grid-template-columns:1fr 1fr}
+  footer{margin-top:24pt; break-before:avoid}
 </style>
 </head>
 <body>
@@ -110,6 +171,11 @@
     <li><a href="#problemas">Se algo não funcionar</a></li>
   </ol>
 </nav>
+
+<a class="baixar" href="/manual.pdf" download="QICONEXAO-manual-de-utilizacao.pdf">
+  ⬇ Baixar este manual em PDF
+  <small>Para guardar no telefone, imprimir ou mandar para alguém.</small>
+</a>
 
 <h2 id="o-que-e">1. O que é o QICONEXÃO</h2>
 
