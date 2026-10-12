@@ -35,7 +35,9 @@ todos sem precisar repetir.
 
 A raiz `qidominios.com.br` é do **Google Workspace** desde 12/10/2026: recebe e
 envia as caixas da empresa (MX do Google, `v=spf1 include:_spf.google.com ~all`
-e DKIM `google._domainkey`). Sistema nenhum envia pela raiz.
+e DKIM `google._domainkey`). Pela raiz também saem, via Resend (DKIM
+`resend._domainkey`, retorno em `send.qidominios.com.br`), o formulário do site
+(`site@`) e o QiNotas (`nfs@`). Sistema novo usa o próprio `mail.<sistema>`.
 
 **Padrão de endereços em todos os sistemas:**
 
@@ -44,7 +46,7 @@ e DKIM `google._domainkey`). Sistema nenhum envia pela raiz.
 | `suporte@qidominios.com.br` | o que o usuário do sistema vê: páginas legais, manual, rodapé dos e-mails, pedidos de LGPD |
 | `contato@qidominios.com.br` | comercial (site da QiDomínios) |
 | `qidominios@qidominios.com.br` | administração: dono das contas de serviço e destino do DMARC; nunca aparece ao público |
-| `nao-responda@mail.<sistema>.qidominios.com.br` | só remetente; o texto do e-mail aponta para `suporte@` |
+| `nao-responda@mail.<sistema>.qidominios.com.br` (ou `site@`, `nfs@` na raiz) | só remetente; o texto ou o *reply-to* aponta para quem responde |
 
 E-mail pessoal (Gmail, Hotmail) não entra em página, e-mail automático nem
 documentação.
