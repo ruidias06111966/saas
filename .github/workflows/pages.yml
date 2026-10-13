@@ -97,7 +97,7 @@ jobs:
           # nos segredos do Supabase e so a Edge Function `notificar` a enxerga.
           VITE_VAPID_PUBLIC_KEY: ${{ vars.VITE_VAPID_PUBLIC_KEY }}
           # Vazia: o site fica em github.io/saas/. Preenchida (por exemplo
-          # `conexao.qidominios.com.br`): passa para a raiz do domínio próprio.
+          # `qiconexao.qidominios.com.br`): passa para a raiz do domínio próprio.
           # Ver o comentário em vite.config.ts — e o passo logo abaixo, que
           # lembra o que mais precisa mudar junto.
           DOMINIO_DO_SITE: ${{ vars.DOMINIO_DO_SITE }}

@@ -74,7 +74,7 @@ def main():
     d.text((x, 424 * s), 'e quem precisa.', font=f_frase, fill=(233, 226, 243))
 
     f_pe = fonte(SANS, 24 * s)
-    d.text((x, 498 * s), 'conexao.qidominios.com.br', font=f_pe, fill=(191, 174, 219))
+    d.text((x, 498 * s), 'qiconexao.qidominios.com.br', font=f_pe, fill=(191, 174, 219))
 
     img = img.resize((LARGURA, ALTURA), Image.LANCZOS)
     img.save(SAIDA, optimize=True)

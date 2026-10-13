@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { readFileSync, statSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 // ---------------------------------------------------------------------------
@@ -66,16 +66,26 @@ describe('o manual em PDF', () => {
     ).toBe(guardada);
   });
 
-  it('o PDF não é mais velho que o manual', () => {
-    // Cinto e suspensórios: a impressão digital já apanha qualquer mudança de
-    // conteúdo. Isto apanha o caso em que alguém edita o selo à mão para calar
-    // o teste acima, sem gerar o ficheiro.
-    const folga = 60_000; // o script escreve o PDF e o selo com segundos de diferença
-    expect(
-      statSync(PDF).mtimeMs + folga,
-      'o manual.pdf é mais antigo que o manual.html — refaça-o',
-    ).toBeGreaterThan(statSync(MANUAL).mtimeMs);
-  });
+  // AQUI HAVIA UM TERCEIRO TESTE, E FOI REMOVIDO. VALE SABER PORQUÊ.
+  //
+  // Ele comparava as DATAS dos ficheiros: o manual.pdf não podia ser mais
+  // antigo que o manual.html. A ideia era apanhar quem editasse o selo à mão
+  // para calar o teste de cima.
+  //
+  // Deu falso alarme no primeiro dia. Correr as regressões forçadas reescreve
+  // ficheiros com o MESMO conteúdo, e isso basta para a data do manual passar
+  // à frente da do PDF — e o teste acusava uma divergência que não existia. O
+  // mesmo acontece num `git checkout`, ao trocar de ramo, ou ao gravar um
+  // ficheiro sem lhe mudar nada.
+  //
+  // E, olhando com cuidado, ele também não guardava o que prometia: quem
+  // soubesse forjar o selo (calcular o sha256 certo do manual) desfazia a
+  // data com um `touch`. Protegia contra um descuido que a impressão digital
+  // já apanha, e contra má-fé não protegia nada.
+  //
+  // O que fica é a impressão digital, e ela basta: se ela bate, o PDF foi
+  // impresso de um manual com exactamente este conteúdo. Um teste que grita
+  // quando não há problema ensina a ignorar os testes.
 });
 
 describe('a folha de impressão, que é quem decide como o PDF sai', () => {

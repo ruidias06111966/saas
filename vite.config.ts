@@ -8,11 +8,11 @@ export default defineConfig(({ mode }) => {
   // ONDE O SITE VIVE, e por que isto é uma variável e não uma constante.
   //
   //   sem domínio próprio → ruidias06111966.github.io/saas/  → base "/saas/"
-  //   com domínio próprio → conexao.qidominios.com.br/       → base "/"
+  //   com domínio próprio → qiconexao.qidominios.com.br/       → base "/"
   //
   // Com domínio próprio o site passa a viver na RAIZ. Se a base continuasse em
   // "/saas/", o navegador procuraria cada arquivo em
-  // `conexao.qidominios.com.br/saas/assets/…`, que não existe — e o resultado
+  // `qiconexao.qidominios.com.br/saas/assets/…`, que não existe — e o resultado
   // seria PÁGINA EM BRANCO: o HTML carrega, todo o resto dá 404, e nenhum erro
   // explica o motivo em lugar nenhum.
   //

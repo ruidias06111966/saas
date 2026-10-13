@@ -217,7 +217,7 @@ cada push na `main` (`.github/workflows/ci.yml`).
 
 O modo demo é só para navegar: a autenticação é uma comparação de hash no navegador e os
 dados vivem no `localStorage`. O que está no ar em
-[conexao.qidominios.com.br](https://conexao.qidominios.com.br) roda no modo online, com
+[qiconexao.qidominios.com.br](https://qiconexao.qidominios.com.br) roda no modo online, com
 as regras impostas pelo servidor.
 
 Todos os perfis de demonstração são fictícios. Nenhuma foto de pessoa real é usada:

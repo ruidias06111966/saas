@@ -51,7 +51,7 @@ que precisa ser trocado depois. Gerando aí, ela nunca sai do seu computador.
 
 ### Pelo navegador (recomendado — não precisa instalar nada)
 
-Abra `https://conexao.qidominios.com.br` e chegue ao Console assim:
+Abra `https://qiconexao.qidominios.com.br` e chegue ao Console assim:
 
 **Três pontinhos (⋮) → Mais ferramentas → Ferramentas do desenvolvedor →
 aba Console.**
