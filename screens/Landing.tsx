@@ -29,21 +29,55 @@ export function Landing() {
   const { navigate } = useApp();
   return (
     <div className="min-h-full bg-bg">
-      <header className="mx-auto flex max-w-6xl items-center justify-between px-5 py-5">
-        <div>
-          <span className="font-display text-xl font-bold tracking-tight">{APP_NAME}</span>
+      {/* O CABEÇALHO A 320px, QUE É A TELA MAIS ESTREITA QUE AINDA SE USA.
+          Medido: a 320px a barra saía a 336px — rolagem lateral — ANTES de a
+          bússola do manual entrar aqui. Pouco, e por isso ninguém reparou.
+          Pôr a bússola levou-a a 373px, e aí passou a ver-se.
+
+          Três coisas, em vez de uma: a margem e a marca encolhem no telefone, e
+          abaixo de 360px o botão de criar conta sai da barra. Sair não é perder:
+          o mesmo botão está em tamanho grande logo a seguir, na primeira dobra,
+          e "Entrar" é o que não tem outro caminho. */}
+      <header className="mx-auto flex max-w-6xl items-center justify-between gap-2 px-4 py-5 sm:px-5">
+        <div className="min-w-0">
+          <span className="font-display text-lg font-bold tracking-tight sm:text-xl">{APP_NAME}</span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-1 sm:gap-2">
           {/* O manual fica no TOPO, e não só no rodapé. Quem chega sem conhecer
-              o produto precisa achá-lo sem rolar a página inteira. */}
+              o produto precisa achá-lo sem rolar a página inteira.
+
+              E APARECE NO CELULAR. Ficou meses como `hidden … sm:inline-flex`,
+              isto é, escondido exactamente na tela pequena — onde está a maior
+              parte de quem usa isto, e onde o menu lateral do aplicativo
+              também não existe. O argumento para esconder era o espaço; mas o
+              que se ganhava era um botão "Entrar" dois dedos mais largo, e o
+              que se perdia era a única ajuda visível de quem chegou perdido.
+              No telefone fica só a bússola, sem a palavra, que é o que cabe. */}
           <a
             href={URL_MANUAL} target="_blank" rel="noopener noreferrer"
-            className="hidden items-center gap-1.5 rounded-2xl px-3 py-2 text-sm font-medium text-muted transition-colors hover:bg-bg hover:text-ink sm:inline-flex"
+            aria-label="Manual de utilização"
+            className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-2xl px-2 py-2 text-sm font-medium text-muted transition-colors hover:bg-bg hover:text-ink sm:px-3"
           >
-            <Icon name="compass" size={17} /> Manual
+            <Icon name="compass" size={17} /> <span className="hidden sm:inline">Manual</span>
           </a>
           <Button variant="ghost" size="sm" onClick={() => navigate({ name: 'login' })}>Entrar</Button>
-          <Button size="sm" onClick={() => navigate({ name: 'signup' })}>Criar minha conta</Button>
+          {/* O TEXTO ENCOLHE NO CELULAR, e isto não é capricho: a 375px os três
+              itens não cabem com "Criar minha conta" por extenso, e o rótulo
+              quebrava em três linhas a transbordar da própria pílula. Medido —
+              conteúdo de 47px dentro de uma caixa de 36px.
+
+              O botão já transbordava 2px antes de a bússola entrar aqui; era
+              pouco e ninguém via. Acrescentar a bússola transformou os 2px em
+              11px, e aí passou a ver-se. `whitespace-nowrap` fecha a porta aos
+              dois casos: o rótulo nunca mais quebra linha. */}
+          <Button
+            size="sm" className="max-[359px]:hidden"
+            onClick={() => navigate({ name: 'signup' })}
+          >
+            <span className="whitespace-nowrap">
+              Criar<span className="hidden sm:inline"> minha</span> conta
+            </span>
+          </Button>
         </div>
       </header>
 

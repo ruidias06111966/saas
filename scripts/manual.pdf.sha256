@@ -1,0 +1,7 @@
+86c451cf7813db182840ee2a22bc0721d2b48636a6157e7281c41279dea82eaa  manual.html
+
+# Impressão digital do manual.html no momento em que o manual.pdf foi gerado.
+# Se o manual mudar e o PDF não for refeito, tests/o-manual-em-pdf.test.ts cai
+# e `npm run build` para — que é o ponto.
+#
+# Para refazer:  node scripts/gerar-manual-pdf.mjs

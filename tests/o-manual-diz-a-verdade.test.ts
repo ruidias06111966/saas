@@ -70,11 +70,74 @@ describe('o manual existe e é uma página que abre sozinha', () => {
 
   it.each([
     ['screens/Landing.tsx', 'a entrada, para quem ainda não tem conta'],
+    ['screens/Login.tsx', 'a tela de entrar — onde chega quem guardou o endereço'],
+    ['screens/Signup.tsx', 'a tela de cadastro, antes de a pessoa preencher tudo'],
     ['components/layout/AppShell.tsx', 'a barra lateral, dentro do aplicativo'],
     ['screens/Profile.tsx', 'o perfil, que é o caminho do celular'],
     ['screens/Settings.tsx', 'as configurações'],
   ])('%s USA o manual, e não só o importa (%s)', (arquivo) => {
     expect(semImports(arquivo)).toContain('URL_MANUAL');
+  });
+
+  // AS DUAS PORTAS QUE NÃO TINHAM RESPOSTA.
+  //
+  // A página inicial tinha o manual em três lugares — mas quem chega direto a
+  // `/entrar` (um atalho guardado, um endereço escrito à mão, um link que
+  // alguém mandou) nunca passa por ela. Entrar e cadastrar eram as duas únicas
+  // portas do sistema sem nada que explicasse o que é isto.
+  it.each([
+    ['screens/Login.tsx', 'Primeira vez aqui?'],
+    ['screens/Signup.tsx', 'Quer entender como o sistema funciona antes?'],
+  ])('%s convida a ler, com uma frase e não só a palavra "Manual"', (arquivo, frase) => {
+    const tela = ler(arquivo);
+    expect(tela, `a frase que convida sumiu de ${arquivo}`).toContain(frase);
+    expect(tela, 'o convite deixou de levar ao manual').toContain('Leia o manual de utilização');
+  });
+
+  // A REGRESSÃO QUE SÓ APARECIA NO CELULAR, E QUE DUROU MESES.
+  //
+  // O link do topo da entrada era `hidden … sm:inline-flex`: desaparecia
+  // exactamente na tela pequena — onde está a maior parte de quem usa isto, e
+  // onde a barra lateral do aplicativo também não existe.
+  it('na entrada, o manual do topo aparece TAMBÉM no celular', () => {
+    const landing = ler('screens/Landing.tsx');
+    const marca = landing.indexOf('aria-label="Manual de utilização"');
+    expect(marca, 'não achei o link do manual no topo da entrada').toBeGreaterThan(-1);
+
+    const abre = landing.lastIndexOf('<a', marca);
+    const fecha = landing.indexOf('>', marca);
+    expect(abre, 'o link do manual deixou de ser uma âncora').toBeGreaterThan(-1);
+    const etiqueta = landing.slice(abre, fecha);
+    expect(etiqueta.length, 'recorte da âncora largo demais').toBeLessThan(500);
+    expect(etiqueta.length, 'recorte da âncora curto demais').toBeGreaterThan(60);
+
+    expect(
+      etiqueta,
+      'o link do manual voltou a ficar escondido no celular',
+    ).not.toContain('hidden');
+  });
+
+  // E O QUE A BÚSSOLA DESTAPOU AO ENTRAR NA BARRA.
+  //
+  // A 320px a barra da entrada já saía da tela — 336px numa tela de 320 —
+  // ANTES de o manual aparecer ali. Era pouco e ninguém via. Mais a bússola,
+  // foram 373px, e o rótulo "Criar minha conta" quebrava em três linhas a
+  // transbordar da própria pílula (conteúdo de 47px numa caixa de 36px).
+  //
+  // Medido num navegador, a 320px: sem rolagem lateral, com a bússola visível.
+  it('a barra da entrada cabe na tela mais estreita', () => {
+    const landing = ler('screens/Landing.tsx');
+
+    expect(landing, 'o rótulo do botão pode voltar a quebrar linha dentro da pílula')
+      .toContain('<span className="whitespace-nowrap">');
+    expect(landing, 'a marca voltou ao tamanho grande no telefone')
+      .toContain('text-lg font-bold tracking-tight sm:text-xl');
+    // Abaixo de 360px o botão sai da barra — e não se perde: o mesmo botão
+    // está em tamanho grande na primeira dobra, logo a seguir.
+    expect(landing, 'o botão de criar conta voltou a ser obrigado a caber a 320px')
+      .toContain('max-[359px]:hidden');
+    expect(landing, 'o botão grande da primeira dobra sumiu — aí sim a saída da barra custaria')
+      .toContain('<Button size="lg" onClick={() => navigate({ name: \'signup\' })}>');
   });
 
   it('NA ENTRADA ELE NÃO PODE FICAR SÓ NO RODAPÉ', () => {

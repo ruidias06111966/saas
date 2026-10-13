@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { User } from '../types';
 import {
-  MIN_AGE, POLICY_VERSION, URL_DIRETRIZES, URL_PRIVACIDADE, URL_TERMOS,
+  MIN_AGE, POLICY_VERSION, URL_DIRETRIZES, URL_MANUAL, URL_PRIVACIDADE, URL_TERMOS,
 } from '../constants';
 import { NOMES_DE_CIDADE, UFS, coordenadasDe } from '../services/localizacao';
 import { useApp } from '../state/AppContext';
@@ -589,6 +589,19 @@ export function Signup() {
             {step === STEPS.length - 1 ? 'Criar minha conta' : 'Continuar'}
           </Button>
         </div>
+
+        {/* Mesma razão que na tela de entrar: quem chega direto aqui nunca viu
+            o cartão da página inicial, e está prestes a preencher um cadastro
+            de um sistema que não sabe para que serve. */}
+        <p className="mt-6 border-t border-line pt-4 text-center text-[13px] text-muted">
+          Quer entender como o sistema funciona antes?{' '}
+          <a
+            href={URL_MANUAL} target="_blank" rel="noopener noreferrer"
+            className="font-semibold text-brand hover:underline"
+          >
+            Leia o manual de utilização
+          </a>
+        </p>
       </Card>
     </div>
   );
