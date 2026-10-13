@@ -19,7 +19,7 @@ outro subdomínio. Estes são os valores que o QICONEXÃO usa hoje:
 | Contato de suporte nos e-mails e páginas | `suporte@qidominios.com.br` (caixa do Google Workspace) |
 | Limite de envios | 100 por hora (Authentication → Rate Limits) |
 | Site URL | `https://ruidias06111966.github.io/saas/` |
-| Redirect URLs | o mesmo, mais `.../saas/**` e `https://conexao.qidominios.com.br/**` |
+| Redirect URLs | o mesmo, mais `.../saas/**` e `https://qiconexao.qidominios.com.br/**` |
 
 **Validado de ponta a ponta em 04/09/2026**, com um cadastro real num endereço
 que não é o do dono do projeto: e-mail na caixa de entrada (não no spam) em
@@ -234,7 +234,7 @@ Em **Authentication → URL Configuration**:
 - **Redirect URLs**, uma por linha:
   - `https://ruidias06111966.github.io/saas/`
   - `https://ruidias06111966.github.io/saas/**`
-  - `https://conexao.qidominios.com.br/**` (para o dia da troca de endereço)
+  - `https://qiconexao.qidominios.com.br/**` (para o dia da troca de endereço)
 
 ### Por que o app mandar o destino não basta
 
@@ -463,32 +463,14 @@ passo 7.
 
 ### Mudar o site de endereço
 
-O código já está preparado: preencher a variável de repositório
-`DOMINIO_DO_SITE` (Settings → Secrets and variables → Actions → Variables) com,
-por exemplo, `conexao.qidominios.com.br` faz o build sair na raiz do domínio e
-o workflow escrever o `CNAME` que o GitHub Pages exige. Vazia, nada muda.
+Tem documento próprio: **[docs/DOMINIO.md](DOMINIO.md)**.
 
-**Mas a variável sozinha não basta.** Outros três lugares apontam para o
-endereço do site, e se um ficar para trás o login ou o pagamento quebra sem
-erro visível:
+Não é uma mudança de código — é uma mudança em sete painéis, e cada um que
+fique para trás falha em SILÊNCIO: o login deixa de funcionar sem erro, os
+cabeçalhos de segurança deixam de valer sem aviso. O documento traz a ordem
+que não deixa nenhuma janela partida.
 
-| # | Onde |
-|---|---|
-| 1 | Supabase → Authentication → URL Configuration → **Site URL** |
-| 2 | Supabase → Authentication → URL Configuration → **Redirect URLs** |
-| 3 | Supabase → Edge Functions → Secrets → **`URLS_DO_APP`** |
-
-O log da publicação repete essa lista sempre que a variável estiver preenchida,
-e o passo "Conferir o pacote publicado" **aborta** se a base do pacote não
-bater com o destino — a falha aqui seria página em branco, com 404 em cada
-arquivo e nenhuma explicação.
-
-Do lado do DNS, um registro na Cloudflare:
-`CNAME  conexao → ruidias06111966.github.io`, com o proxy **desligado**
-("DNS only"). Com a nuvem laranja ligada o GitHub não emite o certificado e o
-site fica com aviso de não seguro.
-
-**O site continua no endereço do GitHub.** Com o domínio registrado, dá para
-apontá-lo para o GitHub Pages. Aí o `Site URL`, o `Redirect URLs` e o
-`URLS_DO_APP` do Stripe precisam ser atualizados juntos — os três apontam para
-o mesmo lugar e não podem divergir.
+O que interessa saber aqui: o endereço **não está escrito no código**. Vem da
+variável de repositório `DOMINIO_DO_SITE` (Settings → Secrets and variables →
+Actions → Variables), e é dela que a publicação escreve o `CNAME` que o GitHub
+Pages exige. Vazia, o site sai em `github.io/saas/`.

@@ -14,7 +14,7 @@ recebe**. A parte de ligar leva cinco minutos; a de limitar é a que importa.
 |---|---|
 | Projeto | `conexao`, plataforma React |
 | DSN | variável de repositório `VITE_SENTRY_DSN`, no GitHub |
-| Allowed Domains | `https://conexao.qidominios.com.br` |
+| Allowed Domains | `https://qiconexao.qidominios.com.br` |
 | Prevent Storing of IP Addresses | **ligado** |
 | Data Scrubber / Default Scrubbers | ligados |
 | Session Replay | **nunca ativado** |
@@ -76,7 +76,7 @@ O campo **Allowed Domains** vem com **`*`**, que significa "aceito evento de
 qualquer origem". Apague o asterisco e ponha:
 
 ```
-https://conexao.qidominios.com.br
+https://qiconexao.qidominios.com.br
 ```
 
 **O asterisco precisa sair.** Se ficar junto com o domínio, ele vence: é

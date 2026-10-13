@@ -25,7 +25,7 @@ custam dinheiro). O primeiro é pré-requisito do segundo.
 Já funciona. Não custa nada, não passa por loja nenhuma, e a pessoa fica com o
 ícone do QICONEXÃO na tela do celular.
 
-**Android (Chrome).** Abrir `https://conexao.qidominios.com.br`, tocar nos três
+**Android (Chrome).** Abrir `https://qiconexao.qidominios.com.br`, tocar nos três
 pontinhos (⋮) e escolher **Instalar aplicativo**. Em alguns aparelhos aparece
 sozinho um aviso na parte de baixo da tela.
 
@@ -124,7 +124,7 @@ uma única vez. Escolher **organização** (com CNPJ) em vez de **pessoal** disp
 a regra dos 12 testadores por 14 dias, que vale para contas pessoais novas.
 
 **2. Gerar o pacote.** Em [pwabuilder.com](https://www.pwabuilder.com), colar
-`https://conexao.qidominios.com.br` e mandar gerar o pacote Android. Sai um
+`https://qiconexao.qidominios.com.br` e mandar gerar o pacote Android. Sai um
 arquivo `.aab` e, junto, o `assetlinks.json`. Não é preciso programar nada.
 
 **3. Publicar o `assetlinks.json`.** Ele vai em
