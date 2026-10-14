@@ -8,6 +8,7 @@ import {
   initialState, reducer, usageToday,
 } from './appState';
 import { loadState, saveState } from '../services/storage';
+import { criarCarregadorUnico } from '../services/carregarUmaVez';
 import * as backend from '../services/backend';
 import { onAuthChange, currentSession, signOut } from '../services/auth';
 import { aSessaoAcabou, esquecerQueEntrou, esteveLogado, lembrarQueEntrou } from '../services/sessao';
@@ -112,6 +113,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // ------------------------------------------------------------------------
   // Modo online: restaura a sessão e carrega o recorte que o RLS devolve.
   // ------------------------------------------------------------------------
+  /**
+   * Carrega tudo o que o RLS devolve para esta pessoa. SEM PERGUNTAR se já foi
+   * carregado — quem precisa dessa pergunta é `carregarUmaVez`, logo abaixo.
+   */
   const hydrate = useCallback(async (userId: string, email = '') => {
     const snapshot = await backend.loadSnapshot(userId);
     // A partir daqui o navegador sabe que alguém entrou aqui. É um único
@@ -127,10 +132,34 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     );
   }, []);
 
+  /**
+   * UMA VEZ SÓ.
+   *
+   * Duas coisas mandam carregar — o efeito que pergunta "existe sessão?" ao
+   * abrir a página, e o ouvinte de eventos de autenticação — e nenhuma sabia da
+   * outra. O Supabase dispara vários eventos no mesmo instante, e o ouvinte
+   * respondia a todos: medimos TRÊS carregamentos completos no mesmo segundo.
+   *
+   * A regra de quando carregar vive em services/carregarUmaVez.ts, com a
+   * medição inteira escrita lá e um teste que a prova. Aqui fica só a ligação.
+   *
+   * `useMemo` e não `useState`: o carregador tem de ser o MESMO durante toda a
+   * vida da tela. Um novo a cada pintura teria memória nova — e memória nova
+   * não lembra que já carregou, que é a única coisa que ele faz.
+   */
+  const carregador = useMemo(() => criarCarregadorUnico(hydrate), [hydrate]);
+
+  /**
+   * Recarregar DE PROPÓSITO, passando por cima do guarda. É assim que tem de
+   * ser: quem chama isto sabe que algo mudou no servidor — é o caso de terminar
+   * o cadastro, quando o perfil passa a existir.
+   */
   const refresh = useCallback(async () => {
     const session = await currentSession();
-    if (session?.user?.id) await hydrate(session.user.id, session.user.email ?? '');
-  }, [hydrate]);
+    if (session?.user?.id) {
+      await carregador.recarregar(session.user.id, session.user.email ?? '');
+    }
+  }, [carregador]);
 
   /**
    * Termômetro de uma conversa, recalculado no Postgres. Só faz sentido para as
@@ -202,7 +231,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       .then(async (session) => {
         if (!vivo) return;
         if (session?.user?.id) {
-          await hydrate(session.user.id, session.user.email ?? '');
+          await carregador.carregar(session.user.id, session.user.email ?? '');
           return;
         }
         // O CASO COMUM, E O QUE ERA MUDO ATÉ AQUI: fecha o aplicativo, volta no
@@ -237,18 +266,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           // Este catch protege a tela de quebrar, e por isso mesmo precisa
           // avisar: era aqui que uma falha ao carregar os dados da pessoa
           // deixava o app parado sem explicação para ninguém.
-          hydrate(userId, s2?.user?.email ?? '').catch((err) => {
+          //
+          // `carregarUmaVez` e não `hydrate`: o Supabase manda vários eventos
+          // seguidos no mesmo instante, e este ouvinte respondia a todos.
+          carregador.carregar(userId, s2?.user?.email ?? '').catch((err) => {
             void tratarFalhaDeCarga(err, 'hidratar-apos-login');
           }),
         );
       } else {
+        // Saiu: o guarda tem de esquecer quem estava carregado, senão a próxima
+        // pessoa a entrar NESTE MESMO separador seria tratada como já carregada
+        // — e veria a tela vazia, sem erro nenhum.
+        carregador.esquecer();
         setPendingAccount(null);
         dispatch({ type: 'LOGOUT' });
       }
     });
 
     return () => { vivo = false; unsubscribe(); };
-  }, [hydrate, marcarSessaoExpirada, tratarFalhaDeCarga]);
+  }, [carregador, marcarSessaoExpirada, tratarFalhaDeCarga]);
 
   // ------------------------------------------------------------------------
   // Realtime: mensagens e conexões chegam sem recarregar a página.
