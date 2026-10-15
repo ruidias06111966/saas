@@ -11,9 +11,13 @@ import { criarCarregadorUnico } from '../services/carregarUmaVez';
 //   23:13:04   carregamento completo
 //   23:13:06   carregamento completo       (ao entrar)
 //
-// Doze pedidos cada um. Trinta e seis num segundo onde doze bastavam, e o
-// PostgREST a matar processos por demora logo a seguir. Para quem usava, a tela
-// a piscar e a recarregar sozinha.
+// Doze pedidos cada um. Trinta e seis num segundo onde doze bastavam. Para quem
+// usava, a tela a piscar e a recarregar sozinha.
+//
+// (A primeira versão deste comentário culpava as rajadas por processos mortos
+// no PostgREST. Não era verdade — eles aparecem com o sistema parado, às três
+// da manhã, sem ninguém a usar. O porquê está escrito em
+// services/carregarUmaVez.ts, com as contagens.)
 //
 // ESTES TESTES CORREM O CARREGADOR DE VERDADE — contam chamadas, não procuram
 // palavras no código. É a diferença entre provar que não repete e acreditar.

@@ -16,13 +16,35 @@
 //   23:13:06   carregamento completo       (ao entrar)
 //
 // Cada "carregamento completo" são DOZE pedidos. Três ao mesmo tempo são 36
-// pedidos num segundo onde 12 bastavam — e o PostgREST registou o preço:
+// pedidos num segundo onde 12 bastavam.
 //
-//   23:10:20   Warp server error: Thread killed by timeout manager
-//   23:13:42   Warp server error: Thread killed by timeout manager
+// Para quem usa, foi a tela a piscar e a recarregar sozinha — foi assim que o
+// dono o descreveu, e foi o que levou a procurar nos registos. Num telefone
+// com dados móveis, é o triplo do gasto à toa.
 //
-// Para quem usa, foi a tela a piscar e a recarregar sozinha. Num telefone com
-// dados móveis, é o triplo do gasto à toa.
+// UMA CAUSA QUE EU AFIRMEI E DEPOIS DESMENTI, E QUE FICA ESCRITA PARA NINGUÉM
+// A REPETIR
+//
+// A primeira versão deste comentário dizia que as rajadas mataram processos do
+// PostgREST, citando duas linhas de `Warp server error: Thread killed by
+// timeout manager` logo a seguir a elas. Parecia encaixar. Não encaixava.
+//
+// Depois do conserto, com o carregamento já reduzido a UM, essas mesmas linhas
+// voltaram a aparecer. Fui contá-las por hora contra os pedidos do aplicativo:
+//
+//   13/10 23:00   94 pedidos   20 processos mortos
+//   14/10 01:00    3 pedidos    4 processos mortos
+//   14/10 03:00    0 pedidos    1 processo morto     ← ninguém a usar
+//   14/10 10:00   24 pedidos    0 processos mortos
+//
+// Às três da manhã não havia um único pedido e mesmo assim houve um. São
+// ligações ociosas que o servidor recicla sozinho: ruído de fundo, não
+// sintoma. A medição das três cargas estava certa; a causa que tirei dela,
+// não — e eu afirmei-a sem a testar.
+//
+// Fica aqui porque uma correlação que se vê uma vez é barata de afirmar e cara
+// de desmentir, e porque o próximo a ler estes registos vai ver as mesmas
+// linhas e tirar a mesma conclusão.
 //
 // POR QUE NÃO BASTAVA FILTRAR OS EVENTOS
 //
