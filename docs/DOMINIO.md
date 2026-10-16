@@ -7,17 +7,19 @@
 > `mail.conexao.qidominios.com.br`, verificado no Resend. Foi uma decisão
 > deliberada — ver "O que fica de fora", no fim.
 
-## O que falta fazer hoje (16/10/2026)
+## Estado: completo em 16/10/2026
 
-A troca está feita e o site responde no endereço novo. Faltam **duas** coisas,
-as duas na Cloudflare, e as duas invisíveis para quem usa o site:
+Os onze passos estão feitos, e os três que importam estão **medidos de fora**,
+não supostos:
 
-| Falta | Quem sente | Passo |
-|---|---|---|
-| O endereço antigo não redireciona — responde erro 404 | quem o tem guardado nos favoritos ou num link antigo | **9** |
-| Os seis cabeçalhos de segurança deixaram de ser enviados | ninguém sente. É proteção que já não está lá | **10** (modo SSL/TLS já conferido: pode ligar) |
+```
+1. O endereço novo responde?              ✓ 200
+2. O endereço antigo manda para o novo?   ✓ 301, com caminho e pergunta
+                                            preservados
+3. Os cabeçalhos de segurança?            ✓ os 6 presentes
+```
 
-Para conferir a qualquer momento, sem acreditar em ninguém:
+Para repetir esta medição a qualquer momento, sem acreditar em ninguém:
 
 ```
 node scripts/conferir-o-endereco.mjs
@@ -25,6 +27,11 @@ node scripts/conferir-o-endereco.mjs
 
 Ele pede as páginas de fora e diz o que encontrou. É o mesmo programa que
 produziu os números deste documento.
+
+> **Vale a pena correr isto depois de qualquer mexida na Cloudflare, no GitHub
+> Pages ou no DNS.** As três coisas que ele mede falham todas em silêncio: o
+> site continua a abrir, bonito e normal, e mesmo assim os links antigos
+> morrem ou a proteção desaparece.
 
 ## Por que isto tem um documento só para si
 
@@ -177,10 +184,10 @@ Com as contas que existem, no endereço novo:
 Só depois disto: Supabase → **Authentication** → **URL Configuration** →
 **Site URL** → passar para `https://qiconexao.qidominios.com.br/`.
 
-## Passo 9 — Mandar o endereço antigo para o novo  ⟵ FALTA FAZER
+## Passo 9 — Mandar o endereço antigo para o novo
 
 Quem tinha `conexao.qidominios.com.br` guardado precisa de chegar ao sítio
-certo. Hoje encontra isto:
+certo. Sem esta regra encontrava isto:
 
 ```
 $ curl -I https://conexao.qidominios.com.br/
@@ -188,24 +195,34 @@ HTTP/2 404
 server: cloudflare
 ```
 
-**A nuvem laranja do nome antigo já está ligada** — o `server: cloudflare` na
-resposta prova-o: o pedido passa pela Cloudflare, que o entrega ao GitHub, e o
-GitHub responde 404 porque nenhum site Pages reivindica aquele nome.
+O `server: cloudflare` na resposta diz que a nuvem laranja do nome antigo já
+estava ligada: o pedido passava pela Cloudflare, que o entregava ao GitHub, e
+o GitHub respondia 404 porque nenhum site Pages reivindicava aquele nome.
+Faltava só a regra.
 
-Falta só **uma** coisa, então: a regra. Cloudflare → **Rules** → **Redirect
-Rules** → **Create rule**:
+Cloudflare → **Regras** → **Regras de redirecionamento** → **Criar regra**.
+
+**Não use os três modelos do topo da página.** O terceiro ("Redirecionar para
+um domínio diferente") aplica-se a *todas* as solicitações do domínio — o
+endereço novo incluído, que passaria a redirecionar para si próprio. Preencha
+o formulário de baixo, que diz a origem por extenso.
 
 | Campo | Valor |
 |---|---|
-| Nome | `conexao antigo vai para qiconexao` |
-| Quando | `Hostname` **equals** `conexao.qidominios.com.br` |
-| Tipo | **Dynamic** |
-| Expressão | `concat("https://qiconexao.qidominios.com.br", http.request.uri.path)` |
+| Nome da regra | `conexao antigo vai para qiconexao` |
+| Coincidir com | **Padrão de curinga** |
+| URL da solicitação | `https://conexao.qidominios.com.br/*` |
+| URL de destino | `https://qiconexao.qidominios.com.br/${1}` |
 | Status | **301** (permanente) |
-| Preserve query string | ligado |
+| Preservar string de consulta | ligado |
+
+O `*` apanha tudo o que vier depois da barra; o `${1}` volta a pô-lo no
+endereço novo. É isso que faz um link antigo para `/termos.html` cair em
+`/termos.html`, e não na página inicial — e é a parte que mais se esquece,
+porque um redirecionamento que atira tudo para a raiz **parece** funcionar.
 
 A regra responde na borda da Cloudflare, antes de chegar ao GitHub — por isso
-o 404 deixa de existir no instante em que ela entra.
+o 404 deixou de existir no instante em que ela entrou.
 
 Para conferir, sem abrir o navegador:
 
@@ -218,7 +235,7 @@ novo, que o **caminho** se mantém (um link antigo para `/termos.html` tem de
 cair em `/termos.html`, não na página inicial) e que a **pergunta** do link
 (`?...`) sobrevive.
 
-## Passo 10 — Os cabeçalhos de segurança: uma escolha, não um conserto  ⟵ FALTA FAZER
+## Passo 10 — Os cabeçalhos de segurança
 
 Aqui eu disse-lhe uma coisa errada e corrijo-a. Eu disse que havia o risco de
 a regra dos cabeçalhos estar **"presa ao nome antigo"**. Fui medir. Não é isso.
@@ -285,13 +302,34 @@ que ligar a nuvem é seguro. (O modo automático pode reavaliar isto sozinho de
 tempos a tempos, mas só sobe para o mais seguro que a origem aguenta — e o
 GitHub Pages serve HTTPS, por isso não desce para "Flexible".)
 
-### Os dois cliques, então
+### Os dois cliques, e o segundo é o que se esquece
 
-1. Cloudflare → **DNS** → no registo `qiconexao`, **ligar a nuvem laranja**.
-2. Cloudflare → **Rules** → **Transform Rules** → a regra dos cabeçalhos:
-   conferir que o filtro dela **cobre o nome novo** (ou vale para todo o
-   domínio). Se ficar só com o nome antigo, a nuvem fica ligada e os
-   cabeçalhos continuam a não chegar.
+1. Cloudflare → **DNS** → no registo `qiconexao`, **ligar a nuvem laranja** e
+   **Salvar**.
+2. Cloudflare → **Regras** → **Visão geral** → secção **Regras de
+   Transformação de Cabeçalho de Resposta** → a regra `Cabeçalhos de
+   segurança` → alargar o filtro dela ao nome novo.
+
+O passo 2 é o que parece dispensável e não é. Com a nuvem ligada e o filtro
+ainda preso ao nome antigo, mediu-se isto:
+
+```
+endereço antigo (Cloudflare)   permissions-policy: presente
+endereço novo   (Cloudflare)   permissions-policy: AUSENTE
+```
+
+Os dois a passar pela Cloudflare; só um a receber. Fica assim, e parece feito.
+
+O filtro ficou a cobrir os dois endereços — no painel, trocar o operador **"é
+igual a"** por **"está em"** e pôr os dois nomes:
+
+```
+(http.host in {"conexao.qidominios.com.br" "qiconexao.qidominios.com.br"})
+```
+
+Cobrir os dois e não só o novo é de propósito: o antigo serve hoje apenas o
+redirecionamento, mas um redirecionamento também devolve cabeçalhos, e não há
+razão para o deixar nu.
 
 E logo a seguir, para não ficar na suposição:
 
@@ -301,6 +339,9 @@ node scripts/conferir-o-endereco.mjs
 
 Se alguma coisa correr mal, **desligar a nuvem laranja devolve o site ao estado
 de antes em segundos**. É uma mudança reversível com um clique.
+
+Feito em 16/10/2026, sem incidente: o site não piscou, e os seis cabeçalhos
+apareceram na medição seguinte.
 
 > Uma consequência a saber, que não é problema hoje: com a nuvem ligada, quem
 > visita passa a receber o certificado da Cloudflare, não o do GitHub. O do
