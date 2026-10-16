@@ -7,15 +7,35 @@
 > `mail.conexao.qidominios.com.br`, verificado no Resend. Foi uma decisão
 > deliberada — ver "O que fica de fora", no fim.
 
+## O que falta fazer hoje (16/10/2026)
+
+A troca está feita e o site responde no endereço novo. Faltam **duas** coisas,
+as duas na Cloudflare, e as duas invisíveis para quem usa o site:
+
+| Falta | Quem sente | Passo |
+|---|---|---|
+| O endereço antigo não redireciona — responde erro 404 | quem o tem guardado nos favoritos ou num link antigo | **9** |
+| Os seis cabeçalhos de segurança deixaram de ser enviados | ninguém sente. É proteção que já não está lá | **10** |
+
+Para conferir a qualquer momento, sem acreditar em ninguém:
+
+```
+node scripts/conferir-o-endereco.mjs
+```
+
+Ele pede as páginas de fora e diz o que encontrou. É o mesmo programa que
+produziu os números deste documento.
+
 ## Por que isto tem um documento só para si
 
-Mudar o endereço não é uma mudança de código: é uma mudança em **sete painéis
+Mudar o endereço não é uma mudança de código: é uma mudança em **oito painéis
 diferentes**, e as falhas não aparecem como erro. Aparecem assim:
 
 | Esquecido | O que a pessoa vê |
 |---|---|
 | Supabase → Redirect URLs | clica no link do e-mail e **não entra**. Nenhum erro |
 | Supabase → `URLS_DO_APP` | o pagamento não volta para o site |
+| **GitHub → Settings → Pages** | o endereço novo responde **404**, com tudo o mais certo |
 | Cloudflare → regra dos cabeçalhos | nada. Os cabeçalhos de segurança simplesmente deixam de valer |
 | Cloudflare → redirecionamento | quem tinha o endereço antigo guardado encontra uma página de erro |
 | Sentry → Allowed Domains | os erros do site param de ser registados |
@@ -44,9 +64,13 @@ Cloudflare → o domínio `qidominios.com.br` → **DNS** → **Add record**:
 | Target | `ruidias06111966.github.io` |
 | Proxy status | **DNS only** (nuvem CINZENTA, não laranja) |
 
-> A nuvem laranja tem de ficar **desligada**. Com ela ligada o GitHub não
-> consegue emitir o certificado de segurança, e o site aparece com aviso de
-> "não seguro" — sem explicação de onde veio.
+> A nuvem laranja tem de ficar **desligada enquanto o certificado não sair**.
+> Com ela ligada o GitHub não consegue emitir o certificado de segurança, e o
+> site aparece com aviso de "não seguro" — sem explicação de onde veio.
+>
+> **Depois** de o certificado estar emitido, a nuvem laranja volta a ser uma
+> escolha — e uma escolha com consequência, que o passo 10 explica. Deixá-la
+> cinzenta para sempre custa os seis cabeçalhos de segurança.
 
 Sozinho, este passo não muda nada: o GitHub ainda não sabe servir este nome.
 
@@ -61,7 +85,7 @@ https://qiconexao.qidominios.com.br/
 https://qiconexao.qidominios.com.br/**
 ```
 
-**Deixe o `Site URL` como está, por agora.** Ele muda no passo 7, depois de o
+**Deixe o `Site URL` como está, por agora.** Ele muda no passo 8, depois de o
 endereço novo estar provado.
 
 > Por que acrescentar e não substituir: um destino fora da lista não é
@@ -97,24 +121,54 @@ qiconexao.qidominios.com.br
 
 (Sem `https://`, sem barra no fim. É só o nome.)
 
-> É esta variável que faz a publicação escrever o ficheiro `CNAME`, que é como
-> o GitHub Pages sabe em que endereço servir. O código não tem o endereço
-> escrito em lado nenhum — vem todo daqui.
+> É esta variável que faz a publicação escrever o ficheiro `CNAME`, que vai
+> dentro do que é publicado. O código não tem o endereço escrito em lado
+> nenhum — vem todo daqui.
 
 ## Passo 6 — Publicar
 
 **Só agora** é que o código novo entra. Avise-me e eu junto o pedido: a
-publicação escreve o `CNAME` novo, e o site passa a responder em
-`qiconexao.qidominios.com.br`.
+publicação escreve o `CNAME` novo.
 
-O certificado de segurança pode demorar alguns minutos a sair. Enquanto não
-sair, o navegador avisa que a ligação não é segura — é normal, e passa
-sozinho. Se passar de uma hora, GitHub → Settings → Pages → tirar e repor o
-domínio próprio força nova emissão.
+## Passo 7 — GitHub → Settings → Pages: reivindicar o nome
 
-## Passo 7 — Provar, e só então fechar
+**Este é o passo que eu omiti na primeira vez, e foi por isso que o endereço
+novo respondeu 404 depois de tudo o resto estar certo.**
 
-Com as **duas contas**, no endereço novo:
+GitHub → o repositório → **Settings** → **Pages** → **Custom domain**:
+
+```
+qiconexao.qidominios.com.br
+```
+
+→ **Save**, e esperar o "DNS check successful".
+
+### Por que o ficheiro `CNAME` não bastou
+
+Era a minha suposição, e estava errada. O que está medido:
+
+```
+$ curl https://qiconexao.qidominios.com.br/CNAME
+qiconexao.qidominios.com.br          ← o ficheiro ESTÁ publicado
+```
+
+O ficheiro foi escrito pela publicação, subiu, e **está servido no ar** — e
+ainda assim o endereço respondia 404 até o campo acima ser preenchido à mão.
+
+A razão: nesta publicação, quem reivindica o nome junto do GitHub é o **campo
+do painel**, não o ficheiro. (No modo antigo de publicar — um `CNAME` fixo
+dentro de um ramo do repositório — era o ficheiro que o definia. Esta base
+publica pelo Actions, e aí o painel é que manda.) O `CNAME` continua a ser
+necessário, só que não é suficiente.
+
+O certificado de segurança pode demorar alguns minutos a sair depois do Save.
+Enquanto não sair, o navegador avisa que a ligação não é segura — é normal, e
+passa sozinho. Se passar de uma hora, tirar e repor o domínio próprio neste
+mesmo campo força nova emissão.
+
+## Passo 8 — Provar, e só então fechar
+
+Com as contas que existem, no endereço novo:
 
 1. Entrar com e-mail e senha.
 2. Abrir uma conversa e ver as mensagens antigas.
@@ -123,14 +177,23 @@ Com as **duas contas**, no endereço novo:
 Só depois disto: Supabase → **Authentication** → **URL Configuration** →
 **Site URL** → passar para `https://qiconexao.qidominios.com.br/`.
 
-## Passo 8 — Mandar o endereço antigo para o novo
+## Passo 9 — Mandar o endereço antigo para o novo  ⟵ FALTA FAZER
 
 Quem tinha `conexao.qidominios.com.br` guardado precisa de chegar ao sítio
-certo. Sem isto, encontra uma página de erro do GitHub.
+certo. Hoje encontra isto:
 
-Cloudflare → **DNS** → no registo `conexao`, **ligar a nuvem laranja**
-(proxied). Depois, Cloudflare → **Rules** → **Redirect Rules** → **Create
-rule**:
+```
+$ curl -I https://conexao.qidominios.com.br/
+HTTP/2 404
+server: cloudflare
+```
+
+**A nuvem laranja do nome antigo já está ligada** — o `server: cloudflare` na
+resposta prova-o: o pedido passa pela Cloudflare, que o entrega ao GitHub, e o
+GitHub responde 404 porque nenhum site Pages reivindica aquele nome.
+
+Falta só **uma** coisa, então: a regra. Cloudflare → **Rules** → **Redirect
+Rules** → **Create rule**:
 
 | Campo | Valor |
 |---|---|
@@ -141,17 +204,89 @@ rule**:
 | Status | **301** (permanente) |
 | Preserve query string | ligado |
 
-## Passo 9 — Conferir a regra dos cabeçalhos de segurança
+A regra responde na borda da Cloudflare, antes de chegar ao GitHub — por isso
+o 404 deixa de existir no instante em que ela entra.
 
-Cloudflare → **Rules** → **Transform Rules** → a regra dos cabeçalhos de
-segurança que já existe.
+Para conferir, sem abrir o navegador:
 
-**Se o filtro dela mencionar o endereço antigo**, troque para o novo — ou
-mude-o para valer para todo o domínio. Se ficar preso ao nome antigo, os
-cabeçalhos deixam de ser aplicados **sem aviso nenhum**: o site continua a
-funcionar, só que desprotegido.
+```
+node scripts/conferir-o-endereco.mjs
+```
 
-## Passo 10 — O telefone
+Ele não se contenta com "redireciona": confere que o destino é o endereço
+novo, que o **caminho** se mantém (um link antigo para `/termos.html` tem de
+cair em `/termos.html`, não na página inicial) e que a **pergunta** do link
+(`?...`) sobrevive.
+
+## Passo 10 — Os cabeçalhos de segurança: uma escolha, não um conserto  ⟵ FALTA DECIDIR
+
+Aqui eu disse-lhe uma coisa errada e corrijo-a. Eu disse que havia o risco de
+a regra dos cabeçalhos estar **"presa ao nome antigo"**. Fui medir. Não é isso.
+
+### O que está medido
+
+O endereço novo **não passa pela Cloudflare**. A nuvem dele é cinzenta — como o
+passo 1 manda, para o certificado poder sair — e por isso **nenhuma regra da
+Cloudflare o alcança**. Não há regra errada: há uma regra que não é consultada.
+
+Como se separou o que é da Cloudflare do que é do GitHub: pedi a **mesma**
+página de erro do GitHub pelos dois caminhos e subtraí.
+
+| Cabeçalho | Pelo antigo (via Cloudflare) | Pelo novo (direto ao GitHub) |
+|---|---|---|
+| `strict-transport-security` | presente | **ausente** |
+| `x-frame-options` | presente | **ausente** |
+| `x-content-type-options` | presente | **ausente** |
+| `referrer-policy` | presente | **ausente** |
+| `cross-origin-opener-policy` | presente | **ausente** |
+| `permissions-policy` | presente | **ausente** |
+| `content-security-policy` | presente | presente — **este é do GitHub** |
+
+Os seis primeiros vêm da Cloudflare. O sétimo não: o GitHub manda um só dele, e
+tratá-los todos como iguais daria um verde falso.
+
+Que são mesmo da regra deste sistema, e não genéricos, vê-se no conteúdo de um
+deles: `permissions-policy: camera=(self), microphone=(), geolocation=(self)` —
+câmara e localização para o próprio site, microfone para ninguém. É a lista das
+funções desta aplicação. Ninguém escreve isto por acidente.
+
+**Conclusão: desde a troca de endereço, o site serve sem estes seis.** O site
+funciona igual. É proteção a menos, não avaria.
+
+### A escolha
+
+Para os ter de volta, o endereço novo tem de passar pela Cloudflare — e aí a
+regra passa a valer para ele. A regra vive em Cloudflare → **Rules** →
+**Transform Rules**, nas de **Modify Response Header**; basta que o filtro dela
+cubra o nome novo, ou que valha para todo o domínio.
+
+**O GitHub Pages não tem como enviar estes cabeçalhos por si**: não existe
+ficheiro de configuração para isso. Ou vêm de um intermediário, ou não vêm.
+
+| | Ligar a nuvem laranja em `qiconexao` | Deixar como está |
+|---|---|---|
+| Os seis cabeçalhos | voltam | continuam ausentes |
+| O site | **há um risco, abaixo** | funciona, e não se toca em nada |
+
+**O risco, dito por inteiro:** se o modo SSL/TLS da zona estiver em
+**"Flexible"**, ligar a nuvem laranja põe o site num ciclo de redirecionamentos
+e ele deixa de abrir. Tem de estar em **"Full"** ou **"Full (strict)"**. Eu
+**não consigo ler essa configuração** — não tenho acesso ao painel da
+Cloudflare a partir daqui — por isso não posso garantir que é seguro ligar.
+
+O que torna isto menos teórico: o endereço **antigo** era servido pelo GitHub
+Pages **com** a nuvem laranja ligada e funcionava. É a mesma zona e a mesma
+origem. É boa indicação de que a configuração está no modo certo — indicação,
+não prova.
+
+O caminho prudente, se decidir ligar: conferir primeiro **SSL/TLS → Overview**
+e ver se diz "Full"; só então ligar a nuvem; e correr
+`node scripts/conferir-o-endereco.mjs` logo a seguir. Se o site parar, desligar
+a nuvem devolve-o ao estado de agora em segundos.
+
+**É uma decisão sua.** Diga-me qual, e eu sigo.
+
+## Passo 11 — O telefone
 
 Estas duas coisas estão amarradas ao endereço, e não se transferem:
 
@@ -160,8 +295,8 @@ Estas duas coisas estão amarradas ao endereço, e não se transferem:
 - **Os avisos no celular**. A inscrição é por endereço: é preciso abrir
   Configurações no endereço novo e **ligar outra vez** o aviso.
 
-Com duas contas isto é trabalho de minutos. É também a razão pela qual a troca
-se faz agora, e não quando houver gente de fora a usar.
+Com poucas contas isto é trabalho de minutos. É também a razão pela qual a
+troca se faz agora, e não quando houver gente de fora a usar.
 
 ---
 
@@ -183,3 +318,12 @@ num papel continuam a funcionar. Um endereço que já esteve no ar não se apaga
 textos que as pessoas leem. Ele conhece a armadilha: `mail.conexao.…` e
 `qiconexao.…` **contêm** `conexao.qidominios.com.br` como pedaço, e o teste
 tem de deixar passar os dois.
+
+O mesmo ficheiro guarda também este documento: obriga-o a continuar a nomear o
+painel do GitHub Pages e a não voltar a dizer que o ficheiro `CNAME` basta. Foi
+o buraco que custou um 404 em produção, e um documento é onde ele se esconde
+melhor.
+
+`scripts/conferir-o-endereco.mjs` mede os dois pontos que ainda faltam. Não
+corre nos testes de propósito: fala com a internet, e `npm run build` tem de
+funcionar sem rede.

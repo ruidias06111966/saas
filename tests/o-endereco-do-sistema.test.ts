@@ -82,9 +82,20 @@ describe('o endereço do sistema começa por qi, como os outros', () => {
         if ((ler(caminho).match(SO_O_ANTIGO) ?? []).length > 0) sobrou.push(caminho);
       }
     }
-    // `docs/DOMINIO.md` é o procedimento da troca: tem de nomear o endereço
-    // que está a ser abandonado, senão não explica nada.
-    expect(sobrou.filter((f) => f !== 'docs/DOMINIO.md'),
+    // DUAS excepções, e as duas pela MESMA razão: nomear o endereço antigo é
+    // o trabalho delas, não um esquecimento.
+    //
+    //   `docs/DOMINIO.md`                 — o procedimento da troca. Sem
+    //                                       nomear o que se abandona, não
+    //                                       explica nada.
+    //   `scripts/conferir-o-endereco.mjs` — pede a página NO endereço antigo
+    //                                       para ver se ela redireciona. Tirar
+    //                                       o nome de lá era tirar o teste.
+    //
+    // A lista é nomeada, e não um filtro mais largo, de propósito: cada
+    // excepção nova tem de ser escrita à mão e justificada aqui.
+    const PODEM_NOMEAR_O_ANTIGO = ['docs/DOMINIO.md', 'scripts/conferir-o-endereco.mjs'];
+    expect(sobrou.filter((f) => !PODEM_NOMEAR_O_ANTIGO.includes(f)),
       'estes ficheiros ficaram para trás na troca de endereço').toEqual([]);
   });
 
@@ -113,5 +124,90 @@ describe('o endereço do sistema começa por qi, como os outros', () => {
       .toContain('Acrescentar antes de tirar');
     expect(doc, 'falta avisar dos avisos no celular, que são por endereço')
       .toContain('A inscrição é por endereço');
+  });
+
+  // O BURACO QUE CUSTOU UM 404 EM PRODUÇÃO.
+  //
+  // Na primeira versão deste procedimento eu omiti o painel do GitHub Pages:
+  // dei por suposto que o ficheiro `CNAME`, escrito pela publicação, bastava
+  // para o GitHub servir no nome novo. Não basta. Tudo o mais estava certo e o
+  // endereço novo respondia 404 — e o `CNAME` estava publicado e servido, o
+  // que torna a suposição difícil de desconfiar sozinha.
+  //
+  // Um documento é o melhor esconderijo para esta classe de erro: ninguém o
+  // corre. Então o teste corre-o.
+  //
+  // E A AFIRMAÇÃO TEM DE BATER NO PASSO, NÃO NO DOCUMENTO INTEIRO.
+  //
+  // A primeira versão deste teste procurava `Settings → Pages` em qualquer
+  // lugar do ficheiro. Apaguei o caminho de dentro do passo e o teste passou:
+  // encontrou-o na tabela-resumo lá em cima. Mesma classe de erro que esta
+  // base já apanhou uma dúzia de vezes — a procura acerta no sítio errado. A
+  // saída é recortar o passo e procurar SÓ lá dentro.
+  it('o procedimento manda reivindicar o nome no painel do GitHub Pages', () => {
+    const doc = ler('docs/DOMINIO.md');
+    const passo = doc.slice(
+      doc.indexOf('## Passo 7'),
+      doc.indexOf('## Passo 8'),
+    );
+    expect(passo.length, 'recorte do passo 7 largo demais').toBeLessThan(2600);
+    expect(passo.length, 'o passo 7 desapareceu do documento').toBeGreaterThan(400);
+
+    expect(passo, 'o passo 7 voltou a não nomear o campo do painel')
+      .toContain('Custom domain');
+    expect(passo, 'o passo 7 não diz em que painel se preenche o domínio próprio')
+      .toMatch(/Settings\*{0,2} → \*{0,2}Pages/);
+    // E tem de continuar a dizer POR QUE o ficheiro não bastou — sem isso, o
+    // passo parece burocracia e o próximo a ler salta-o.
+    expect(passo, 'deixou de explicar por que o ficheiro CNAME não é suficiente')
+      .toContain('não é suficiente');
+  });
+
+  // OS SEIS CABEÇALHOS, E O SÉTIMO QUE NÃO ENTRA NA CONTA.
+  //
+  // Medidos por subtracção: o mesmo erro 404 do GitHub, pedido pelos dois
+  // endereços, traz seis cabeçalhos a mais quando passa pela Cloudflare. O
+  // `content-security-policy` aparece nos DOIS — é do GitHub — e metê-lo na
+  // lista daria um verde falso justamente no dia em que a regra caísse.
+  const SEIS = [
+    'strict-transport-security', 'x-frame-options', 'x-content-type-options',
+    'referrer-policy', 'cross-origin-opener-policy', 'permissions-policy',
+  ];
+
+  it('o programa que confere de fora olha para os seis, e não confunde o sétimo', () => {
+    const programa = ler('scripts/conferir-o-endereco.mjs');
+    const lista = programa.slice(
+      programa.indexOf('const CABECALHOS = ['),
+      programa.indexOf('];', programa.indexOf('const CABECALHOS = [')),
+    );
+    expect(lista.length, 'recorte da lista de cabeçalhos largo demais').toBeLessThan(400);
+    for (const c of SEIS) {
+      expect(lista, `o programa deixou de conferir ${c}`).toContain(c);
+    }
+    expect(lista, 'o `content-security-policy` entrou na lista — o GitHub manda um só dele, e isso dá verde falso')
+      .not.toContain('content-security-policy');
+  });
+
+  // MESMA ARMADILHA, SEGUNDA VEZ: procurar os seis no documento inteiro dava
+  // verde depois de eu apagar uma linha da tabela, porque `permissions-policy`
+  // também aparece no texto em volta. A medição é a TABELA — é ela que se
+  // recorta.
+  it('e o documento guarda a medição dos seis, para não encolher em silêncio', () => {
+    const doc = ler('docs/DOMINIO.md');
+    const inicio = doc.indexOf('| Cabeçalho |');
+    const tabela = doc.slice(inicio, doc.indexOf('\n\n', inicio));
+    expect(inicio, 'a tabela da medição desapareceu do documento').toBeGreaterThan(-1);
+    expect(tabela.length, 'recorte da tabela largo demais').toBeLessThan(900);
+
+    for (const c of SEIS) {
+      expect(tabela, `a tabela da medição perdeu a linha de ${c}`).toContain(c);
+    }
+    // O sétimo tem de continuar na tabela, e marcado como sendo do GitHub: é a
+    // linha que impede alguém de o contar como um dos seis.
+    expect(tabela, 'a tabela deixou de distinguir o cabeçalho que é do GitHub')
+      .toContain('content-security-policy');
+
+    expect(doc, 'deixou de dizer que o endereço novo não passa pela Cloudflare — que é a causa')
+      .toMatch(/não passa pela Cloudflare/);
   });
 });
