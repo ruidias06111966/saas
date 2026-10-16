@@ -15,7 +15,7 @@ as duas na Cloudflare, e as duas invisíveis para quem usa o site:
 | Falta | Quem sente | Passo |
 |---|---|---|
 | O endereço antigo não redireciona — responde erro 404 | quem o tem guardado nos favoritos ou num link antigo | **9** |
-| Os seis cabeçalhos de segurança deixaram de ser enviados | ninguém sente. É proteção que já não está lá | **10** |
+| Os seis cabeçalhos de segurança deixaram de ser enviados | ninguém sente. É proteção que já não está lá | **10** (modo SSL/TLS já conferido: pode ligar) |
 
 Para conferir a qualquer momento, sem acreditar em ninguém:
 
@@ -218,7 +218,7 @@ novo, que o **caminho** se mantém (um link antigo para `/termos.html` tem de
 cair em `/termos.html`, não na página inicial) e que a **pergunta** do link
 (`?...`) sobrevive.
 
-## Passo 10 — Os cabeçalhos de segurança: uma escolha, não um conserto  ⟵ FALTA DECIDIR
+## Passo 10 — Os cabeçalhos de segurança: uma escolha, não um conserto  ⟵ FALTA FAZER
 
 Aqui eu disse-lhe uma coisa errada e corrijo-a. Eu disse que havia o risco de
 a regra dos cabeçalhos estar **"presa ao nome antigo"**. Fui medir. Não é isso.
@@ -268,23 +268,45 @@ ficheiro de configuração para isso. Ou vêm de um intermediário, ou não vêm
 | Os seis cabeçalhos | voltam | continuam ausentes |
 | O site | **há um risco, abaixo** | funciona, e não se toca em nada |
 
-**O risco, dito por inteiro:** se o modo SSL/TLS da zona estiver em
-**"Flexible"**, ligar a nuvem laranja põe o site num ciclo de redirecionamentos
-e ele deixa de abrir. Tem de estar em **"Full"** ou **"Full (strict)"**. Eu
-**não consigo ler essa configuração** — não tenho acesso ao painel da
-Cloudflare a partir daqui — por isso não posso garantir que é seguro ligar.
+**O risco era este:** se o modo SSL/TLS da zona estivesse em **"Flexible"**,
+ligar a nuvem laranja punha o site num ciclo de redirecionamentos e ele
+deixava de abrir.
 
-O que torna isto menos teórico: o endereço **antigo** era servido pelo GitHub
-Pages **com** a nuvem laranja ligada e funcionava. É a mesma zona e a mesma
-origem. É boa indicação de que a configuração está no modo certo — indicação,
-não prova.
+**Conferido em 16/10/2026, e o risco não se aplica.** Cloudflare → **SSL/TLS**
+→ **Overview** diz:
 
-O caminho prudente, se decidir ligar: conferir primeiro **SSL/TLS → Overview**
-e ver se diz "Full"; só então ligar a nuvem; e correr
-`node scripts/conferir-o-endereco.mjs` logo a seguir. Se o site parar, desligar
-a nuvem devolve-o ao estado de agora em segundos.
+```
+Modo de criptografia atual:  Completo        ← o "Full"
+Modo automático ativado
+```
 
-**É uma decisão sua.** Diga-me qual, e eu sigo.
+"Completo" é o "Full": a Cloudflare liga-se à origem por HTTPS. É o modo em
+que ligar a nuvem é seguro. (O modo automático pode reavaliar isto sozinho de
+tempos a tempos, mas só sobe para o mais seguro que a origem aguenta — e o
+GitHub Pages serve HTTPS, por isso não desce para "Flexible".)
+
+### Os dois cliques, então
+
+1. Cloudflare → **DNS** → no registo `qiconexao`, **ligar a nuvem laranja**.
+2. Cloudflare → **Rules** → **Transform Rules** → a regra dos cabeçalhos:
+   conferir que o filtro dela **cobre o nome novo** (ou vale para todo o
+   domínio). Se ficar só com o nome antigo, a nuvem fica ligada e os
+   cabeçalhos continuam a não chegar.
+
+E logo a seguir, para não ficar na suposição:
+
+```
+node scripts/conferir-o-endereco.mjs
+```
+
+Se alguma coisa correr mal, **desligar a nuvem laranja devolve o site ao estado
+de antes em segundos**. É uma mudança reversível com um clique.
+
+> Uma consequência a saber, que não é problema hoje: com a nuvem ligada, quem
+> visita passa a receber o certificado da Cloudflare, não o do GitHub. O do
+> GitHub continua a existir por baixo, e é o que a Cloudflare vê. Se um dia a
+> renovação automática dele falhar, o site continua a abrir na mesma — o modo
+> "Completo" não exige que esse certificado esteja perfeito.
 
 ## Passo 11 — O telefone
 
