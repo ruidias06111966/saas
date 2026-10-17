@@ -1,8 +1,24 @@
 # Apagar as duas colunas de coordenada
 
-> **Estado:** metade feito. O app já não as grava nem as lê. Falta o último
-> passo, que é apagá-las do banco — e esse tem de ser dado no painel do
-> Supabase, pela razão explicada no fim.
+> **Estado: FEITO, em 17/10/2026.** As colunas não existem mais. O que está
+> escrito abaixo fica como registo do que se fez e porquê — e porque o último
+> passo teve de ser dado à mão, no painel, pela razão explicada no fim.
+>
+> **Conferido depois de correr:**
+>
+> | | |
+> |---|---|
+> | colunas `approx_*` em `users` | 0 |
+> | `delete_my_account` ainda as cita | não |
+> | índice sobre a coordenada | 0 |
+> | vistas ou funções que as mencionem | 0 |
+> | contas intactas | 1 |
+> | categorias intactas | 37 |
+>
+> E um cadastro de ensaio, **sem** coordenada — tal como o app publicado passou
+> a fazer — foi inserido, apareceu na vista do crachá, e foi desfeito sem
+> deixar sobras. É a prova que importava: o caminho que as pessoas usam
+> continua a funcionar.
 
 ## O que são, e por que saem
 
@@ -33,17 +49,18 @@ as suas coordenadas continua em `services/localizacao.ts`, de propósito.
 | Passo | Onde | Estado |
 |---|---|---|
 | Deixar de ser obrigatórias | migrações 032 e 033 | ✅ aplicado |
-| O app deixa de as gravar e de as ler | 9 lugares, ver o pedido | ✅ |
+| O app deixa de as gravar e de as ler | 9 lugares | ✅ publicado e conferido no pacote no ar |
 | Testes que impedem a volta | `tests/privacidade.test.ts` | ✅ |
+| Apagar as colunas | migração 034, à mão no painel | ✅ aplicado |
 
 A ordem foi essa de propósito: enquanto o site antigo ainda estiver no ar, ele
 continua a enviá-las, e colunas opcionais aceitam-nas sem queixa. Apagar antes
 da publicação nova faria o cadastro falhar nesse intervalo.
 
-## O passo que falta
+## O passo que faltava, e o texto que foi corrido
 
-**Só depois de a publicação nova estar no ar.** Supabase → **SQL Editor** →
-colar e correr:
+Foi dado **depois** de a publicação nova estar no ar — conferido no pacote
+servido, onde `approx_lat` já não aparecia. Supabase → **SQL Editor**:
 
 ```sql
 begin;
