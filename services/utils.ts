@@ -32,7 +32,7 @@ function uuidV4Manual(): string {
 }
 
 /** Hash determinístico (FNV-1a 32 bits) — usado na curadoria e nos retratos. */
-export function hash32(input: string): number {
+function hash32(input: string): number {
   let h = 0x811c9dc5;
   for (let i = 0; i < input.length; i++) {
     h ^= input.charCodeAt(i);
@@ -56,37 +56,6 @@ export const dateKey = (d: Date = new Date()): string => {
   const p = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 };
-
-export function age(birthDate: string): number {
-  const b = new Date(birthDate);
-  const now = new Date();
-  let a = now.getFullYear() - b.getFullYear();
-  const m = now.getMonth() - b.getMonth();
-  if (m < 0 || (m === 0 && now.getDate() < b.getDate())) a--;
-  return a;
-}
-
-/** Distância aproximada em km entre duas coordenadas já arredondadas. */
-export function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
-  const R = 6371;
-  const toRad = (x: number) => (x * Math.PI) / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLng = toRad(lng2 - lng1);
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
-  return Math.round(2 * R * Math.asin(Math.sqrt(a)));
-}
-
-/** Nunca exibimos distância exata: sempre uma faixa. */
-export function distanceBand(km: number): string {
-  if (km <= 5) return 'pertinho';
-  if (km <= 15) return 'até 15 km';
-  if (km <= 30) return 'até 30 km';
-  if (km <= 60) return 'até 60 km';
-  if (km <= 150) return 'até 150 km';
-  return 'mais de 150 km';
-}
 
 /** Arredonda coordenada para ~0,05° (≈5 km) antes de persistir. */
 export const blurCoord = (v: number): number => Math.round(v * 20) / 20;
@@ -129,10 +98,6 @@ export const initials = (name: string): string =>
   name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? '').join('');
 
 export const firstName = (name: string): string => name.trim().split(/\s+/)[0] ?? name;
-
-export function pick<T>(arr: T[], rnd: () => number): T {
-  return arr[Math.floor(rnd() * arr.length) % arr.length];
-}
 
 export function shuffle<T>(arr: T[], rnd: () => number): T[] {
   const out = [...arr];

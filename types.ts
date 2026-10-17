@@ -49,8 +49,6 @@ export interface User {
    */
   approxLat?: number;
   approxLng?: number;
-  /** Distância até quem está olhando, em km. Calculada no servidor. */
-  distanceKm?: number;
   photo?: string; // dataURL; ausente => retrato generativo determinístico
   extraPhotos: string[];
 

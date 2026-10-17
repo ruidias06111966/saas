@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Banner, Button, Card, Icon } from './ui';
+import { Button, Card, Icon } from './ui';
 import { aiEnabled } from '../services/geminiService';
 import { useApp } from '../state/AppContext';
 import { cx } from '../services/utils';
@@ -77,16 +77,5 @@ export function CopilotPanel({
         O Copiloto nunca envia mensagem por você e nunca finge ser você. Tudo passa pela sua revisão.
       </p>
     </Card>
-  );
-}
-
-export function AiOffNotice() {
-  if (aiEnabled) return null;
-  return (
-    <Banner tone="info" icon="info" title="Copiloto em modo local">
-      O app funciona normalmente e as sugestões vêm de heurísticas locais. As geradas por IA
-      passam por uma função no servidor, que exige login e guarda a chave do modelo fora do
-      navegador.
-    </Banner>
   );
 }

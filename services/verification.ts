@@ -1,4 +1,4 @@
-import { requireSupabase, supabaseEnabled } from './supabaseClient';
+import { requireSupabase } from './supabaseClient';
 
 // ---------------------------------------------------------------------------
 // Verificação de perfil por selfie, com revisão humana.
@@ -113,5 +113,3 @@ export async function decide(
   const corpo = data as { ok?: boolean; erro?: string } | null;
   if (error || !corpo?.ok) throw new Error(corpo?.erro ?? error?.message ?? 'Falha ao decidir.');
 }
-
-export const verificationEnabled = supabaseEnabled;

@@ -121,6 +121,18 @@ export function Chat({ id }: { id: string }) {
     doSend(text);
   };
 
+  // POR QUE O NOME INTERNO CONTINUA "ritual"
+  //
+  // Na tela isto chama-se PERGUNTA, porque é o que é: uma pergunta pronta da
+  // escada de `data/perguntas.ts`, sobre trabalho. "Ritual" era o nome no app
+  // de relacionamentos, onde a escada subia pela intimidade; aqui ela sobe
+  // pelo compromisso, e um pedreiro a conversar com um cliente não tem por que
+  // ler "Ritual nível 3" num botão.
+  //
+  // Por dentro o nome fica: `kind = 'ritual'` é um valor de enum do Postgres e
+  // `ritual_level` é uma coluna, as duas com mensagens já gravadas. Trocá-los
+  // é uma migração de dados para ganhar nada que se veja — e migração de dados
+  // é risco. O nome de fora é o que a pessoa lê; o de dentro é só um rótulo.
   const sendRitual = () => {
     const rnd = seededRandom(`${conn.id}:${messages.length}`);
     const pool = LADDER.filter((q: { level: number }) => q.level === level);
@@ -233,7 +245,7 @@ export function Chat({ id }: { id: string }) {
                       <div className={cx('max-w-[82%] sm:max-w-[70%]')}>
                         {isRitual && (
                           <p className={cx('mb-1 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-brand', mine && 'justify-end')}>
-                            <Icon name="sparkle" size={11} filled /> Ritual · nível {m.ritualLevel}
+                            <Icon name="sparkle" size={11} filled /> Pergunta · nível {m.ritualLevel}
                           </p>
                         )}
                         <div
@@ -321,7 +333,7 @@ export function Chat({ id }: { id: string }) {
             <div className="shrink-0 border-t border-line bg-surface px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] lg:rounded-xl3 lg:border">
               <div className="mb-2 flex flex-wrap items-center gap-2">
                 <Button size="sm" variant="secondary" icon="sparkle" onClick={sendRitual}>
-                  Ritual nível {level}
+                  Pergunta nível {level}
                 </Button>
                 <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-line px-3 py-1.5 text-[12px] font-semibold text-muted transition-colors hover:text-ink">
                   <Icon name="image" size={14} /> Imagem

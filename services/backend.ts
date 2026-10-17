@@ -3,7 +3,7 @@ import type {
   ModerationItem, Report, Subscription, User,
 } from '../types';
 import type { HealthMetrics } from './conversation';
-import { requireSupabase, supabaseEnabled } from './supabaseClient';
+import { requireSupabase } from './supabaseClient';
 import { dateKey } from './utils';
 
 // ---------------------------------------------------------------------------
@@ -19,7 +19,7 @@ import { dateKey } from './utils';
 // ---------------------------------------------------------------------------
 
 /** Ordem canônica do par, exigida pela constraint `ordem_canonica`. */
-export const pairOrder = (x: string, y: string): [string, string] =>
+const pairOrder = (x: string, y: string): [string, string] =>
   x < y ? [x, y] : [y, x];
 
 /**
@@ -154,7 +154,7 @@ function toOutro(r: RawOutro): User {
  * e o PostgREST as devolveria aninhadas em cada perfil, repetindo o mesmo
  * conjunto em toda busca. Aqui vêm uma vez e são distribuídas.
  */
-export async function carregarEspecialidades(ids: string[]): Promise<Map<string, string[]>> {
+async function carregarEspecialidades(ids: string[]): Promise<Map<string, string[]>> {
   const unicos = [...new Set(ids.filter(Boolean))];
   const mapa = new Map<string, string[]>();
   if (unicos.length === 0) return mapa;
@@ -268,7 +268,7 @@ export const toMessage = (r: RawMessage): Message => ({
  * baixava o histórico inteiro de todas as conversas de uma vez — funciona com
  * doze perfis fictícios e não funciona com uma pessoa que conversa há um ano.
  */
-export const PAGINA_MENSAGENS = 40;
+const PAGINA_MENSAGENS = 40;
 
 /** Termômetro calculado no Postgres, para as conversas que chegam truncadas. */
 export interface RemoteHealth extends HealthMetrics {
@@ -689,5 +689,3 @@ export async function deleteMyAccount(): Promise<void> {
   const { error } = await db.rpc('delete_my_account');
   if (error) throw new Error(`Falha ao excluir a conta: ${error.message}`);
 }
-
-export const backendEnabled = supabaseEnabled;

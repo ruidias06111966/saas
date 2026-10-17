@@ -36,7 +36,15 @@ import { isEligible } from '../services/perfil';
 const PROIBIDOS = ['email', 'approxLat', 'approxLng', 'role', 'telefone'] as const;
 
 /** Campos que o pivô removeu do modelo e não devem voltar. */
-const EXTINTOS = ['birthDate', 'age', 'gender', 'goal', 'interests', 'preferences'] as const;
+const EXTINTOS = [
+  'birthDate', 'age', 'gender', 'goal', 'interests', 'preferences',
+  // `distanceKm` entrou nesta lista em 17/10/2026. Era a última peça viva da
+  // mecânica de distância do app de relacionamentos: o tipo dizia "Calculada
+  // no servidor" e NINGUÉM a calculava — a vista `perfis_do_mercado` não a
+  // devolve. O perfil tinha um pedaço que nunca podia pintar, e a função que
+  // mediria a distância (`haversineKm`) não era chamada por ninguém.
+  'distanceKm',
+] as const;
 
 /**
  * Um perfil como a view `perfis_do_mercado` o entrega. Espelha `toOutro()`
@@ -45,7 +53,6 @@ const EXTINTOS = ['birthDate', 'age', 'gender', 'goal', 'interests', 'preference
 function comoAViewEntrega(base: User): User {
   const magro: Record<string, unknown> = { ...base };
   for (const campo of PROIBIDOS) delete magro[campo];
-  magro.distanceKm = 7.5;
   return magro as unknown as User;
 }
 
@@ -90,10 +97,14 @@ describe('dado de terceiro que não pode chegar ao navegador', () => {
 
 describe('a busca continua funcionando sem esses campos', () => {
   it('a elegibilidade decide sem data de nascimento nem coordenada', () => {
-    expect(isEligible(eu, { ...terceiro, distanceKm: 5 }, semBloqueio)).toBe(true);
-    // Distância NÃO barra: preferência ordena, não exclui. Ver isEligible em
-    // services/perfil.ts.
-    expect(isEligible(eu, { ...terceiro, distanceKm: 9999 }, semBloqueio)).toBe(true);
+    // Antes isto passava duas distâncias — 5 km e 9999 km — para mostrar que
+    // nenhuma barrava. Hoje a distância não existe em lado nenhum: não é
+    // calculada, não é devolvida pela vista e não é mostrada. Provar que ela
+    // "não barra" seria provar coisa nenhuma; o que importa provar é que a
+    // elegibilidade decide SEM ela.
+    expect(isEligible(eu, terceiro, semBloqueio)).toBe(true);
+    expect(terceiro, 'a distância voltou ao perfil de terceiro')
+      .not.toHaveProperty('distanceKm');
   });
 
   it('bloqueio e conta inativa continuam valendo', () => {

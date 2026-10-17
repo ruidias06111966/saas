@@ -34,23 +34,3 @@ export function registrarServiceWorker(): void {
       });
   });
 }
-
-/**
- * Válvula de escape.
- *
- * Se algum dia uma versão ruim do service worker ficar servindo tela velha,
- * isto apaga os caches e o desregistra. Está exportado para poder ser chamado
- * do console do navegador sem depender de uma publicação nova — que é
- * justamente o que não funcionaria nesse cenário.
- */
-export async function desligarServiceWorker(): Promise<void> {
-  if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return;
-  const registros = await navigator.serviceWorker.getRegistrations();
-  for (const registro of registros) {
-    registro.active?.postMessage('DESLIGAR');
-    await registro.unregister();
-  }
-  if ('caches' in window) {
-    for (const nome of await caches.keys()) await caches.delete(nome);
-  }
-}

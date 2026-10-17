@@ -1,4 +1,4 @@
-import React, { useEffect, useId, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { cx } from '../../services/utils';
 import { Icon, type IconName } from './Icon';
 
@@ -221,28 +221,6 @@ Textarea.displayName = 'Textarea';
 
 export function Select({ className, children, ...rest }: React.SelectHTMLAttributes<HTMLSelectElement>) {
   return <select {...rest} className={cx(fieldBase, 'appearance-none pr-10', className)}>{children}</select>;
-}
-
-export function Slider({ value, onChange, left, right, label, hint }: {
-  value: number; onChange: (v: number) => void; left: string; right: string; label: string; hint?: string;
-}) {
-  const id = useId();
-  return (
-    <div className="py-2">
-      <div className="mb-1 flex items-baseline justify-between">
-        <label htmlFor={id} className="text-[13px] font-semibold">{label}</label>
-        {hint && <span className="text-[11px] text-muted">{hint}</span>}
-      </div>
-      <input
-        id={id} type="range" min={0} max={100} value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
-        className="w-full accent-[rgb(var(--c-brand))]"
-      />
-      <div className="flex justify-between text-[11px] text-muted">
-        <span>{left}</span><span>{right}</span>
-      </div>
-    </div>
-  );
 }
 
 export function Toggle({ checked, onChange, label, description }: {

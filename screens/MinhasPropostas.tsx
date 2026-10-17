@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useApp } from '../state/AppContext';
 import { Page } from '../components/layout/AppShell';
 import { Banner, Button, Card, Chip, Empty, Tabs } from '../components/ui';
+import { ContatoLiberado } from '../components/ContatoLiberado';
 import {
   type Proposta,
   dinheiro, minhasPropostas, responderProposta, STATUS_PROPOSTA_LABEL,
@@ -48,10 +49,13 @@ function Cartao({ p, onAbrir, onRetirar }: {
       </button>
 
       {p.status === 'aceita' && (
-        <div className="mt-4">
+        <div className="mt-4 space-y-3">
           <Banner tone="ok" icon="handshake" title="Sua proposta foi aceita">
-            Combine os próximos passos com quem publicou. Abra o anúncio para ver quem é.
+            Combine os próximos passos com quem publicou.
           </Banner>
+          {/* O telefone de quem publicou. Quem decide se aparece é o banco:
+              só com proposta aceita, e só para as duas partes. */}
+          <ContatoLiberado propostaId={p.id} />
         </div>
       )}
 

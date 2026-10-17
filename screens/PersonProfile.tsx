@@ -9,7 +9,7 @@ import { possoConversarCom } from '../services/mercado';
 import { Portrait } from '../components/Portrait';
 import { CopilotPanel } from '../components/Copilot';
 import { ReportDialog } from '../components/ReportDialog';
-import { distanceBand, firstName, timeAgo } from '../services/utils';
+import { firstName, timeAgo } from '../services/utils';
 import { type Categoria, listarCategorias } from '../services/mercado';
 
 // ---------------------------------------------------------------------------
@@ -103,7 +103,6 @@ export function PersonProfile({ id }: { id: string }) {
             </h1>
             <p className="mt-1 text-sm text-muted">
               {other.profession || 'Profissão não informada'} · {other.city}, {other.state}
-              {typeof other.distanceKm === 'number' && ` · ${distanceBand(other.distanceKm)}`}
             </p>
 
             <div className="mt-3 flex flex-wrap gap-1.5">

@@ -34,8 +34,6 @@ import * as Sentry from '@sentry/react';
 
 const dsn = import.meta.env.VITE_SENTRY_DSN?.trim();
 
-export const monitoramentoLigado = Boolean(dsn);
-
 /**
  * Parâmetros de URL que carregam credencial.
  *

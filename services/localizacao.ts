@@ -1,9 +1,31 @@
 // ---------------------------------------------------------------------------
 // De onde a pessoa é — e por que isto virou um arquivo só.
 //
-// A distância entre duas pessoas é medida por coordenada, não pelo nome da
-// cidade. E a coordenada nunca é pedida: ela é DEDUZIDA do que a pessoa
-// escreveu no campo "Cidade". Isso funciona bem — desde que a dedução acerte.
+// A coordenada nunca é pedida: ela é DEDUZIDA do que a pessoa escreveu no
+// campo "Cidade". Isso funciona bem — desde que a dedução acerte.
+//
+// O QUE ESTE ARQUIVO JÁ NÃO FAZ, E DIZIA QUE FAZIA
+//
+// Este cabeçalho começava por "a distância entre duas pessoas é medida por
+// coordenada" e terminava dizendo que a coordenada "decide quem aparece para
+// quem, e a faixa de distância mostrada no cartão". Nada disso é verdade desde
+// o pivô, e passou despercebido porque documentação não é executada:
+//
+//   · a vista `perfis_do_mercado` não devolve distância nenhuma;
+//   · `isEligible` não exclui ninguém por distância — há um teste a dizê-lo;
+//   · a faixa no cartão vinha de um campo que NINGUÉM preenchia, num ramo da
+//     tela que nunca podia pintar. Saiu em 17/10/2026, com o campo e com a
+//     função que o calcularia.
+//
+// A coordenada continua a ser gravada: `approx_lat` e `approx_lng` são colunas
+// obrigatórias em `public.users`. Hoje não servem para nada — guardá-las é uma
+// decisão por tomar, não uma funcionalidade.
+//
+// O QUE ELE FAZ, E CONTINUA A VALER
+//
+// A cidade e a UF aparecem no crachá, nos anúncios e no filtro da busca por
+// profissionais. Essas são lidas por gente, e por isso a normalização abaixo
+// continua a ser o motivo de este arquivo existir.
 //
 // A dedução morava dentro de screens/Signup.tsx, com quinze cidades e busca
 // por igualdade exata de texto. Duas consequências, as duas medidas em
@@ -15,11 +37,14 @@
 //   2. QUALQUER CIDADE FORA DAS QUINZE virava São Paulo, calada. O Brasil tem
 //      5.570 municípios; a lista cobria 0,27% deles.
 //
-// O efeito não aparece em lugar nenhum da tela: o perfil continua dizendo
-// "Brasília", porque o NOME é guardado certo. Só a coordenada está errada — e
-// é ela que decide quem aparece para quem, e a faixa de distância mostrada no
-// cartão. Uma pessoa de Brasília era oferecida a paulistanos e escondida dos
-// vizinhos, sem nada na interface que denunciasse o engano.
+// O efeito não aparecia em lugar nenhum da tela: o perfil continua dizendo
+// "Brasília", porque o NOME é guardado certo. Só a coordenada ficava errada —
+// e, no app de relacionamentos, era ela que decidia quem aparecia para quem.
+// Uma pessoa de Brasília era oferecida a paulistanos e escondida dos vizinhos,
+// sem nada na interface que denunciasse o engano.
+//
+// Hoje a coordenada não decide nada (ver acima). A normalização fica na mesma:
+// se um dia a coordenada voltar a servir para alguma coisa, volta certa.
 //
 // AS TRÊS DECISÕES DAQUI
 //

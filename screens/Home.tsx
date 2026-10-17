@@ -56,7 +56,13 @@ export function Home() {
     if (!me) return;
     let vivo = true;
     setCarregando(true);
-    Promise.all([meusAnuncios(me.id), minhasPropostas(me.id), buscarAnuncios({})])
+    // `tipo: 'procurando'` e não a busca sem filtro: esta secção chama-se
+    // "Trabalho disponível", e trabalho disponível é o que alguém PROCURA.
+    // Sem o filtro vinham também os anúncios de quem OFERECE serviço — ou
+    // seja, concorrentes, listados como trabalho a pegar. E o "Ver tudo" ao
+    // lado leva a uma lista onde esses não estão: a pessoa via um anúncio aqui,
+    // clicava em "Ver tudo" e não o encontrava mais.
+    Promise.all([meusAnuncios(me.id), minhasPropostas(me.id), buscarAnuncios({ tipo: 'procurando' })])
       .then(([a, p, q]) => {
         if (!vivo) return;
         setMeus(a);
