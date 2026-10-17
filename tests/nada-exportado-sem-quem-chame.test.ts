@@ -61,22 +61,12 @@ const SOLTOS = ['App.tsx', 'constants.ts', 'types.ts', 'index.tsx'];
  * `export`. Acrescentar um nome aqui é a terceira escolha, e precisa de uma
  * razão escrita ao lado.
  */
-const PERDOADOS: string[] = [
-  // ENCONTRADO POR ESTE TESTE EM 17/10/2026, E À ESPERA DE DECISÃO DO DONO.
-  //
-  // `services/moderation.ts` diz, no cabeçalho: "A camada 2 (Gemini) vive em
-  // geminiService.moderateWithAI e só é chamada quando a heurística acende
-  // amarelo". Não é chamada por ninguém. A moderação do app é só a camada 1,
-  // local e por expressão regular — a segunda linha de defesa está escrita e
-  // não existe.
-  //
-  // Está aqui, e não ligada nem apagada, porque as duas saídas são decisão de
-  // quem paga: ligá-la põe uma chamada ao modelo em cada mensagem suspeita
-  // (custo e demora no envio); apagá-la tira uma defesa que o documento
-  // promete. Enquanto não houver decisão, fica nomeada — que é melhor do que
-  // ficar calada, como ficou o telefone.
-  'services/geminiService.ts:moderateWithAI',
-];
+const PERDOADOS: string[] = [];
+
+// Esteve aqui `services/geminiService.ts:moderateWithAI` — a camada 2 da
+// moderação, que o ficheiro da moderação dizia existir e ninguém chamava. Este
+// teste encontrou-a em 17/10/2026; o dono mandou ligá-la, e foi ligada. A
+// lista voltou a ficar vazia, que é onde ela deve estar.
 
 /** Uma coisa exportada que SÓ um teste usa continua legítima — ver acima. */
 

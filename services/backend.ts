@@ -49,7 +49,7 @@ const CAMPOS_COMUNS = `
  * `user_id = auth.uid()`, então nunca viria de outra pessoa mesmo.
  */
 const SELECT_EU = `
-  id, name, email, approx_lat, approx_lng, role, status, telefone,
+  id, name, email, role, status, telefone,
   created_at, last_active_at,
   ${CAMPOS_COMUNS},
   consents ( kind, version, accepted_at )
@@ -83,7 +83,6 @@ interface RawEu extends RawComum {
   email: string; role: User['role']; status: User['status'];
   telefone: string | null;
   created_at: string; last_active_at: string;
-  approx_lat: number | string; approx_lng: number | string;
   consents: { kind: string; version: string; accepted_at: string }[] | null;
 }
 
@@ -130,8 +129,6 @@ function toEu(r: RawEu): User {
     ...baseUser(r),
     email: r.email,
     telefone: r.telefone ?? undefined,
-    approxLat: Number(r.approx_lat),
-    approxLng: Number(r.approx_lng),
     role: r.role,
     status: r.status,
     createdAt: r.created_at,
@@ -474,7 +471,6 @@ export async function saveUser(u: User): Promise<void> {
   const { error } = await db.from('users').upsert({
     id: u.id, name: u.name, email: u.email,
     city: u.city, state: u.state,
-    approx_lat: u.approxLat, approx_lng: u.approxLng,
     photo_url: u.photo ?? null, extra_photos: u.extraPhotos,
     profession: u.profession, bio: u.bio,
     telefone: u.telefone?.trim() || null,

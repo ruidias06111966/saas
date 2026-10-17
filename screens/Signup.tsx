@@ -3,7 +3,7 @@ import type { User } from '../types';
 import {
   MIN_AGE, POLICY_VERSION, URL_DIRETRIZES, URL_MANUAL, URL_PRIVACIDADE, URL_TERMOS,
 } from '../constants';
-import { NOMES_DE_CIDADE, UFS, coordenadasDe } from '../services/localizacao';
+import { NOMES_DE_CIDADE, UFS } from '../services/localizacao';
 import { useApp } from '../state/AppContext';
 import {
   Bar, Banner, Button, CampoDeSenha, Card, Checkbox, Chip, Field, Icon, Input, Select, Textarea, Toggle,
@@ -17,7 +17,7 @@ import { supabaseEnabled } from '../services/supabaseClient';
 import { clearDraft, loadDraft, saveDraft } from '../services/signupDraft';
 import * as backend from '../services/backend';
 import { type Categoria, listarCategorias } from '../services/mercado';
-import { blurCoord, isEmail, sha256, uid } from '../services/utils';
+import { isEmail, sha256, uid } from '../services/utils';
 
 // ---------------------------------------------------------------------------
 // Cadastro.
@@ -173,15 +173,11 @@ export function Signup() {
 
   /** Monta o objeto de domínio a partir do formulário. */
   const montarUsuario = async (dados: Draft, id: string, foto?: string): Promise<User> => {
-    // Cidade reconhecida devolve a própria coordenada; desconhecida cai na
-    // capital da UF. Ver services/localizacao.ts para o porquê.
-    const [lat, lng] = coordenadasDe(dados.city, dados.state);
     const now = new Date().toISOString();
     return {
       id, name: dados.name.trim(), email: dados.email.trim().toLowerCase(),
       passwordHash: supabaseEnabled ? '' : await sha256(dados.password),
       city: dados.city.trim(), state: dados.state,
-      approxLat: blurCoord(lat), approxLng: blurCoord(lng),
       photo: foto, extraPhotos: [],
       profession: dados.profession.trim(), bio: dados.bio.trim(),
       especialidades: dados.especialidades,

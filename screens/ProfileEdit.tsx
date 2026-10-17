@@ -4,10 +4,9 @@ import { useApp } from '../state/AppContext';
 import { Page } from '../components/layout/AppShell';
 import { Banner, Button, Card, Chip, Field, Icon, Input, SectionTitle, Select, Textarea, Toggle } from '../components/ui';
 import { Portrait } from '../components/Portrait';
-import { blurCoord } from '../services/utils';
 import { removeImage, uploadProfilePhoto } from '../services/media';
 import { readImageAsDataUrl } from '../services/storage';
-import { NOMES_DE_CIDADE, UFS, coordenadasDe } from '../services/localizacao';
+import { NOMES_DE_CIDADE, UFS } from '../services/localizacao';
 import { type Categoria, listarCategorias } from '../services/mercado';
 
 // ---------------------------------------------------------------------------
@@ -89,12 +88,7 @@ export function ProfileEdit() {
       // fica exatamente como estava, com a foto antiga no lugar.
       const foto = fotoNova ? await uploadProfilePhoto(fotoNova.arquivo, d.id) : d.photo;
 
-      // A coordenada é DEDUZIDA da cidade, e mudar de cidade tem de mudá-la.
-      // Antes ela era calculada só no cadastro: quem se mudava trocava o nome
-      // na tela e continuava sendo oferecido a quem estava perto do endereço
-      // antigo, para sempre e sem meio de corrigir.
-      const [lat, lng] = coordenadasDe(d.city, d.state);
-      await saveProfile({ ...d, photo: foto, approxLat: blurCoord(lat), approxLng: blurCoord(lng) });
+      await saveProfile({ ...d, photo: foto });
 
       // SÓ AGORA a anterior sai. Esta linha vem depois do `saveProfile` de
       // propósito: apagar antes e falhar na gravação deixaria a pessoa sem

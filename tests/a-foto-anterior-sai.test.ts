@@ -90,7 +90,11 @@ describe('salvar envia a nova e depois apaga a anterior', () => {
   });
 
   it('o perfil é gravado com a foto que acabou de subir', () => {
-    expect(save).toMatch(/saveProfile\(\{ \.\.\.d, photo: foto,/);
+    // A vírgula no fim deixou de estar aqui: ela existia porque a seguir vinha
+    // a coordenada, que saiu em 17/10/2026 com as colunas `approx_*`. O que
+    // este teste quer provar — que o que é gravado é a foto RECÉM-ENVIADA, e
+    // não `d.photo` — continua igual, e é o `photo: foto` que o prova.
+    expect(save).toMatch(/saveProfile\(\{ \.\.\.d, photo: foto\s*[,}]/);
   });
 });
 

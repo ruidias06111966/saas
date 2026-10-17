@@ -40,7 +40,11 @@ interface Ctx {
   expressInterest: (targetId: string) => { ok: boolean; connected: boolean; reason?: string };
   passOn: (targetId: string) => void;
   toggleFavorite: (connectionId: string) => void;
-  sendMessage: (connectionId: string, text: string, kind?: Message['kind'], extra?: Partial<Message>) => ModerationResult | null;
+  sendMessage: (
+    connectionId: string, text: string, kind?: Message['kind'], extra?: Partial<Message>,
+    /** Veredito da camada 2 da moderação, quando foi consultada. Ver Chat.trySend. */
+    segundaOpiniao?: ModerationResult | null,
+  ) => ModerationResult | null;
   closeConnection: (connectionId: string, gently: boolean, farewell?: string) => void;
   blockUser: (targetId: string) => void;
   reportUser: (targetId: string, reason: ReportReason, description: string) => void;
@@ -470,12 +474,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const sendMessage = useCallback((
     connectionId: string, text: string, kind: Message['kind'] = 'texto', extra: Partial<Message> = {},
+    segundaOpiniao?: ModerationResult | null,
   ): ModerationResult | null => {
     if (!me) return null;
     const trimmed = text.trim();
     if (!trimmed && kind !== 'imagem') return null;
 
-    const result = kind === 'sistema' ? null : moderateText(trimmed);
+    // A SEGUNDA OPINIÃO MANDA, QUANDO EXISTE.
+    //
+    // A camada 1 (lista de padrões, local) corre sempre. A camada 2 (modelo)
+    // só é consultada quando a 1 acende amarelo, e é consultada ANTES do envio,
+    // na tela — ver `trySend` em screens/Chat.tsx. Quando ela vem, traz já a
+    // camada 1 por baixo, e por isso substitui o veredito local em vez de se
+    // somar a ele.
+    //
+    // Sem isto, o trabalho da camada 2 perdia-se aqui: a mensagem que ela
+    // elevou a `risco` seria regravada como `atencao` pela camada 1, e não
+    // entraria na fila de revisão humana.
+    const result = kind === 'sistema' ? null : (segundaOpiniao ?? moderateText(trimmed));
     const message: Message = {
       id: newId(), connectionId, senderId: me.id, kind, text: trimmed,
       createdAt: new Date().toISOString(),

@@ -57,8 +57,6 @@ export const dateKey = (d: Date = new Date()): string => {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 };
 
-/** Arredonda coordenada para ~0,05° (≈5 km) antes de persistir. */
-export const blurCoord = (v: number): number => Math.round(v * 20) / 20;
 
 export async function sha256(text: string): Promise<string> {
   if (typeof crypto !== 'undefined' && crypto.subtle) {

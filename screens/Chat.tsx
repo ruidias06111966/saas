@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { Message } from '../types';
+import type { Message, ModerationResult } from '../types';
 import { useApp } from '../state/AppContext';
 import { findUser, healthOf, messagesOf, otherId } from '../state/appState';
 import { nextRitualLevel } from '../services/conversation';
 import { blocksSending, CATEGORY_LABEL, moderateText, SAFETY_TIPS } from '../services/moderation';
+import { moderateWithAI } from '../services/geminiService';
 import { suggestGentleGoodbye, suggestNextQuestion } from '../services/geminiService';
 import { LADDER } from '../data/perguntas';
 import { Page } from '../components/layout/AppShell';
@@ -37,7 +38,11 @@ export function Chat({ id }: { id: string }) {
   } = useApp();
 
   const [draft, setDraft] = useState('');
-  const [pendingRisk, setPendingRisk] = useState<{ text: string; advice: string; categories: string[] } | null>(null);
+  const [pendingRisk, setPendingRisk] = useState<
+    { text: string; advice: string; categories: string[]; veredito: ModerationResult } | null
+  >(null);
+  /** Enquanto a camada 2 responde. Fecha o botão para não enviar em duplicado. */
+  const [aConferir, setAConferir] = useState(false);
   const [showCopilot, setShowCopilot] = useState(false);
   const [suggestion, setSuggestion] = useState<string[]>([]);
   const [loadingAi, setLoadingAi] = useState(false);
@@ -92,8 +97,11 @@ export function Chat({ id }: { id: string }) {
   const closed = conn.status === 'encerrada' || conn.status === 'bloqueada';
   const level = nextRitualLevel(messages);
 
-  const doSend = (text: string, kind: Message['kind'] = 'texto', extra?: Partial<Message>) => {
-    const result = sendMessage(conn.id, text, kind, extra);
+  const doSend = (
+    text: string, kind: Message['kind'] = 'texto', extra?: Partial<Message>,
+    segundaOpiniao?: ModerationResult | null,
+  ) => {
+    const result = sendMessage(conn.id, text, kind, extra, segundaOpiniao);
     if (result && blocksSending(result)) {
       // Risco: a mensagem foi gravada marcada, e o banco a enfileirou para
       // revisão humana. Quem escreveu precisa saber disso.
@@ -108,17 +116,65 @@ export function Chat({ id }: { id: string }) {
     setDraft('');
   };
 
-  const trySend = () => {
+  // ---------------------------------------------------------------------------
+  // AS DUAS CAMADAS DA MODERAÇÃO, E ONDE A SEGUNDA ENTRA
+  //
+  // `services/moderation.ts` sempre DISSE que existem duas: a 1 é uma lista de
+  // padrões, local e grátis; a 2 é o modelo, "chamada quando a heurística
+  // acende amarelo". A camada 2 estava escrita e NINGUÉM a chamava — encontrada
+  // em 17/10/2026 pelo teste que proíbe coisa exportada sem quem a use.
+  //
+  // Amarelo (`atencao`) é o caso em que a lista de padrões é fraca: viu algo
+  // suspeito mas não sabe dizer se é golpe ou conversa normal. É aí, e só aí,
+  // que vale perguntar ao modelo. Vermelho já é o pior veredito possível, e
+  // verde não merece o gasto — por isso nenhum dos dois consulta.
+  //
+  // TRÊS DECISÕES QUE ISTO CARREGA
+  //
+  //   · pergunta-se ANTES de enviar, não depois. Depois, a mensagem já saiu e
+  //     a segunda opinião só serviria para marcar o que a outra pessoa já leu.
+  //   · se a camada 2 falhar — rede, chave ausente, erro — a mensagem SAI, com
+  //     o veredito local. Uma peneira que se parte não pode calar ninguém.
+  //     `moderateWithAI` já devolve o `fallback` recebido nesse caso.
+  //   · enquanto se espera, o botão fecha. Sem isso, dois cliques mandariam a
+  //     mesma mensagem duas vezes.
+  // ---------------------------------------------------------------------------
+  const trySend = async () => {
     const text = draft.trim();
-    if (!text) return;
-    // Pré-checagem local: conteúdo de risco pede uma confirmação consciente
-    // antes de sair do dispositivo.
+    if (!text || aConferir) return;
+
+    // Camada 1: local, sempre, sem rede e sem custo.
     const check = moderateText(text);
+
     if (check.level === 'risco') {
-      setPendingRisk({ text, advice: check.advice, categories: check.categories });
+      // Já é o pior veredito: nada que o modelo diga muda o que acontece a
+      // seguir, e a pessoa tem de confirmar de qualquer maneira.
+      setPendingRisk({ text, advice: check.advice, categories: check.categories, veredito: check });
       return;
     }
-    doSend(text);
+
+    if (check.level !== 'atencao') {
+      doSend(text);
+      return;
+    }
+
+    // Camada 2: só no amarelo.
+    setAConferir(true);
+    let veredito = check;
+    try {
+      veredito = await moderateWithAI(text, check);
+    } finally {
+      setAConferir(false);
+    }
+
+    if (veredito.level === 'risco') {
+      // O modelo subiu o tom. A pessoa confirma, como confirmaria no vermelho
+      // da camada 1 — e a mensagem vai gravada com ESTE veredito, para entrar
+      // na fila de revisão humana.
+      setPendingRisk({ text, advice: veredito.advice, categories: veredito.categories, veredito });
+      return;
+    }
+    doSend(text, 'texto', undefined, veredito);
   };
 
   // POR QUE O NOME INTERNO CONTINUA "ritual"
@@ -395,12 +451,14 @@ export function Chat({ id }: { id: string }) {
                 <Textarea
                   value={draft}
                   onChange={(e) => { setDraft(e.target.value); digitacaoRef.current?.avisar(); }}
-                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); trySend(); } }}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void trySend(); } }}
                   placeholder={`Escreva para ${firstName(other.name)}…`}
                   className="min-h-[46px] flex-1 py-3"
                   rows={1} maxLength={2000}
                 />
-                <Button icon="send" onClick={trySend} disabled={!draft.trim()} aria-label="Enviar">Enviar</Button>
+                <Button icon="send" onClick={() => { void trySend(); }} disabled={!draft.trim() || aConferir} aria-label="Enviar">
+                  {aConferir ? 'Conferindo…' : 'Enviar'}
+                </Button>
               </div>
             </div>
           )}
@@ -499,7 +557,7 @@ export function Chat({ id }: { id: string }) {
         footer={
           <>
             <Button variant="ghost" onClick={() => setPendingRisk(null)}>Não enviar</Button>
-            <Button variant="danger" onClick={() => { if (pendingRisk) doSend(pendingRisk.text); setPendingRisk(null); }}>
+            <Button variant="danger" onClick={() => { if (pendingRisk) doSend(pendingRisk.text, 'texto', undefined, pendingRisk.veredito); setPendingRisk(null); }}>
               Enviar mesmo assim
             </Button>
           </>

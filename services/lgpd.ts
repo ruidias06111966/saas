@@ -54,8 +54,6 @@ export function anonymizeUser(user: User): User {
     telefone: undefined,
     city: '—',
     state: '—',
-    approxLat: 0,
-    approxLng: 0,
     status: 'banido',
   };
 }
