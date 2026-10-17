@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useApp } from '../state/AppContext';
 import { Page } from '../components/layout/AppShell';
 import { Banner, Button, Card, Chip, Field, Input, SectionTitle, Textarea } from '../components/ui';
+import { ContatoLiberado } from '../components/ContatoLiberado';
 import { PlanoNecessario } from '../components/PlanoNecessario';
 import {
   type Anuncio as TAnuncio, type Proposta, type TipoAnuncio,
@@ -164,7 +165,14 @@ function PropostaRecebida({ p, aoResponder }: { p: Proposta; aoResponder: (s: 'a
 
       <p className="whitespace-pre-wrap text-sm">{p.mensagem}</p>
 
-      {p.status === 'aceita' && <Chip size="sm" tone="sage">Você aceitou esta proposta</Chip>}
+      {p.status === 'aceita' && (
+        <div className="space-y-3">
+          <Chip size="sm" tone="sage">Você aceitou esta proposta</Chip>
+          {/* O telefone de quem propôs. O outro lado vê o seu em Minhas
+              propostas, pelo mesmo componente — para não divergirem. */}
+          <ContatoLiberado propostaId={p.id} />
+        </div>
+      )}
       {p.status === 'recusada' && <Chip size="sm">Recusada</Chip>}
       {p.status === 'retirada' && <Chip size="sm">Retirada pelo profissional</Chip>}
 

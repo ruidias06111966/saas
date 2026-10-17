@@ -63,7 +63,7 @@ function GenerativePortrait({ seed }: { seed: string }) {
  * No modo demo `photo` é um dataURL. No modo online é um caminho dentro do
  * bucket privado, que precisa virar URL assinada de curta duração.
  */
-export function useFotoResolvida(photo?: string): string | undefined {
+function useFotoResolvida(photo?: string): string | undefined {
   const [url, setUrl] = useState<string | undefined>(undefined);
 
   useEffect(() => {

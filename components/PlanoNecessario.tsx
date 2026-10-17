@@ -1,5 +1,5 @@
 import { useApp } from '../state/AppContext';
-import { Button, Card, Icon, Modal, SectionTitle } from './ui';
+import { Button, Card, Modal, SectionTitle } from './ui';
 
 // ---------------------------------------------------------------------------
 // "Para isto você precisa de um plano ativo."
@@ -90,8 +90,3 @@ function Janela({ aberta, acao, onFechar }: {
 }
 
 export const PlanoNecessario = { Cartao, Janela };
-
-/** Um cadeado pequeno, para pôr ao lado de um botão que vai pedir plano. */
-export function Cadeado() {
-  return <Icon name="lock" size={13} />;
-}

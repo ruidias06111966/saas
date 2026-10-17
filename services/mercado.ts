@@ -167,7 +167,7 @@ export interface Cracha {
  * 002. A view não devolve quem bloqueou você nem quem você bloqueou, então um
  * `id` pode simplesmente não voltar: quem chama trata a ausência.
  */
-export async function nomesDe(ids: string[]): Promise<Map<string, Cracha>> {
+async function nomesDe(ids: string[]): Promise<Map<string, Cracha>> {
   const unicos = [...new Set(ids.filter(Boolean))];
   if (unicos.length === 0) return new Map();
 

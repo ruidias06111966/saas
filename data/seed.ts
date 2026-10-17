@@ -1,7 +1,5 @@
 import type { User } from '../types';
 import { POLICY_VERSION } from '../constants';
-import { blurCoord } from '../services/utils';
-import { coordenadasDe } from '../services/localizacao';
 
 // ---------------------------------------------------------------------------
 // As contas de demonstração.
@@ -41,7 +39,6 @@ interface Spec {
 }
 
 function build(s: Spec, daysAgo: number): User {
-  const [lat, lng] = coordenadasDe(s.cidade, s.uf);
   const created = new Date(Date.now() - daysAgo * 86400000).toISOString();
   return {
     id: s.id,
@@ -50,8 +47,6 @@ function build(s: Spec, daysAgo: number): User {
     passwordHash: DEMO_HASH,
     city: s.cidade,
     state: s.uf,
-    approxLat: blurCoord(lat),
-    approxLng: blurCoord(lng),
     extraPhotos: [],
     profession: s.profession,
     bio: s.bio,

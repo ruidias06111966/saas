@@ -1,4 +1,4 @@
-import type { ConversationHealth, Message, ModerationResult, User } from '../types';
+import type { Message, ModerationResult, User } from '../types';
 import { profileCompletion, oQueFalta } from './perfil';
 import { supabase, supabaseEnabled } from './supabaseClient';
 import { firstName, seededRandom, shuffle } from './utils';
@@ -140,15 +140,6 @@ export async function suggestProfileImprovements(u: User): Promise<string[]> {
     'melhorar_perfil',
     { perfil: profileDigest(u, 'Perfil'), completude: profileCompletion(u) },
     local,
-  );
-}
-
-/** Uma leitura em português do termômetro da conversa. */
-export async function readThermometer(h: ConversationHealth, otherName: string): Promise<string> {
-  return invocar<string>(
-    'termometro',
-    { resumo: `etapa ${h.stageLabel}, ${h.messages} mensagens em ${h.days} dias`, nome: otherName },
-    h.nextGoal,
   );
 }
 

@@ -61,13 +61,3 @@ export function loadDraft(userId: string): unknown | null {
 export function clearDraft(): void {
   try { localStorage.removeItem(CHAVE); } catch { /* ignorado */ }
 }
-
-/** Existe rascunho aguardando confirmação? Usado só para o texto da tela. */
-export function draftEmail(): string | null {
-  try {
-    const bruto = localStorage.getItem(CHAVE);
-    return bruto ? (JSON.parse(bruto) as SignupDraft).email : null;
-  } catch {
-    return null;
-  }
-}

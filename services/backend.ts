@@ -3,7 +3,7 @@ import type {
   ModerationItem, Report, Subscription, User,
 } from '../types';
 import type { HealthMetrics } from './conversation';
-import { requireSupabase, supabaseEnabled } from './supabaseClient';
+import { requireSupabase } from './supabaseClient';
 import { dateKey } from './utils';
 
 // ---------------------------------------------------------------------------
@@ -19,7 +19,7 @@ import { dateKey } from './utils';
 // ---------------------------------------------------------------------------
 
 /** Ordem canônica do par, exigida pela constraint `ordem_canonica`. */
-export const pairOrder = (x: string, y: string): [string, string] =>
+const pairOrder = (x: string, y: string): [string, string] =>
   x < y ? [x, y] : [y, x];
 
 /**
@@ -49,7 +49,7 @@ const CAMPOS_COMUNS = `
  * `user_id = auth.uid()`, então nunca viria de outra pessoa mesmo.
  */
 const SELECT_EU = `
-  id, name, email, approx_lat, approx_lng, role, status, telefone,
+  id, name, email, role, status, telefone,
   created_at, last_active_at,
   ${CAMPOS_COMUNS},
   consents ( kind, version, accepted_at )
@@ -83,7 +83,6 @@ interface RawEu extends RawComum {
   email: string; role: User['role']; status: User['status'];
   telefone: string | null;
   created_at: string; last_active_at: string;
-  approx_lat: number | string; approx_lng: number | string;
   consents: { kind: string; version: string; accepted_at: string }[] | null;
 }
 
@@ -130,8 +129,6 @@ function toEu(r: RawEu): User {
     ...baseUser(r),
     email: r.email,
     telefone: r.telefone ?? undefined,
-    approxLat: Number(r.approx_lat),
-    approxLng: Number(r.approx_lng),
     role: r.role,
     status: r.status,
     createdAt: r.created_at,
@@ -154,7 +151,7 @@ function toOutro(r: RawOutro): User {
  * e o PostgREST as devolveria aninhadas em cada perfil, repetindo o mesmo
  * conjunto em toda busca. Aqui vêm uma vez e são distribuídas.
  */
-export async function carregarEspecialidades(ids: string[]): Promise<Map<string, string[]>> {
+async function carregarEspecialidades(ids: string[]): Promise<Map<string, string[]>> {
   const unicos = [...new Set(ids.filter(Boolean))];
   const mapa = new Map<string, string[]>();
   if (unicos.length === 0) return mapa;
@@ -268,7 +265,7 @@ export const toMessage = (r: RawMessage): Message => ({
  * baixava o histórico inteiro de todas as conversas de uma vez — funciona com
  * doze perfis fictícios e não funciona com uma pessoa que conversa há um ano.
  */
-export const PAGINA_MENSAGENS = 40;
+const PAGINA_MENSAGENS = 40;
 
 /** Termômetro calculado no Postgres, para as conversas que chegam truncadas. */
 export interface RemoteHealth extends HealthMetrics {
@@ -474,7 +471,6 @@ export async function saveUser(u: User): Promise<void> {
   const { error } = await db.from('users').upsert({
     id: u.id, name: u.name, email: u.email,
     city: u.city, state: u.state,
-    approx_lat: u.approxLat, approx_lng: u.approxLng,
     photo_url: u.photo ?? null, extra_photos: u.extraPhotos,
     profession: u.profession, bio: u.bio,
     telefone: u.telefone?.trim() || null,
@@ -689,5 +685,3 @@ export async function deleteMyAccount(): Promise<void> {
   const { error } = await db.rpc('delete_my_account');
   if (error) throw new Error(`Falha ao excluir a conta: ${error.message}`);
 }
-
-export const backendEnabled = supabaseEnabled;

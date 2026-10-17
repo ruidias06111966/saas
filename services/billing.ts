@@ -1,5 +1,5 @@
 import type { CodigoPlano } from './planos';
-import { requireSupabase, supabaseEnabled } from './supabaseClient';
+import { requireSupabase } from './supabaseClient';
 
 // ---------------------------------------------------------------------------
 // Assinatura.
@@ -59,18 +59,3 @@ export async function openBillingPortal(): Promise<void> {
   if (!r.url) throw new Error('Não foi possível abrir o portal de cobrança.');
   window.location.href = r.url;
 }
-
-export async function mySubscription(): Promise<Subscription | null> {
-  const { data, error } = await requireSupabase().rpc('minha_assinatura');
-  if (error) return null;
-  const linha = (Array.isArray(data) ? data[0] : data) as
-    { plano: 'free' | 'premium'; status: string; provedor: string | null; expira: string | null } | undefined;
-  if (!linha) return null;
-  return {
-    plan: linha.plano, status: linha.status,
-    provider: linha.provedor ?? undefined,
-    expiresAt: linha.expira ?? undefined,
-  };
-}
-
-export const billingEnabled = supabaseEnabled;

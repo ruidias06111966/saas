@@ -33,7 +33,7 @@ export type EstadoDoPush =
 
 const CHAVE_PUBLICA = import.meta.env.VITE_VAPID_PUBLIC_KEY?.trim();
 
-export const pushDisponivel = Boolean(
+const pushDisponivel = Boolean(
   CHAVE_PUBLICA
   && supabaseEnabled
   && typeof window !== 'undefined'

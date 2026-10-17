@@ -1,9 +1,31 @@
 // ---------------------------------------------------------------------------
 // De onde a pessoa é — e por que isto virou um arquivo só.
 //
-// A distância entre duas pessoas é medida por coordenada, não pelo nome da
-// cidade. E a coordenada nunca é pedida: ela é DEDUZIDA do que a pessoa
-// escreveu no campo "Cidade". Isso funciona bem — desde que a dedução acerte.
+// A coordenada nunca é pedida: ela é DEDUZIDA do que a pessoa escreveu no
+// campo "Cidade". Isso funciona bem — desde que a dedução acerte.
+//
+// O QUE ESTE ARQUIVO JÁ NÃO FAZ, E DIZIA QUE FAZIA
+//
+// Este cabeçalho começava por "a distância entre duas pessoas é medida por
+// coordenada" e terminava dizendo que a coordenada "decide quem aparece para
+// quem, e a faixa de distância mostrada no cartão". Nada disso é verdade desde
+// o pivô, e passou despercebido porque documentação não é executada:
+//
+//   · a vista `perfis_do_mercado` não devolve distância nenhuma;
+//   · `isEligible` não exclui ninguém por distância — há um teste a dizê-lo;
+//   · a faixa no cartão vinha de um campo que NINGUÉM preenchia, num ramo da
+//     tela que nunca podia pintar. Saiu em 17/10/2026, com o campo e com a
+//     função que o calcularia.
+//
+// A coordenada continua a ser gravada: `approx_lat` e `approx_lng` são colunas
+// obrigatórias em `public.users`. Hoje não servem para nada — guardá-las é uma
+// decisão por tomar, não uma funcionalidade.
+//
+// O QUE ELE FAZ, E CONTINUA A VALER
+//
+// A cidade e a UF aparecem no crachá, nos anúncios e no filtro da busca por
+// profissionais. Essas são lidas por gente, e por isso a normalização abaixo
+// continua a ser o motivo de este arquivo existir.
 //
 // A dedução morava dentro de screens/Signup.tsx, com quinze cidades e busca
 // por igualdade exata de texto. Duas consequências, as duas medidas em
@@ -15,11 +37,14 @@
 //   2. QUALQUER CIDADE FORA DAS QUINZE virava São Paulo, calada. O Brasil tem
 //      5.570 municípios; a lista cobria 0,27% deles.
 //
-// O efeito não aparece em lugar nenhum da tela: o perfil continua dizendo
-// "Brasília", porque o NOME é guardado certo. Só a coordenada está errada — e
-// é ela que decide quem aparece para quem, e a faixa de distância mostrada no
-// cartão. Uma pessoa de Brasília era oferecida a paulistanos e escondida dos
-// vizinhos, sem nada na interface que denunciasse o engano.
+// O efeito não aparecia em lugar nenhum da tela: o perfil continua dizendo
+// "Brasília", porque o NOME é guardado certo. Só a coordenada ficava errada —
+// e, no app de relacionamentos, era ela que decidia quem aparecia para quem.
+// Uma pessoa de Brasília era oferecida a paulistanos e escondida dos vizinhos,
+// sem nada na interface que denunciasse o engano.
+//
+// Hoje a coordenada não decide nada (ver acima). A normalização fica na mesma:
+// se um dia a coordenada voltar a servir para alguma coisa, volta certa.
 //
 // AS TRÊS DECISÕES DAQUI
 //
@@ -57,22 +82,6 @@ export function normalizarCidade(nome: string): string {
     .replace(/\s+/g, ' ')
     .trim();
 }
-
-/**
- * Capitais das 27 UFs. É o destino de quem escreve uma cidade que não está na
- * tabela abaixo — o que, no Brasil, é a maioria dos casos.
- */
-const CAPITAIS: Record<UF, [number, number]> = {
-  AC: [-9.97, -67.81],  AL: [-9.67, -35.74],  AP: [0.03, -51.07],
-  AM: [-3.12, -60.02],  BA: [-12.97, -38.50], CE: [-3.73, -38.52],
-  DF: [-15.79, -47.88], ES: [-20.32, -40.34], GO: [-16.68, -49.25],
-  MA: [-2.53, -44.30],  MT: [-15.60, -56.10], MS: [-20.44, -54.65],
-  MG: [-19.92, -43.94], PA: [-1.46, -48.50],  PB: [-7.12, -34.86],
-  PR: [-25.43, -49.27], PE: [-8.05, -34.88],  PI: [-5.09, -42.80],
-  RJ: [-22.91, -43.17], RN: [-5.79, -35.21],  RS: [-30.03, -51.23],
-  RO: [-8.76, -63.90],  RR: [2.82, -60.67],   SC: [-27.60, -48.55],
-  SP: [-23.55, -46.63], SE: [-10.91, -37.07], TO: [-10.18, -48.33],
-};
 
 /**
  * As cidades que o campo sugere e reconhece pelo nome próprio: as 27 capitais
@@ -141,23 +150,21 @@ const CIDADES: ReadonlyArray<readonly [string, UF, number, number]> = [
   ['Palmas', 'TO', -10.18, -48.33], ['Araguaína', 'TO', -7.19, -48.21],
 ];
 
-/** Chave normalizada → coordenada. Derivado da tabela, nunca escrito à mão. */
-const POR_NOME = new Map<string, [number, number]>(
-  CIDADES.map(([nome, , lat, lng]) => [normalizarCidade(nome), [lat, lng]]),
-);
-
 /** Os nomes com acento, para a lista de sugestões do campo. */
 export const NOMES_DE_CIDADE: string[] = CIDADES.map(([nome]) => nome);
 
-/**
- * A coordenada aproximada de quem mora em `cidade`, no estado `uf`.
- *
- * Nunca falha: cidade conhecida devolve a dela, cidade desconhecida devolve a
- * capital da UF, e uma UF fora da lista — que o formulário não permite, mas
- * um dado antigo pode conter — devolve São Paulo como último recurso.
- */
-export function coordenadasDe(cidade: string, uf: string): [number, number] {
-  const exata = POR_NOME.get(normalizarCidade(cidade));
-  if (exata) return exata;
-  return CAPITAIS[uf?.toUpperCase() as UF] ?? CAPITAIS.SP;
-}
+// ---------------------------------------------------------------------------
+// AQUI MORAVA `coordenadasDe`, E AS COORDENADAS DA TABELA ACIMA SÃO O QUE
+// SOBROU DELA
+//
+// Ela traduzia "Brasília, DF" na coordenada de Brasília, e era o que alimentava
+// `approx_lat`/`approx_lng` em `public.users`. Essas colunas eram sobra do app
+// de relacionamentos e saíram em 17/10/2026: nenhuma vista as devolvia, nenhuma
+// função as lia, nenhuma tela as mostrava.
+//
+// A TABELA fica, com os números. São a parte cara de reunir, custam nada a
+// guardar, e `NOMES_DE_CIDADE` depende dela de qualquer maneira. Se um dia
+// existir "profissionais perto de mim", a coordenada de toda a gente pode ser
+// recalculada a partir da cidade que já está guardada — que é exactamente o
+// que esta função fazia.
+// ---------------------------------------------------------------------------

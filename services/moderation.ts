@@ -5,6 +5,18 @@ import type { ModerationResult, RiskCategory } from '../types';
 // A camada 2 (Gemini) vive em geminiService.moderateWithAI e só é chamada
 // quando a heurística acende amarelo. Bloqueio definitivo NUNCA é automático:
 // tudo cai na fila de revisão humana do painel administrativo.
+//
+// ESTAS CINCO LINHAS FORAM MENTIRA DURANTE MESES
+//
+// A camada 2 existia, estava correcta, e NINGUÉM a chamava. Quem lesse este
+// cabeçalho — eu, inclusive — dava o app por protegido em duas camadas quando
+// tinha uma só. Encontrada em 17/10/2026 pelo teste que proíbe coisa exportada
+// sem quem a use, e ligada no mesmo dia, em `screens/Chat.tsx` → `trySend`.
+//
+// Fica escrito porque um comentário que descreve uma intenção é indistinguível
+// de um que descreve o que acontece, e não há compilador que os separe. Quem
+// vier a seguir e ler isto saberá que esta promessa já foi conferida uma vez —
+// e que `tests/a-segunda-peneira.test.ts` a confere agora a cada build.
 // ---------------------------------------------------------------------------
 
 interface Rule {

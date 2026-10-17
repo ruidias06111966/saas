@@ -33,10 +33,26 @@ import { isEligible } from '../services/perfil';
 // ---------------------------------------------------------------------------
 
 /** Campos que jamais podem existir num perfil vindo da view do crachá. */
-const PROIBIDOS = ['email', 'approxLat', 'approxLng', 'role', 'telefone'] as const;
+const PROIBIDOS = ['email', 'role', 'telefone'] as const;
 
 /** Campos que o pivô removeu do modelo e não devem voltar. */
-const EXTINTOS = ['birthDate', 'age', 'gender', 'goal', 'interests', 'preferences'] as const;
+const EXTINTOS = [
+  'birthDate', 'age', 'gender', 'goal', 'interests', 'preferences',
+  // `distanceKm` entrou nesta lista em 17/10/2026. Era a última peça viva da
+  // mecânica de distância do app de relacionamentos: o tipo dizia "Calculada
+  // no servidor" e NINGUÉM a calculava — a vista `perfis_do_mercado` não a
+  // devolve. O perfil tinha um pedaço que nunca podia pintar, e a função que
+  // mediria a distância (`haversineKm`) não era chamada por ninguém.
+  'distanceKm',
+  // E no mesmo dia, a raiz: `approxLat` e `approxLng` SAÍRAM DO MODELO. Até
+  // aqui estavam na lista dos PROIBIDOS — "nunca num perfil de terceiro" — o
+  // que é uma promessa mais fraca do que a verdade de hoje: elas já não
+  // existem em perfil nenhum, nem no próprio. O cadastro deduzia a coordenada
+  // da cidade e gravava-a em cada conta; nenhuma vista a devolvia, nenhuma
+  // função a lia, nenhuma tela a mostrava. Era dado recolhido sem finalidade.
+  'approxLat',
+  'approxLng',
+] as const;
 
 /**
  * Um perfil como a view `perfis_do_mercado` o entrega. Espelha `toOutro()`
@@ -45,7 +61,6 @@ const EXTINTOS = ['birthDate', 'age', 'gender', 'goal', 'interests', 'preference
 function comoAViewEntrega(base: User): User {
   const magro: Record<string, unknown> = { ...base };
   for (const campo of PROIBIDOS) delete magro[campo];
-  magro.distanceKm = 7.5;
   return magro as unknown as User;
 }
 
@@ -60,6 +75,36 @@ describe('dado de terceiro que não pode chegar ao navegador', () => {
 
   it.each(EXTINTOS)('%s não existe mais nem no próprio registro', (campo) => {
     expect(eu).not.toHaveProperty(campo);
+  });
+
+  it('o app não envia mais coordenada nenhuma ao gravar um perfil', async () => {
+    // Enquanto a coluna existir no banco, nada impede alguém de voltar a
+    // preenchê-la "para não perder o dado". Esta é a asserção que o impede: o
+    // que conta não é o tipo, é o que vai no `upsert`.
+    const fs = await import('node:fs/promises');
+    const backend = await fs.readFile(new URL('../services/backend.ts', import.meta.url), 'utf8');
+    const semComentarios = backend
+      .replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/.*$/gm, '$1');
+    expect(semComentarios, 'a coordenada voltou a ser gravada')
+      .not.toMatch(/approx_l(at|ng)\s*:/);
+    expect(semComentarios, 'a coordenada voltou a ser pedida ao servidor')
+      .not.toMatch(/approx_lat,/);
+  });
+
+  it('e o modelo não volta a declarar a coordenada', async () => {
+    // A lista EXTINTOS acima olha para OBJECTOS, e um campo opcional posto só
+    // no tipo não aparece em objecto nenhum — logo, passaria despercebido.
+    // Descoberto a forçar exactamente essa regressão, em 17/10/2026: o campo
+    // voltou a `types.ts` e nenhum teste caiu. Por si só não é defeito; é o
+    // primeiro passo de volta, e é barato fechá-lo aqui.
+    const fs = await import('node:fs/promises');
+    const tipos = await fs.readFile(new URL('../types.ts', import.meta.url), 'utf8');
+    const semComentarios = tipos
+      .replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/.*$/gm, '$1');
+    for (const campo of ['approxLat', 'approxLng', 'distanceKm']) {
+      expect(semComentarios, `${campo} voltou a ser declarado no modelo`)
+        .not.toMatch(new RegExp(`\\b${campo}\\??:`));
+    }
   });
 
   it('a consulta de terceiros não nomeia nenhuma coluna proibida', async () => {
@@ -90,10 +135,14 @@ describe('dado de terceiro que não pode chegar ao navegador', () => {
 
 describe('a busca continua funcionando sem esses campos', () => {
   it('a elegibilidade decide sem data de nascimento nem coordenada', () => {
-    expect(isEligible(eu, { ...terceiro, distanceKm: 5 }, semBloqueio)).toBe(true);
-    // Distância NÃO barra: preferência ordena, não exclui. Ver isEligible em
-    // services/perfil.ts.
-    expect(isEligible(eu, { ...terceiro, distanceKm: 9999 }, semBloqueio)).toBe(true);
+    // Antes isto passava duas distâncias — 5 km e 9999 km — para mostrar que
+    // nenhuma barrava. Hoje a distância não existe em lado nenhum: não é
+    // calculada, não é devolvida pela vista e não é mostrada. Provar que ela
+    // "não barra" seria provar coisa nenhuma; o que importa provar é que a
+    // elegibilidade decide SEM ela.
+    expect(isEligible(eu, terceiro, semBloqueio)).toBe(true);
+    expect(terceiro, 'a distância voltou ao perfil de terceiro')
+      .not.toHaveProperty('distanceKm');
   });
 
   it('bloqueio e conta inativa continuam valendo', () => {

@@ -39,5 +39,3 @@ export function requireSupabase(): SupabaseClient {
   }
   return supabase;
 }
-
-export const MODE_LABEL = supabaseEnabled ? 'online' : 'demo';

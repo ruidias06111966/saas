@@ -43,14 +43,6 @@ export interface User {
   passwordHash: string;
   city: string;
   state: string;
-  /**
-   * Coordenada APROXIMADA (arredondada a ~0.05°, ≈5 km). Nunca a exata, e
-   * nunca de terceiros: a base inteira de coordenadas permite trilateração.
-   */
-  approxLat?: number;
-  approxLng?: number;
-  /** Distância até quem está olhando, em km. Calculada no servidor. */
-  distanceKm?: number;
   photo?: string; // dataURL; ausente => retrato generativo determinístico
   extraPhotos: string[];
 
