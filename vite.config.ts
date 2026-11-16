@@ -1,8 +1,29 @@
-import { defineConfig, loadEnv } from 'vite';
+import { defineConfig, loadEnv, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 
 // A chave do Gemini e lida de GEMINI_API_KEY (padrao Google AI Studio) ou API_KEY.
 // O app funciona 100% sem chave: os servicos de IA caem em heuristicas locais.
+// DEMONSTRAÇÃO PÚBLICA (`npm run build:demo`, modo "demo").
+//
+// É o modo demo de sempre — sem Supabase, tudo no navegador — mais o mercado, que no
+// modo demo comum fica indisponível: `services/mercado.ts` e `services/backend.ts` passam
+// a apontar para demo/, com anúncios e propostas fictícios em memória. As variáveis do
+// Supabase são apagadas à força, para a demonstração nunca falar com o banco de verdade.
+const DEMO = (arquivo: string) => decodeURIComponent(new URL(`./demo/${arquivo}`, import.meta.url).pathname);
+function mercadoDeDemonstracao(): Plugin {
+  return {
+    name: 'mercado-de-demonstracao',
+    enforce: 'pre',
+    async resolveId(origem, importador, opcoes) {
+      if (!importador || /[\\/]demo[\\/]/.test(importador) || !/(mercado|backend)$/.test(origem)) return null;
+      const r = await this.resolve(origem, importador, { ...opcoes, skipSelf: true });
+      if (r && /[\\/]services[\\/]mercado\.ts$/.test(r.id)) return DEMO('mercado-demo.ts');
+      if (r && /[\\/]services[\\/]backend\.ts$/.test(r.id)) return DEMO('backend-demo.ts');
+      return null;
+    },
+  };
+}
+
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
   // ONDE O SITE VIVE, e por que isto é uma variável e não uma constante.
@@ -46,6 +67,7 @@ export default defineConfig(({ mode }) => {
     base,
     plugins: [
       react(),
+      ...(mode === 'demo' ? [mercadoDeDemonstracao()] : []),
       {
         // O Vite troca `%BASE_URL%` sozinho, mas não conhece a origem — ela
         // depende de variáveis que só este arquivo lê.
@@ -60,6 +82,9 @@ export default defineConfig(({ mode }) => {
     // A chave vive nos segredos do Supabase e só a Edge Function `copiloto` a
     // enxerga. Ver docs/ARQUITETURA.md.
     server: { port: 5173, host: true },
-    build: { outDir: 'dist', sourcemap: false },
+    build: { outDir: mode === 'demo' ? 'dist-demo' : 'dist', sourcemap: false },
+    ...(mode === 'demo'
+      ? { define: { 'import.meta.env.VITE_SUPABASE_URL': '""', 'import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY': '""' } }
+      : {}),
   };
 });
