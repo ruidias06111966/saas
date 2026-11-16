@@ -8,3 +8,4 @@ dist
 # Cache do Python, gerado ao rodar os scripts de imagem.
 __pycache__/
 *.pyc
+dist-demo

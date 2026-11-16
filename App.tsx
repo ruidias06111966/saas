@@ -26,6 +26,7 @@ import { Notifications } from './screens/Notifications';
 import { Admin } from './screens/Admin';
 import { ReaceitarPoliticas } from './screens/ReaceitarPoliticas';
 import { precisaReaceitar } from './services/politicas';
+import { FaixaDemo } from './demo/FaixaDemo';
 
 function Router() {
   const { route } = useApp();
@@ -111,6 +112,7 @@ function Chrome() {
 export default function App() {
   return (
     <AppProvider>
+      <FaixaDemo />
       <Chrome />
     </AppProvider>
   );
