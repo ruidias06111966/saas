@@ -16,7 +16,7 @@ outro subdomínio. Estes são os valores que o QICONEXÃO usa hoje:
 | Domínio de envio, verificado no Resend | `mail.conexao.qidominios.com.br` (região São Paulo) |
 | Remetente | `nao-responda@mail.conexao.qidominios.com.br` |
 | DMARC | `_dmarc.qidominios.com.br` = `v=DMARC1; p=reject; rua=mailto:qidominios@qidominios.com.br` |
-| Contato de suporte nos e-mails e páginas | `suporte@qidominios.com.br` (caixa do Google Workspace) |
+| Contato de suporte nos e-mails e páginas | `qidominios@qidominios.com.br` (caixa do Google Workspace) |
 | Limite de envios | 100 por hora (Authentication → Rate Limits) |
 | Site URL | `https://ruidias06111966.github.io/saas/` |
 | Redirect URLs | o mesmo, mais `.../saas/**` e `https://qiconexao.qidominios.com.br/**` |
@@ -43,9 +43,7 @@ e DKIM `google._domainkey`). Pela raiz também saem, via Resend (DKIM
 
 | endereço | uso |
 |---|---|
-| `suporte@qidominios.com.br` | o que o usuário do sistema vê: páginas legais, manual, rodapé dos e-mails, pedidos de LGPD |
-| `contato@qidominios.com.br` | comercial (site da QiDomínios) |
-| `qidominios@qidominios.com.br` | administração: dono das contas de serviço e destino do DMARC; nunca aparece ao público |
+| `qidominios@qidominios.com.br` | e-mail único da empresa (desde 21/11/2026): o que o usuário do sistema vê (páginas legais, manual, rodapé dos e-mails, pedidos de LGPD), comercial e administração (contas de serviço, DMARC). `contato@`, `suporte@` e `ruidias@` foram excluídos. |
 | `nao-responda@mail.<sistema>.qidominios.com.br` (ou `site@`, `nfs@` na raiz) | só remetente; o texto ou o *reply-to* aponta para quem responde |
 
 E-mail pessoal (Gmail, Hotmail) não entra em página, e-mail automático nem
@@ -344,7 +342,7 @@ Corpo:
               Não foi você que se cadastrou? Ignore este e-mail. Sem o clique,
               nada é criado.
               <br><br>Dúvidas? Escreva para
-              <a href="mailto:suporte@qidominios.com.br" style="color:#8a7f74">suporte@qidominios.com.br</a>.
+              <a href="mailto:qidominios@qidominios.com.br" style="color:#8a7f74">qidominios@qidominios.com.br</a>.
             </p>
           </td>
         </tr>
@@ -401,7 +399,7 @@ Corpo:
               Não foi você que pediu? Ignore este e-mail — sua senha atual
               continua valendo, e ninguém consegue trocá-la sem este link.
               <br><br>Dúvidas? Escreva para
-              <a href="mailto:suporte@qidominios.com.br" style="color:#8a7f74">suporte@qidominios.com.br</a>.
+              <a href="mailto:qidominios@qidominios.com.br" style="color:#8a7f74">qidominios@qidominios.com.br</a>.
             </p>
           </td>
         </tr>
