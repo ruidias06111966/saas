@@ -51,7 +51,7 @@ Deno.serve(async (req) => {
 
   const publica = Deno.env.get('VAPID_PUBLIC_KEY');
   const privada = Deno.env.get('VAPID_PRIVATE_KEY');
-  const contato = Deno.env.get('VAPID_SUBJECT') ?? 'mailto:contato@qidominios.com.br';
+  const contato = Deno.env.get('VAPID_SUBJECT') ?? 'mailto:qidominios@qidominios.com.br';
 
   // Sem as chaves o push simplesmente não existe. Devolve 503 e uma frase que
   // diz o que fazer, em vez de 500 com pilha de erro — porque este é o estado
